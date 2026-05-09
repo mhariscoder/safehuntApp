@@ -12,26 +12,37 @@ import {
   PanResponder,
   Animated,
 } from 'react-native';
+import SideMenu from '../components/SideMenu';
+import TopHeader from '../components/TopHeader';
+import BottomTabNav from '../components/BottomTabNav';
 
 const { width } = Dimensions.get('window');
-// Define slider width based on your 90% container style
-const SLIDER_WIDTH = width * 0.9 * 0.75; 
+const SLIDER_WIDTH = width * 0.9 * 0.75;
+
+// Static mapping for this screen
+const ASSETS = {
+  map: require('../../assets/topographic_map.png'),
+  nav1: require('../../assets/nav_1.png'),
+  nav2: require('../../assets/nav_2.png'),
+  nav3: require('../../assets/nav_3.png'),
+  tab0: require('../../assets/tab_0.png'),
+  tab1: require('../../assets/tab_1.png'),
+  tab2: require('../../assets/tab_2.png'),
+  tab3: require('../../assets/tab_3.png'),
+  tab4: require('../../assets/tab_4.png'),
+};
 
 const HomeScreen = () => {
-  // 1. Slider Logic State
+  const [menuOpen, setMenuOpen] = useState(false);
   const pan = useRef(new Animated.ValueXY({ x: SLIDER_WIDTH / 2, y: 0 })).current;
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderMove: (e, gestureState) => {
-        // Calculate new X position relative to the container
         let newX = gestureState.moveX - (width - SLIDER_WIDTH) / 2;
-        
-        // Keep thumb within bounds
         if (newX < 0) newX = 0;
         if (newX > SLIDER_WIDTH) newX = SLIDER_WIDTH;
-
         pan.x.setValue(newX);
       },
       onPanResponderRelease: () => {
@@ -42,85 +53,52 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-      
-      <ImageBackground
-        source={require('../../assets/topographic_map.png')} 
-        style={styles.mapBase}
-        resizeMode="cover"
-      >
-        <SafeAreaView style={styles.overlayContainer}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
+      <SideMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+
+      <ImageBackground source={ASSETS.map} style={styles.mapBase} resizeMode="cover">
+        <View style={styles.overlayContainer}>
           
-          <View style={styles.topControls}>
-            <TouchableOpacity style={[styles.iconButton, styles.bgGreen]}>
-              <Image style={styles.navIcon} source={require('../../assets/nav_1.png')} />
-            </TouchableOpacity>
+          <TopHeader 
+            onMenuPress={() => setMenuOpen(true)}
             
-            <TouchableOpacity style={[styles.iconButton, styles.bgBrown]}>
-              <Image style={styles.navIcon} source={require('../../assets/nav_2.png')} />
-            </TouchableOpacity>
-            
-            <View style={styles.weatherBadge}>
-              <Image style={styles.navIcon} source={require('../../assets/nav_3.png')} />
-              <Text style={styles.weatherTemp}>31°</Text>
-            </View>
-            
-            <TouchableOpacity style={styles.sosButton}>
-              <Text style={styles.sosText}>SOS</Text>
-            </TouchableOpacity>
-          </View>
+            containerStyle={{ 
+              marginTop: 30, 
+              backgroundColor: 'transparent' 
+            }}
+          />
 
           <View style={styles.mapFrame}>
             <View style={styles.sliderContainer}>
-                <View style={styles.sliderTrack}>
+              <View style={styles.sliderTrack}>
                 <Animated.View
-                    {...panResponder.panHandlers}
-                    style={[
-                    styles.sliderThumb,
-                    {
-                        transform: [{ translateX: pan.x }],
-                    },
-                    ]}
+                  {...panResponder.panHandlers}
+                  style={[styles.sliderThumb, { transform: [{ translateX: pan.x }] }]}
                 />
-                </View>
-                <View style={styles.sliderLabels}>
+              </View>
+              <View style={styles.sliderLabels}>
                 <Text style={styles.rangeText}>5m</Text>
                 <Text style={styles.rangeText}>10m</Text>
                 <Text style={styles.rangeText}>50m</Text>
                 <Text style={styles.rangeText}>100m</Text>
-                </View>
+              </View>
             </View>
           </View>
 
-          <View style={styles.bottomNav}>
-            <TouchableOpacity style={styles.navItem}>
-                <Image style={styles.navIcon} source={require('../../assets/tab_1.png')} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem}>
-                <Image style={styles.navIcon} source={require('../../assets/tab_2.png')} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem}>
-                <Image style={styles.navIcon} source={require('../../assets/tab_0.png')} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem}>
-                <Image style={styles.navIcon} source={require('../../assets/tab_3.png')} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem}>
-                <Image style={styles.navIcon} source={require('../../assets/tab_4.png')} />
-            </TouchableOpacity>
-          </View>
+          <BottomTabNav containerStyle={{ marginBottom: 30 }}/>
 
-        </SafeAreaView>
+        </View>
       </ImageBackground>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'red' },
+  container: { flex: 1, backgroundColor: '#000' },
   mapBase: { flex: 1 },
   overlayContainer: { flex: 1, justifyContent: 'space-between', paddingHorizontal: 25 },
-  topControls: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 50 },
+  topControls: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 },
   iconButton: { width: 60, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   bgGreen: { backgroundColor: '#0E713E' },
   bgBrown: { backgroundColor: '#4D3626' },
@@ -128,24 +106,13 @@ const styles = StyleSheet.create({
   weatherTemp: { fontWeight: 'bold', color: '#333' },
   sosButton: { backgroundColor: '#FF0000', width: 65, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   sosText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-  mapFrame: { flex: 1, marginTop: 20, marginBottom: 80, borderWidth: 1, borderColor: 'rgba(0,0,0,0.1)', borderRadius: 30, backgroundColor: '#304e184b', justifyContent: 'center', alignItems: 'center' },
-  
-  sliderContainer: { position: 'absolute', bottom: -20, width: '90%', alignItems: 'center' },
+  mapFrame: { flex: 1, marginTop: 20, marginBottom: 80, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 30, backgroundColor: 'rgba(48, 78, 24, 0.3)', justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 30 },
+  sliderContainer: { width: '90%', alignItems: 'center' },
   sliderTrack: { height: 4, backgroundColor: '#4D3626', width: '100%', borderRadius: 2, justifyContent: 'center' },
-  sliderThumb: { 
-    width: 20, 
-    height: 20, 
-    borderRadius: 10, 
-    backgroundColor: '#FFF', 
-    borderWidth: 2, 
-    borderColor: '#0E713E', 
-    position: 'absolute',
-    marginLeft: -10, // Centers the thumb on the point
-  },
+  sliderThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFF', borderWidth: 2, borderColor: '#0E713E', position: 'absolute', left: -11 },
   sliderLabels: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 8 },
-  rangeText: { color: '#000', fontSize: 10, fontWeight: 'bold' },
-
-  bottomNav: { flexDirection: 'row', backgroundColor: '#4A9267', height: 50, borderRadius: 30, marginBottom: 25, alignItems: 'center', justifyContent: 'space-around' },
+  rangeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
+  bottomNav: { flexDirection: 'row', backgroundColor: '#4A9267', height: 60, borderRadius: 30, marginBottom: 25, alignItems: 'center', justifyContent: 'space-around' },
   navItem: { flex: 1, alignItems: 'center' },
   navIcon: { height: 24, width: 24, resizeMode: 'contain' },
 });

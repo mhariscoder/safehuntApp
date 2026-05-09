@@ -15,6 +15,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ForgotPasswordConfirmationScreen from './src/screens/ForgotPasswordConfirmationScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
+import FeedScreen from './src/screens/FeedScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -37,9 +38,10 @@ const App = () => {
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           <Stack.Screen name="ForgotPasswordConfirmation" component={ForgotPasswordConfirmationScreen} />
-          <Stack.Screen name="ResetPassowrd" component={ResetPasswordScreen} />
+          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
           <Stack.Screen name="Subscription" component={SubscriptionScreen} />
           <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="Feed" component={FeedScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </>
