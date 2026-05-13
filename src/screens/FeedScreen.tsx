@@ -7,20 +7,19 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import TopHeader from '../components/TopHeader';
 import SideMenu from '../components/SideMenu';
 import BottomTabNav from '../components/BottomTabNav';
 
-// Standardized Asset Mapping (Ensure paths match your local structure)
 const ASSETS = {
-  profileHeader: require('../../assets/tab_2.png'), // The 'W' icon
-  postImage: require('../../assets/tab_2.png'), // Henry's hunting photo
-  userHenry: require('../../assets/tab_2.png'),
-  userAkari: require('../../assets/tab_2.png'),
-  iconMenu: require('../../assets/nav_1.png'), // Menu icon from previous screens
+  profileHeader: require('../../assets/tab_2.png'),
+  postImage: require('../../assets/post_image.png'),
+  userHenry: require('../../assets/circle_profile.png'),
+  userAkari: require('../../assets/circle_profile.png'),
+  iconMenu: require('../../assets/nav_1.png'),
   iconSearch: require('../../assets/nav_2.png'),
   tabFeed: require('../../assets/tab_2.png'),
   tabNotif: require('../../assets/tab_3.png'),
@@ -29,8 +28,40 @@ const ASSETS = {
   tabSettings: require('../../assets/tab_4.png'),
 };
 
+const COMMENTS_DATA = [
+  {
+    id: '1',
+    user: 'Juba Tal',
+    avatar: ASSETS.userHenry,
+    text: 'wow, love it.',
+    time: '20m',
+  },
+  {
+    id: '2',
+    user: 'Akari Edward',
+    avatar: ASSETS.userAkari,
+    text: 'Impressive harvest! How was the experience out in the wild?',
+    time: '15m',
+  },
+  {
+    id: '3',
+    user: 'Charles',
+    avatar: ASSETS.userHenry,
+    text: 'A skilled hunter in action! Wishing you many more fulfilling outings.',
+    time: '15m',
+  },
+  {
+    id: '4',
+    user: 'Benjamin',
+    avatar: ASSETS.userHenry,
+    text: 'Impressive harvest! How was the experience out in the wild?',
+    time: '15m',
+  },
+];
+
 const FeedScreen = () => {
     const [menuOpen, setMenuOpen] = useState(false);
+    const navigation = useNavigation<any>();
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0E713E" />
@@ -38,19 +69,6 @@ const FeedScreen = () => {
 
       {/* --- TOP HEADER --- */}
       <View style={styles.header}>
-        {/* <View style={styles.headerTopRow}>
-          <TouchableOpacity style={styles.whiteBtn}>
-             <Image source={ASSETS.iconMenu} style={styles.navIconGreen} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.brownBtn}>
-             <Image source={ASSETS.iconSearch} style={styles.navIconWhite} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.sosButton}>
-            <Text style={styles.sosText}>SOS</Text>
-          </TouchableOpacity>
-        </View> */}
 
         <TopHeader 
             onMenuPress={() => setMenuOpen(true)}
@@ -62,19 +80,24 @@ const FeedScreen = () => {
         />
 
         {/* --- POST INPUT AREA --- */}
-        <View style={styles.inputContainer}>
-          <View style={styles.profileCircleSmall}>
-            <Text style={styles.profileInitial}>W</Text>
+        <TouchableOpacity 
+          activeOpacity={0.9} 
+          onPress={() => navigation.navigate('CreatePost')}
+        >
+          <View style={styles.inputContainer}>
+            <View style={styles.profileCircleSmall}>
+              <Text style={styles.profileInitial}>W</Text>
+            </View>
+            <TextInput 
+              placeholder="What Are You Thinking About?" 
+              placeholderTextColor="#666"
+              style={styles.textInput}
+            />
+            <TouchableOpacity>
+              <Image source={require('../../assets/image.png')} style={styles.imagePickerIcon} />
+            </TouchableOpacity>
           </View>
-          <TextInput 
-            placeholder="What Are You Thinking About?" 
-            placeholderTextColor="#666"
-            style={styles.textInput}
-          />
-          <TouchableOpacity>
-            <Image source={require('../../assets/image.png')} style={styles.imagePickerIcon} />
-          </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -102,27 +125,43 @@ const FeedScreen = () => {
 
           <View style={styles.actionButtons}>
             <TouchableOpacity style={styles.actionBtn}>
-               <Text style={styles.actionBtnText}>❤️ Like</Text>
+              <Image source={require('../../assets/green_heart.png')} resizeMode='contain' style={styles.actionImage} />
+              <Text style={styles.actionBtnText}>Like</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn}>
-               <Text style={styles.actionBtnText}>💬 Comment</Text>
+              <Image source={require('../../assets/green_comment.png')} resizeMode='contain' style={styles.actionImage} />
+               <Text style={styles.actionBtnText}>Comment</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn}>
-               <Text style={styles.actionBtnText}>🚀 Share</Text>
+              <Image source={require('../../assets/green_share.png')} resizeMode='contain' style={styles.actionImage} />
+               <Text style={styles.actionBtnText}>Share</Text>
             </TouchableOpacity>
           </View>
-        </View>
-        
-        {/* Repeating for Akari Edward as seen in design */}
-        <View style={styles.postCard}>
-             <View style={styles.postHeader}>
-                <Image source={ASSETS.userAkari} style={styles.avatar} />
-                <View style={styles.headerInfo}>
-                    <Text style={styles.userName}>Akari Edward</Text>
-                    <Text style={styles.location}>5h • Black Hills</Text>
+
+          {/* COMMENTS SECTION */}
+          <View style={styles.commentsSection}>
+            <TouchableOpacity style={styles.commentDropdown}>
+                <Text style={styles.allCommentsText}>All Comments</Text>
+                <Image source={require('../../assets/arrow_down.png')} resizeMode='contain' style={styles.dropdownArrow} />
+            </TouchableOpacity>
+
+            {COMMENTS_DATA.map((item) => (
+              <View key={item.id} style={styles.commentItem}>
+                <Image source={item.avatar} style={styles.commentAvatar} />
+                <View style={styles.commentContent}>
+                    <View style={styles.commentBubble}>
+                        <Text style={styles.commentUser}>{item.user}</Text>
+                        <Text style={styles.commentText}>{item.text}</Text>
+                    </View>
+                    <View style={styles.commentFooter}>
+                        <Text style={styles.footerActionText}>{item.time}</Text>
+                        <TouchableOpacity><Text style={styles.footerActionText}>Like</Text></TouchableOpacity>
+                        <TouchableOpacity><Text style={styles.footerActionText}>Reply</Text></TouchableOpacity>
+                    </View>
                 </View>
-                <TouchableOpacity><Text style={styles.moreIcon}>⋮</Text></TouchableOpacity>
-             </View>
+              </View>
+            ))}
+        </View>
         </View>
       </ScrollView>
 
@@ -151,30 +190,30 @@ const styles = StyleSheet.create({
     paddingRight: 20,
     alignItems: 'center'
   },
-  profileCircleSmall: { width: 55, height: 55, borderRadius: 55, backgroundColor: '#4D3626', justifyContent: 'center', alignItems: 'center' },
+  profileCircleSmall: { width: 50, height: 50, borderRadius: 50, backgroundColor: '#4D3626', justifyContent: 'center', alignItems: 'center' },
   profileInitial: { color: '#FFF', fontWeight: 'bold' },
-  textInput: { flex: 1, marginHorizontal: 10, fontSize: 14 },
+  textInput: { flex: 1, marginHorizontal: 10, fontSize: 12 },
   imagePickerIcon: { width: 24, height: 24 },
 
-  postCard: { backgroundColor: '#FFF', marginTop: 10, paddingVertical: 15 },
-  postHeader: { flexDirection: 'row', paddingHorizontal: 15, alignItems: 'center', marginBottom: 10 },
+  postCard: { marginTop: 10, paddingVertical: 15 },
+  postHeader: { flexDirection: 'row', paddingHorizontal: 25, alignItems: 'center', marginBottom: 10 },
   avatar: { width: 45, height: 45, borderRadius: 22.5 },
   headerInfo: { flex: 1, marginLeft: 10 },
-  userName: { fontWeight: 'bold', fontSize: 16 },
-  location: { color: '#666', fontSize: 12 },
+  userName: { fontWeight: '900', fontSize: 20 },
+  location: { color: '#666', fontSize: 10 },
   moreIcon: { fontSize: 20, color: '#666' },
   
-  postCaption: { paddingHorizontal: 15, marginBottom: 10, fontSize: 14, lineHeight: 20 },
+  postCaption: { paddingHorizontal: 25, marginBottom: 10, fontSize: 12, lineHeight: 20 },
   hashtag: { fontWeight: 'bold' },
   mainPostImage: { width: '100%', height: 300, resizeMode: 'cover' },
   
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 15, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#EEE' },
+  statsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#EEE' },
   statsText: { color: '#666', fontSize: 12 },
   
-  actionButtons: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 10 },
-  actionBtn: { paddingVertical: 5 },
-  actionBtnText: { color: '#0E713E', fontWeight: 'bold' },
-
+  actionButtons: { backgroundColor: '#0E713E', flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 25, gap: 10 },
+  actionBtn: { backgroundColor: '#FFFFFF', flex:1, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', borderRadius: 20, justifyContent: 'center' },
+  actionBtnText: { color: '#0E713E', fontWeight: 'bold', fontSize: 10 },
+  actionImage: { width: 14, height: 14, marginRight: 5, resizeMode: 'contain' },
   bottomTabContainer: { paddingHorizontal: 25 },
   bottomNav: { 
     flexDirection: 'row', 
@@ -186,6 +225,25 @@ const styles = StyleSheet.create({
   },
   tabIcon: { width: 24, height: 24, tintColor: 'rgba(255,255,255,0.6)' },
   tabIconActive: { width: 24, height: 24, tintColor: '#FFF' },
+
+  commentsSection: { paddingHorizontal: 25, marginTop: 10 },
+  commentDropdown: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
+  allCommentsText: { fontSize: 12, fontWeight: '700', color: '#333' },
+  dropdownArrow: { width: 12, height: 12, marginTop: 5, marginLeft: 5 },
+  commentItem: { flexDirection: 'row', marginBottom: 15 },
+  commentAvatar: { width: 35, height: 35, borderRadius: 17.5, marginRight: 10 },
+  commentContent: {},
+  commentBubble: { 
+    backgroundColor: '#AACEBC', 
+    padding: 10, 
+    borderRadius: 14,
+    minWidth: '40%',
+    maxWidth: '80%',
+  },
+  commentUser: { fontWeight: 'bold', fontSize: 12, marginBottom: 2 },
+  commentText: { fontSize: 11, color: '#444', lineHeight: 16,  },
+  commentFooter: { flexDirection: 'row', gap: 15, marginTop: 5, paddingLeft: 5 },
+  footerActionText: { fontSize: 10, color: '#888' },
 });
 
 export default FeedScreen;

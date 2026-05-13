@@ -84,6 +84,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, userName = "Willia
             <MenuItem label="Messages" icon={ASSETS.messages} onPress={() => handlePress('Messages')} />
             <MenuItem label="Map" icon={ASSETS.map} onPress={() => handlePress('Home')} />
             <MenuItem label="Setting" icon={ASSETS.setting} onPress={() => handlePress('Settings')} />
+            <MenuItem label="Hunting Journal" icon={ASSETS.setting} onPress={() => handlePress('HuntingJournal')} />
             <MenuItem label="Terms & conditions" icon={ASSETS.terms} onPress={() => handlePress('Terms')} />
             <MenuItem label="Privacy policy" icon={ASSETS.privacy} onPress={() => handlePress('Privacy')} />
             <MenuItem label="Logout" icon={ASSETS.logout} onPress={() => {

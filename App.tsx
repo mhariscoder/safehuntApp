@@ -16,6 +16,14 @@ import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ForgotPasswordConfirmationScreen from './src/screens/ForgotPasswordConfirmationScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import FeedScreen from './src/screens/FeedScreen';
+import CreatePostScreen from './src/screens/CreatePostScreen';
+import NotificationScreen from './src/screens/NotificationScreen';
+import SettingScreen from './src/screens/SettingScreen';
+import MessageScreen from './src/screens/MessageScreen';
+import MessageDetailScreen from './src/screens/MessageDetailScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+import HuntingJournalScreen from './src/screens/HuntingJournalScreen';
+import NewNoteScreen from './src/screens/NewNoteScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -42,6 +50,14 @@ const App = () => {
           <Stack.Screen name="Subscription" component={SubscriptionScreen} />
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Feed" component={FeedScreen} />
+          <Stack.Screen name="CreatePost" component={CreatePostScreen} />
+          <Stack.Screen name="Notification" component={NotificationScreen} />
+          <Stack.Screen name="Settings" component={SettingScreen} />
+          <Stack.Screen name="Message" component={MessageScreen} />
+          <Stack.Screen name="MessageDetail" component={MessageDetailScreen} />
+          <Stack.Screen name="Profile" component={ProfileScreen} />
+          <Stack.Screen name="HuntingJournal" component={HuntingJournalScreen} />
+          <Stack.Screen name="NewNote" component={NewNoteScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </>
