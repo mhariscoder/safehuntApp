@@ -141,23 +141,23 @@ const FeedScreen = () => {
           {/* COMMENTS SECTION */}
           <View style={styles.commentsSection}>
             <TouchableOpacity style={styles.commentDropdown}>
-                <Text style={styles.allCommentsText}>All Comments</Text>
-                <Image source={require('../../assets/arrow_down.png')} resizeMode='contain' style={styles.dropdownArrow} />
+              <Text style={styles.allCommentsText}>All Comments</Text>
+              <Image source={require('../../assets/arrow_down.png')} resizeMode='contain' style={styles.dropdownArrow} />
             </TouchableOpacity>
 
             {COMMENTS_DATA.map((item) => (
               <View key={item.id} style={styles.commentItem}>
                 <Image source={item.avatar} style={styles.commentAvatar} />
                 <View style={styles.commentContent}>
-                    <View style={styles.commentBubble}>
-                        <Text style={styles.commentUser}>{item.user}</Text>
-                        <Text style={styles.commentText}>{item.text}</Text>
-                    </View>
-                    <View style={styles.commentFooter}>
-                        <Text style={styles.footerActionText}>{item.time}</Text>
-                        <TouchableOpacity><Text style={styles.footerActionText}>Like</Text></TouchableOpacity>
-                        <TouchableOpacity><Text style={styles.footerActionText}>Reply</Text></TouchableOpacity>
-                    </View>
+                  <View style={styles.commentBubble}>
+                    <Text style={styles.commentUser}>{item.user}</Text>
+                    <Text style={styles.commentText}>{item.text}</Text>
+                  </View>
+                  <View style={styles.commentFooter}>
+                    <Text style={styles.footerActionText}>{item.time}</Text>
+                    <TouchableOpacity><Text style={styles.footerActionText}>Like</Text></TouchableOpacity>
+                    <TouchableOpacity><Text style={styles.footerActionText}>Reply</Text></TouchableOpacity>
+                  </View>
                 </View>
               </View>
             ))}

@@ -12,6 +12,7 @@ import {
   PanResponder,
   Animated,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import SideMenu from '../components/SideMenu';
 import TopHeader from '../components/TopHeader';
 import BottomTabNav from '../components/BottomTabNav';
@@ -34,6 +35,7 @@ const ASSETS = {
 
 const HomeScreen = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [range, setRange] = useState<any>([50, 500]);
   const pan = useRef(new Animated.ValueXY({ x: SLIDER_WIDTH / 2, y: 0 })).current;
 
   const panResponder = useRef(
@@ -71,18 +73,14 @@ const HomeScreen = () => {
 
           <View style={styles.mapFrame}>
             <View style={styles.sliderContainer}>
-              <View style={styles.sliderTrack}>
-                <Animated.View
-                  {...panResponder.panHandlers}
-                  style={[styles.sliderThumb, { transform: [{ translateX: pan.x }] }]}
-                />
-              </View>
-              <View style={styles.sliderLabels}>
-                <Text style={styles.rangeText}>5m</Text>
-                <Text style={styles.rangeText}>10m</Text>
-                <Text style={styles.rangeText}>50m</Text>
-                <Text style={styles.rangeText}>100m</Text>
-              </View>
+              <Slider
+                style={{width: '100%', height: 40}}  
+                minimumValue={5}
+                maximumValue={100}
+                minimumTrackTintColor="#4E2D18"
+                maximumTrackTintColor="#000000"
+                thumbSize={15}
+              />
             </View>
           </View>
 
@@ -106,8 +104,8 @@ const styles = StyleSheet.create({
   weatherTemp: { fontWeight: 'bold', color: '#333' },
   sosButton: { backgroundColor: '#FF0000', width: 65, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   sosText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-  mapFrame: { flex: 1, marginTop: 20, marginBottom: 80, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 30, backgroundColor: 'rgba(48, 78, 24, 0.3)', justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 30 },
-  sliderContainer: { width: '90%', alignItems: 'center' },
+  mapFrame: { flex: 1, marginTop: 20, marginBottom: 80, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 30, backgroundColor: 'rgba(48, 78, 24, 0.3)', justifyContent: 'flex-end', alignItems: 'center' },
+  sliderContainer: { width: '90%', alignItems: 'center', position: 'relative', top: 20 },
   sliderTrack: { height: 4, backgroundColor: '#4D3626', width: '100%', borderRadius: 2, justifyContent: 'center' },
   sliderThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFF', borderWidth: 2, borderColor: '#0E713E', position: 'absolute', left: -11 },
   sliderLabels: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 8 },
