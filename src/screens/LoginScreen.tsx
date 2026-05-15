@@ -8,17 +8,83 @@ import {
   ScrollView,
   SafeAreaView,
   StatusBar,
-  Image
+  Image,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useAppDispatch, useAppSelector } from '../app/store/hooks';
+import { login } from '../features/auth/authActions';
+import { clearError } from '../features/auth/authSlice';
 
 const LoginScreen = ({ navigation }: any) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  
+  const dispatch = useAppDispatch();
+  const { isLoading, error } = useAppSelector((state) => state.auth);
+
+  const handleLogin = async () => {
+    // Validation
+    if (!username.trim()) {
+      Alert.alert('Validation Error', 'Username is required');
+      return;
+    }
+    
+    if (!password.trim()) {
+      Alert.alert('Validation Error', 'Password is required');
+      return;
+    }
+
+    try {
+      await dispatch(login({ username, password, rememberMe })).unwrap();
+      
+      // Show success message
+      Alert.alert(
+        'Success',
+        'Login successful!',
+        [
+          {
+            text: 'OK',
+            // onPress: () => navigation.replace('Home'),
+            onPress: () => console.log('Navigate to Home or Main Screen'),
+          },
+        ],
+        { cancelable: false }
+      );
+    } catch (err: any) {
+      // Error is already handled in the action, but we can show additional feedback
+      Alert.alert('Login Failed', err.message || 'Invalid username or password');
+    }
+  };
+
+  const handleForgotPassword = () => {
+    navigation.navigate('ForgotPassword');
+  };
+
+  const handleSignUp = () => {
+    navigation.navigate('SignUp');
+  };
+
+  // Clear error when component unmounts or when username/password changes
+  React.useEffect(() => {
+    if (error) {
+      // Auto-clear error after 3 seconds
+      const timer = setTimeout(() => {
+        dispatch(clearError());
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, dispatch]);
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <StatusBar barStyle="light-content" />
       {/* Established Background Gradient */}
       <LinearGradient
@@ -27,8 +93,12 @@ const LoginScreen = ({ navigation }: any) => {
         style={StyleSheet.absoluteFill}
       />
 
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+      <View style={styles.safeArea}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           
           {/* Header with Back Arrow */}
           <View style={styles.header}>
@@ -43,65 +113,83 @@ const LoginScreen = ({ navigation }: any) => {
             {/* Greeting Section */}
             <Text style={styles.sectionTitle}>Good to see you again!</Text>
 
+            {/* Error Display */}
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>
+                  {Array.isArray(error) ? error.join(', ') : error}
+                </Text>
+              </View>
+            )}
+
             {/* Input Fields */}
             <View style={styles.inputSection}>
-                <CustomInput 
+              <CustomInput 
                 placeholder="Username" 
                 value={username}
                 onChangeText={setUsername}
-                />
-                
-                <CustomInput 
+                autoCapitalize="none"
+                editable={!isLoading}
+              />
+              
+              <CustomInput 
                 placeholder="Password" 
                 secureTextEntry={true} 
                 value={password}
                 onChangeText={setPassword}
-                />
+                editable={!isLoading}
+              />
             </View>
 
             {/* Remember Me & Forgot Password Row */}
             <View style={styles.optionsRow}>
-                <TouchableOpacity 
+              <TouchableOpacity 
                 style={styles.rememberMeContainer} 
                 onPress={() => setRememberMe(!rememberMe)}
-                >
+                disabled={isLoading}
+              >
                 <View style={[styles.checkbox, rememberMe && styles.checkboxSelected]}>
-                    {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+                  {rememberMe && <Text style={styles.checkmark}>✓</Text>}
                 </View>
                 <Text style={styles.optionText}>Remember me</Text>
-                </TouchableOpacity>
+              </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
+              <TouchableOpacity onPress={handleForgotPassword} disabled={isLoading}>
                 <Text style={styles.boldText}>Forgot Password?</Text>
-                </TouchableOpacity>
+              </TouchableOpacity>
             </View>
 
             {/* Log In Button */}
             <TouchableOpacity 
-                style={styles.loginButton}
-               onPress={() => navigation.navigate('Home')}
+              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+              onPress={handleLogin}
+              disabled={isLoading}
             >
+              {isLoading ? (
+                <ActivityIndicator color="#1D4D2F" size="small" />
+              ) : (
                 <Text style={styles.loginButtonText}>Log In</Text>
+              )}
             </TouchableOpacity>
           </View>
 
           {/* Footer Link */}
-          <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+          <TouchableOpacity onPress={handleSignUp} disabled={isLoading}>
             <Text style={styles.signupLink}>
               New to Safe Hunt? <Text style={styles.boldText}>Sign Up {'>'}</Text>
             </Text>
           </TouchableOpacity>
 
         </ScrollView>
-      </SafeAreaView>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 
 // Reusing your CustomInput sub-component for consistency
 const CustomInput = (props: any) => (
   <TextInput
-    style={styles.input}
+    style={[styles.input, props.editable === false && styles.inputDisabled]}
     placeholderTextColor="#A4A4A4"
     {...props}
   />
@@ -110,13 +198,13 @@ const CustomInput = (props: any) => (
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
-  scrollContent: { paddingHorizontal: 25, paddingBottom: 40, flex: 1, justifyContent: 'space-between' },
+  scrollContent: { paddingHorizontal: 25, paddingBottom: 40, flexGrow: 1, justifyContent: 'space-between' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 50,
-    marginBottom: 60, // Spacing before greeting
+    marginBottom: 60,
   },
   backButton: { padding: 5 },
   backArrow: { width: 21, height: 21, resizeMode: 'contain' },
@@ -126,6 +214,19 @@ const styles = StyleSheet.create({
     fontSize: 20, 
     marginBottom: 30,
     fontWeight: '400' 
+  },
+  errorContainer: {
+    backgroundColor: 'rgba(255, 0, 0, 0.1)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 0, 0, 0.3)',
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 14,
+    textAlign: 'center',
   },
   inputSection: {
     marginBottom: 20,
@@ -140,6 +241,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
     fontSize: 15,
+  },
+  inputDisabled: {
+    opacity: 0.6,
   },
   optionsRow: {
     flexDirection: 'row',
@@ -182,6 +286,10 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: 'center',
     marginTop: 20,
+  },
+  loginButtonDisabled: {
+    backgroundColor: '#CCCCCC',
+    opacity: 0.7,
   },
   loginButtonText: { 
     color: '#1D4D2F', 

@@ -8,19 +8,116 @@ import {
   SafeAreaView,
   StatusBar,
   Image,
-  Dimensions
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useAppDispatch, useAppSelector } from '../app/store/hooks';
+import { otpVerification, regenerateOtp } from '../features/auth/authActions';
+import { clearError, updateUser } from '../features/auth/authSlice';
 
 const SignUpConfirmationScreen = ({ navigation, route }: any) => {
   const [code, setCode] = useState('');
-  // Grabbing email from navigation params, or defaulting for preview
-  const email = route?.params?.email || 'example123@gmail.com';
+  const [isResending, setIsResending] = useState(false);
+  const email = route?.params?.email || '';
+  
+  const dispatch = useAppDispatch();
+  const { isLoading, error } = useAppSelector((state) => state.auth);
+
+  const handleVerifyCode = async () => {
+    // Validation
+    if (!code.trim()) {
+      Alert.alert('Validation Error', 'Please enter the confirmation code');
+      return;
+    }
+
+    if (code.length < 4) {
+      Alert.alert('Validation Error', 'Please enter a valid confirmation code');
+      return;
+    }
+
+    try {
+      // Clear any previous errors
+      dispatch(clearError());
+      
+      // Call the OTP verification API
+      const result = await dispatch(otpVerification({ 
+        email: email, 
+        otp: code 
+      })).unwrap();
+      
+      console.log('OTP verification response:', result);
+      
+      // Update user status to OTP_VERIFIED
+      dispatch(updateUser({ status: 'OTP_VERIFIED' }));
+      
+      // Show success message and navigate to subscription
+      Alert.alert(
+        'Success',
+        'Email verified successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.navigate('Subscription');
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    } catch (err: any) {
+      console.error('OTP verification error:', err);
+      
+      // Show error message from API
+      let errorMessage = 'Invalid verification code. Please try again.';
+      if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      Alert.alert('Verification Failed', errorMessage);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!email) {
+      Alert.alert('Error', 'Email address not found');
+      return;
+    }
+
+    try {
+      setIsResending(true);
+      
+      // Call regenerate OTP API
+      const result = await dispatch(regenerateOtp({ email: email })).unwrap();
+      
+      console.log('Regenerate OTP response:', result);
+      
+      Alert.alert(
+        'Code Sent',
+        `A new verification code has been sent to ${email}`,
+        [{ text: 'OK' }]
+      );
+    } catch (err: any) {
+      console.error('Resend code error:', err);
+      
+      let errorMessage = 'Failed to resend code. Please try again.';
+      if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      {/* Exact Gradient from your reference code */}
       <LinearGradient
         colors={['#0B733F', '#4E2D18', '#121212']}
         locations={[0.3, 1, 0.5]}
@@ -60,20 +157,37 @@ const SignUpConfirmationScreen = ({ navigation, route }: any) => {
             </Text>
           </View>
 
+          {/* Error Display */}
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>
+                {Array.isArray(error) ? error.join(', ') : error}
+              </Text>
+            </View>
+          )}
+
           {/* Confirmation Code Input */}
           <View style={styles.inputContainer}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, isLoading && styles.inputDisabled]}
               placeholder="Confirmation Code"
               placeholderTextColor="#A4A4A4"
               keyboardType="number-pad"
               value={code}
               onChangeText={setCode}
+              editable={!isLoading}
+              maxLength={6}
             />
             
-            <TouchableOpacity onPress={() => console.log('Resend code')}>
+            <TouchableOpacity 
+              onPress={handleResendCode}
+              disabled={isLoading || isResending}
+            >
               <Text style={styles.resendText}>
-                Didn't receive a code? <Text style={styles.boldText}>Send again.</Text>
+                Didn't receive a code?{' '}
+                <Text style={styles.boldText}>
+                  {isResending ? 'Sending...' : 'Send again.'}
+                </Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -81,10 +195,15 @@ const SignUpConfirmationScreen = ({ navigation, route }: any) => {
           {/* Primary Action Button */}
           <View style={styles.footer}>
             <TouchableOpacity 
-              style={styles.continueButton}
-              onPress={() => navigation.navigate('Subscription')}
+              style={[styles.continueButton, (isLoading || isResending) && styles.buttonDisabled]}
+              onPress={handleVerifyCode}
+              disabled={isLoading || isResending}
             >
-              <Text style={styles.continueText}>Continue</Text>
+              {isLoading ? (
+                <ActivityIndicator color="#1D4D2F" size="small" />
+              ) : (
+                <Text style={styles.continueText}>Continue</Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -117,7 +236,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 25,
-    marginBottom: 80, // Increased spacing to match confirmation layout
+    marginBottom: 80,
   },
   progressBar: {
     height: 8,
@@ -146,7 +265,22 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
 
-  // Input styles (Copied and modified for centering)
+  // Error Container
+  errorContainer: {
+    backgroundColor: 'rgba(255, 0, 0, 0.1)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 0, 0, 0.3)',
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+
+  // Input styles
   inputContainer: {
     width: '100%',
   },
@@ -158,7 +292,12 @@ const styles = StyleSheet.create({
     color: '#FFF',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-    fontSize: 15
+    fontSize: 15,
+    textAlign: 'center',
+    letterSpacing: 2,
+  },
+  inputDisabled: {
+    opacity: 0.6,
   },
   resendText: {
     color: '#FFF',
@@ -167,7 +306,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  // Primary Button (Copied from your reference)
+  // Primary Button
   footer: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -179,6 +318,10 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 30,
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    backgroundColor: '#CCCCCC',
+    opacity: 0.7,
   },
   continueText: { 
     color: '#1D4D2F', 

@@ -8,13 +8,117 @@ import {
   ScrollView,
   SafeAreaView,
   StatusBar,
-  Image
+  Image,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useAppDispatch, useAppSelector } from '../app/store/hooks';
+import { resetPassword } from '../features/auth/authActions';
+import { clearError } from '../features/auth/authSlice';
 
-const ResetPasswordScreen = ({ navigation }: any) => {
+const ResetPasswordScreen = ({ navigation, route }: any) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  
+  // Get email and token from route params
+  const email = route?.params?.email || '';
+  const token = route?.params?.token || '';
+  
+  const dispatch = useAppDispatch();
+  const { isLoading, error } = useAppSelector((state) => state.auth);
+
+  // Password validation function
+  const validatePassword = (pass: string) => {
+    const hasMinLength = pass.length >= 8;
+    const hasSpecialChar = /[!@#$%&]/.test(pass);
+    const hasNumber = /[0-9]/.test(pass);
+    
+    return {
+      isValid: hasMinLength && hasSpecialChar && hasNumber,
+      hasMinLength,
+      hasSpecialChar,
+      hasNumber,
+    };
+  };
+
+  const handleResetPassword = async () => {
+    // Validation
+    if (!password.trim()) {
+      Alert.alert('Validation Error', 'Please enter a new password');
+      return;
+    }
+
+    if (!confirmPassword.trim()) {
+      Alert.alert('Validation Error', 'Please confirm your password');
+      return;
+    }
+
+    // Check if passwords match
+    if (password !== confirmPassword) {
+      Alert.alert('Validation Error', 'Passwords do not match');
+      return;
+    }
+
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      Alert.alert(
+        'Password Requirements',
+        'Password must contain:\n• At least 8 characters\n• At least 1 special character (!@#$%&)\n• At least 1 number'
+      );
+      return;
+    }
+
+    try {
+      // Clear any previous errors
+      dispatch(clearError());
+      
+      // Call the reset password API
+      const payload = { 
+        newPassword: password,
+        token: token,
+        email: email
+      }
+      console.log('Reset password payload:', payload);
+      await dispatch(resetPassword(payload)).unwrap();
+      
+      // Show success message
+      Alert.alert(
+        'Success',
+        'Your password has been reset successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Navigate to login screen
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }],
+              });
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    } catch (err: any) {
+      console.error('Reset password error:', err);
+      
+      // Show error message from API
+      let errorMessage = 'Failed to reset password. Please try again.';
+      if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      Alert.alert('Reset Failed', errorMessage);
+    }
+  };
+
+  // Get password validation status for visual feedback
+  const passwordValidation = validatePassword(password);
+  const isPasswordValid = passwordValidation.isValid;
 
   return (
     <View style={styles.container}>
@@ -41,12 +145,22 @@ const ResetPasswordScreen = ({ navigation }: any) => {
           <View style={styles.contentContainer}>
             <Text style={styles.sectionTitle}>Create new password</Text>
 
+            {/* Error Display */}
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>
+                  {Array.isArray(error) ? error.join(', ') : error}
+                </Text>
+              </View>
+            )}
+
             <View style={styles.inputSection}>
               <CustomInput 
                 placeholder="Password *" 
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={true}
+                editable={!isLoading}
               />
               
               <CustomInput 
@@ -54,34 +168,65 @@ const ResetPasswordScreen = ({ navigation }: any) => {
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry={true}
+                editable={!isLoading}
               />
             </View>
 
-            {/* Password Requirements matching image_200599.png */}
+            {/* Password Requirements with visual indicators */}
             <View style={styles.requirementsContainer}>
               <Text style={styles.requirementsHeader}>Password requirements:</Text>
               
               <View style={styles.bulletRow}>
-                <View style={styles.bullet} />
-                <Text style={styles.requirementText}>
-                  Must contain at least 8 characters, 1 special symbol (!@#$%&), 1 number
+                <View style={[
+                  styles.bullet, 
+                  password && (passwordValidation.hasMinLength ? styles.bulletValid : styles.bulletInvalid)
+                ]} />
+                <Text style={[
+                  styles.requirementText,
+                  password && passwordValidation.hasMinLength && styles.requirementValid
+                ]}>
+                  Must contain at least 8 characters
                 </Text>
               </View>
 
               <View style={styles.bulletRow}>
-                <View style={styles.bullet} />
-                <Text style={styles.requirementText}>
-                  May not be a previously used password
+                <View style={[
+                  styles.bullet,
+                  password && (passwordValidation.hasSpecialChar ? styles.bulletValid : styles.bulletInvalid)
+                ]} />
+                <Text style={[
+                  styles.requirementText,
+                  password && passwordValidation.hasSpecialChar && styles.requirementValid
+                ]}>
+                  Must contain at least 1 special symbol (!@#$%&)
+                </Text>
+              </View>
+
+              <View style={styles.bulletRow}>
+                <View style={[
+                  styles.bullet,
+                  password && (passwordValidation.hasNumber ? styles.bulletValid : styles.bulletInvalid)
+                ]} />
+                <Text style={[
+                  styles.requirementText,
+                  password && passwordValidation.hasNumber && styles.requirementValid
+                ]}>
+                  Must contain at least 1 number
                 </Text>
               </View>
             </View>
 
             {/* Action Button */}
             <TouchableOpacity 
-              style={styles.resetButton}
-              onPress={() => console.log('Reset Password Pressed')}
+              style={[styles.resetButton, (isLoading || !isPasswordValid) && styles.resetButtonDisabled]}
+              onPress={handleResetPassword}
+              disabled={isLoading || !isPasswordValid}
             >
-              <Text style={styles.resetButtonText}>Reset Password</Text>
+              {isLoading ? (
+                <ActivityIndicator color="#1D4D2F" size="small" />
+              ) : (
+                <Text style={styles.resetButtonText}>Reset Password</Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -93,7 +238,7 @@ const ResetPasswordScreen = ({ navigation }: any) => {
 
 const CustomInput = (props: any) => (
   <TextInput
-    style={styles.input}
+    style={[styles.input, props.editable === false && styles.inputDisabled]}
     placeholderTextColor="#A4A4A4"
     {...props}
   />
@@ -124,6 +269,19 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     marginBottom: 30 
   },
+  errorContainer: {
+    backgroundColor: 'rgba(255, 0, 0, 0.1)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 0, 0, 0.3)',
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 14,
+    textAlign: 'center',
+  },
   inputSection: {
     marginBottom: 23,
   },
@@ -137,6 +295,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
     fontSize: 15,
+  },
+  inputDisabled: {
+    opacity: 0.6,
   },
   requirementsContainer: {
     marginBottom: 50,
@@ -161,6 +322,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     marginTop: 6,
     marginRight: 10,
+    opacity: 0.6,
+  },
+  bulletValid: {
+    backgroundColor: '#4CAF50',
+    opacity: 1,
+  },
+  bulletInvalid: {
+    backgroundColor: '#FF6B6B',
+    opacity: 1,
   },
   requirementText: {
     color: '#FFF',
@@ -168,12 +338,20 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     lineHeight: 18,
   },
+  requirementValid: {
+    opacity: 1,
+    color: '#4CAF50',
+  },
   resetButton: {
     width: '100%',
     backgroundColor: '#FFFFFF',
     paddingVertical: 15,
     borderRadius: 30,
     alignItems: 'center',
+  },
+  resetButtonDisabled: {
+    backgroundColor: '#CCCCCC',
+    opacity: 0.7,
   },
   resetButtonText: { 
     color: '#1D4D2F', 
