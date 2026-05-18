@@ -27,6 +27,8 @@ export type MainStackParamList = {
   NewNote: undefined;
   Subscription: undefined;
   CardDetail: undefined;
+  Friends: undefined;
+  AvailableEquipment: undefined;
 };
 
 export type RootStackParamList = {

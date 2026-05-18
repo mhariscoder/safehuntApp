@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   StyleSheet,
   View,
@@ -11,7 +12,14 @@ import {
   TextInput,
   Platform,
   StatusBar,
+  ActivityIndicator,
+  Modal,
+  Alert,
 } from 'react-native';
+import { useAppSelector, useAppDispatch } from '../app/store/hooks';
+import { useFriends } from '../hooks/useFriends';
+import { useUserEquipment } from '../hooks/useUserEquipment';
+import { updateUser } from '../features/auth/authActions';
 
 const { width } = Dimensions.get('window');
 
@@ -26,27 +34,101 @@ const ASSETS = {
   messageIcon: require('../../assets/message_icon_white.png'),
   moreIcon: require('../../assets/more_dots_grey.png'),
   imagePlaceholder: require('../../assets/image_upload_icon.png'),
-  // Equipment Images
   pistolIcon: require('../../assets/pistol_icon.png'),
   bowIcon: require('../../assets/bow_icon.png'),
   knifeIcon: require('../../assets/knife_icon.png'),
+  editIcon: require('../../assets/edit_icon.png'),
+  closeIcon: require('../../assets/close_icon.png'),
 };
 
 const ProfileScreen = () => {
   const [activeTab, setActiveTab] = useState('Details');
+  const [showAllFriends, setShowAllFriends] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingField, setEditingField] = useState('');
+  const [editValue, setEditValue] = useState('');
+  
+  const navigation = useNavigation<any>();
+  const dispatch = useAppDispatch();
+  const { isLoading: authLoading, user } = useAppSelector((state) => state.auth);
+  
+  const {
+    friends,
+    isLoading: friendsLoading,
+    getFriends,
+    currentUserId,
+  } = useFriends();
+
+  const { userEquipments, getUserEquipments } = useUserEquipment();
+
+  useEffect(() => {
+    if (currentUserId) {
+      loadFriends();
+      getUserEquipments();
+    }
+  }, [currentUserId]);
+
+  const loadFriends = async () => {
+    try {
+      await getFriends(currentUserId!);
+    } catch (error) {
+      console.error('Error loading friends:', error);
+    }
+  };
+
+  const handleEdit = (field: string, currentValue: string) => {
+    setEditingField(field);
+    setEditValue(currentValue);
+    setEditModalVisible(true);
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      const updateData: any = {};
+      
+      switch (editingField) {
+        case 'huntingExperience':
+          updateData.huntingExperience = editValue;
+          break;
+        case 'skills':
+          updateData.skills = editValue;
+          break;
+        case 'bio':
+          updateData.bio = editValue;
+          break;
+      }
+      
+      await dispatch(updateUser({ userId: user?.id, userData: updateData })).unwrap();
+      
+      Alert.alert('Success', `${editingField} updated successfully`);
+      setEditModalVisible(false);
+      
+      // Refresh user data
+      // You might want to dispatch an action to refresh user data
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update');
+    }
+  };
+
+  const handleAddEquipment = () => {
+    navigation.navigate('AvailableEquipment');
+  };
+
+  const displayedFriends = showAllFriends ? friends : friends.slice(0, 6);
+  const hasMoreFriends = friends.length > 6;
 
   const renderContent = () => {
     switch (activeTab) {
       case 'Posts':
         return (
           <View style={styles.postInputSection}>
-            <Text style={styles.postHeader}>Henry's posts</Text>
+            <Text style={styles.postHeader}>{user?.displayname}'s posts</Text>
             <View style={styles.inputWrapper}>
               <View style={styles.miniAvatar}>
-                <Text style={styles.avatarText}>W</Text>
+                <Text style={styles.avatarText}>{user?.displayname?.charAt(0) || 'U'}</Text>
               </View>
               <TextInput 
-                placeholder="Write Something To Henry..." 
+                placeholder={`Write Something To ${user?.displayname}...`} 
                 style={styles.input}
                 placeholderTextColor="#666"
               />
@@ -65,24 +147,60 @@ const ProfileScreen = () => {
       case 'Details':
         return (
           <View style={styles.detailsContainer}>
+            {/* Bio Section with Edit */}
             <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Hunting Experiences</Text>
-              <Text style={styles.detailValue}>5 Years Hunting Experience</Text>
+              <View style={styles.detailHeader}>
+                <Text style={styles.detailLabel}>Bio</Text>
+                <TouchableOpacity onPress={() => handleEdit('bio', user?.bio || '')}>
+                  <Image source={ASSETS.editIcon} style={styles.editIcon} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.detailValue}>{user?.bio || 'No bio available'}</Text>
             </View>
 
+            {/* Hunting Experiences with Edit */}
             <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Skills</Text>
-              <Text style={styles.skillsValue}>#Loremsipsum #Loremsipsum #Loremsipsum</Text>
+              <View style={styles.detailHeader}>
+                <Text style={styles.detailLabel}>Hunting Experiences</Text>
+                <TouchableOpacity onPress={() => handleEdit('huntingExperience', user?.huntingExperience || '')}>
+                  <Image source={ASSETS.editIcon} style={styles.editIcon} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.detailValue}>{user?.huntingExperience || 'Not specified'}</Text>
             </View>
 
+            {/* Skills with Edit */}
             <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Equipment</Text>
+              <View style={styles.detailHeader}>
+                <Text style={styles.detailLabel}>Skills</Text>
+                <TouchableOpacity onPress={() => handleEdit('skills', user?.skills || '')}>
+                  <Image source={ASSETS.editIcon} style={styles.editIcon} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.skillsValue}>{user?.skills || 'Not specified'}</Text>
+            </View>
+
+            {/* Equipment with Add Button */}
+            <View style={styles.detailItem}>
+              <View style={styles.detailHeader}>
+                <Text style={styles.detailLabel}>Equipment</Text>
+                <TouchableOpacity onPress={handleAddEquipment}>
+                  <Text style={styles.addButtonText}>+ Add</Text>
+                </TouchableOpacity>
+              </View>
               <View style={styles.equipmentRow}>
-                <Image source={ASSETS.pistolIcon} style={styles.equipIconImage} />
-                <Image source={ASSETS.pistolIcon} style={styles.equipIconImage} />
-                <Image source={ASSETS.pistolIcon} style={styles.equipIconImage} />
-                <Image source={ASSETS.bowIcon} style={styles.equipIconImage} />
-                <Image source={ASSETS.knifeIcon} style={[styles.equipIconImage, { width: 22 }]} />
+                {userEquipments.length > 0 ? (
+                  userEquipments.map((item) => (
+                    <View key={item.id} style={styles.equipmentItem}>
+                      <Image 
+                        source={item.equipment?.imageUrl ? { uri: item.equipment.imageUrl } : ASSETS.pistolIcon} 
+                        style={styles.equipIconImage} 
+                      />
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.noEquipmentText}>No equipment added</Text>
+                )}
               </View>
             </View>
           </View>
@@ -92,13 +210,21 @@ const ProfileScreen = () => {
     }
   };
 
+  if (authLoading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#0E713E" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Image source={ASSETS.iconBack} style={styles.headerIcon} />
-          <Text style={styles.headerTitle}>Henry</Text>
+          <Text style={styles.headerTitle}>{user?.displayname}</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.searchCircle}>
@@ -111,24 +237,32 @@ const ProfileScreen = () => {
           <Image source={ASSETS.coverImage} style={styles.coverImage} />
 
           <View style={styles.profilePicContainer}>
-            <Image source={ASSETS.profilePic} style={styles.profilePic} />
+            <Image 
+              source={user?.profilePhoto ? { uri: user.profilePhoto } : ASSETS.profilePic} 
+              style={styles.profilePic} 
+            />
           </View>
         </View>
         
-        {/* --- USER INFO --- */}
         <View style={styles.infoSection}>
-          <Text style={styles.userName}>Henry</Text>
-          <Text style={styles.mutualFriends}>59 mutual friends</Text>
+          <Text style={styles.userName}>{user?.displayname || user?.username}</Text>
+          <Text style={styles.mutualFriends}>{friends.length} friends</Text>
           <Text style={styles.bio}>
-            "The search for a scapegoat is the easiest of all hunting expeditions."
+            {user?.bio || 'No bio available'}
           </Text>
 
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.btnFriends}>
+            <TouchableOpacity 
+              style={styles.btnFriends} 
+              onPress={() => navigation.navigate('Friends')}
+            >
               <Image source={ASSETS.friendsIcon} style={styles.btnIcon} />
               <Text style={styles.btnText}>Friends</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.btnMessage}>
+            <TouchableOpacity 
+              style={styles.btnMessage} 
+              onPress={() => navigation.navigate('Messages')}
+            >
               <Image source={ASSETS.messageIcon} style={styles.btnIcon} />
               <Text style={styles.btnText}>Message</Text>
             </TouchableOpacity>
@@ -138,7 +272,6 @@ const ProfileScreen = () => {
           </View>
         </View>
 
-        {/* --- DYNAMIC TABS --- */}
         <View style={styles.tabBar}>
           {['Posts', 'Photos', 'Details'].map((tab) => (
             <TouchableOpacity 
@@ -153,37 +286,115 @@ const ProfileScreen = () => {
           ))}
         </View>
 
-        {/* --- TAB CONTENT AREA --- */}
         {renderContent()}
 
-        {/* --- FRIENDS GRID --- */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Friends</Text>
-          <Text style={styles.sectionSubtitle}>59 mutual friends</Text>
-        </View>
-
-        <View style={styles.friendsGrid}>
-          {[1, 2, 3, 4, 5, 6].map((item) => (
-            <View key={item} style={styles.friendCard}>
-              <Image source={ASSETS.profilePic} style={styles.friendImage} />
-              <View style={styles.friendLabel}>
-                <Text style={styles.friendName} numberOfLines={1}>Juba tal</Text>
-              </View>
+        {friends.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Friends</Text>
+              <Text style={styles.sectionSubtitle}>{friends.length} friends</Text>
             </View>
-          ))}
-        </View>
 
-        <TouchableOpacity style={styles.seeAllButton}>
-          <Text style={styles.seeAllText}>See All Friends</Text>
-        </TouchableOpacity>
+            {friendsLoading ? (
+              <ActivityIndicator style={styles.friendsLoader} color="#0E713E" />
+            ) : (
+              <View style={styles.friendsGrid}>
+                {displayedFriends.map((item) => (
+                  <TouchableOpacity 
+                    key={item.id} 
+                    style={styles.friendCard}
+                    onPress={() => navigation.navigate('Profile', { userId: item.id })}
+                  >
+                    <Image 
+                      source={item.profilePhoto ? { uri: item.profilePhoto } : ASSETS.profilePic} 
+                      style={styles.friendImage} 
+                    />
+                    <View style={styles.friendLabel}>
+                      <Text style={styles.friendName} numberOfLines={1}>
+                        {item.displayname || item.username}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {hasMoreFriends && !showAllFriends && (
+              <TouchableOpacity 
+                style={styles.seeAllButton} 
+                onPress={() => setShowAllFriends(true)}
+              >
+                <Text style={styles.seeAllText}>See All Friends</Text>
+              </TouchableOpacity>
+            )}
+
+            {showAllFriends && hasMoreFriends && (
+              <TouchableOpacity 
+                style={styles.seeAllButton} 
+                onPress={() => setShowAllFriends(false)}
+              >
+                <Text style={styles.seeAllText}>Show Less</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+
+        {friends.length === 0 && !friendsLoading && (
+          <View style={styles.noFriendsContainer}>
+            <Text style={styles.noFriendsText}>No friends yet</Text>
+            <TouchableOpacity 
+              style={styles.findFriendsButton}
+              onPress={() => navigation.navigate('FindFriends')}
+            >
+              <Text style={styles.findFriendsText}>Find Friends</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
       </ScrollView>
+
+      {/* Edit Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={editModalVisible}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Edit {editingField === 'huntingExperience' ? 'Hunting Experience' : 
+                       editingField === 'skills' ? 'Skills' : 'Bio'}
+              </Text>
+              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                <Image source={ASSETS.closeIcon} style={styles.closeIcon} />
+              </TouchableOpacity>
+            </View>
+            
+            <TextInput
+              style={styles.modalInput}
+              value={editValue}
+              onChangeText={setEditValue}
+              placeholder={`Enter ${editingField}`}
+              placeholderTextColor="#999"
+              multiline={editingField === 'bio'}
+              numberOfLines={editingField === 'bio' ? 4 : 1}
+            />
+            
+            <TouchableOpacity style={styles.saveButton} onPress={handleSaveEdit}>
+              <Text style={styles.saveButtonText}>Save Changes</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
   headerContainer: { height: 260, position: 'relative' },
   coverImage: { width: '100%', height: 215 },
   header: {
@@ -195,6 +406,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 25,
     marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
+  headerTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -204,11 +420,7 @@ const styles = StyleSheet.create({
     height: 20,
     marginRight: 10,
     resizeMode: 'contain',
-  },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '900',
+    tintColor: '#FFF',
   },
   searchCircle: {
     paddingHorizontal: 25,
@@ -223,8 +435,6 @@ const styles = StyleSheet.create({
     height: 20,
     tintColor: '#4D3626',
   },
-  navIcon: { width: 24, height: 24 },
-  headerName: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
   profilePicContainer: {
     position: 'absolute',
     top: 140,
@@ -235,7 +445,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#FFF'
   },
-  profilePic: { width: 130, height: 130 },
+  profilePic: { width: 130, height: 130, resizeMode: 'cover' },
   infoSection: { paddingHorizontal: 25, marginTop: 30 },
   userName: { fontSize: 20, fontWeight: '900', color: '#000' },
   mutualFriends: { color: '#666', fontSize: 12, marginVertical: 4 },
@@ -272,7 +482,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 25,
     paddingVertical: 10,
     marginBottom: 10,
-    
   },
   tabItem: { alignItems: 'center', paddingVertical: 5, paddingHorizontal: 20 },
   activeTab: { backgroundColor: '#FFF', borderRadius: 20 },
@@ -280,11 +489,21 @@ const styles = StyleSheet.create({
   tabText: { color: '#FFF', fontWeight: '500', fontSize: 12 },
   detailsContainer: { paddingHorizontal: 25, paddingVertical: 15 },
   detailItem: { marginBottom: 20 },
-  detailLabel: { fontSize: 12, fontWeight: 'bold', color: '#000', marginBottom: 4 },
+  detailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  detailLabel: { fontSize: 12, fontWeight: 'bold', color: '#000' },
   detailValue: { fontSize: 12, color: '#666' },
+  editIcon: { width: 16, height: 16, tintColor: '#0E713E' },
+  addButtonText: { fontSize: 12, color: '#0E713E', fontWeight: '600' },
+  noEquipmentText: { fontSize: 12, color: '#666', fontStyle: 'italic' },
   skillsValue: { fontSize: 12, color: '#0E713E', fontWeight: '500' },
-  equipmentRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
-  equipIconImage: { width: 28, height: 28, marginRight: 20, resizeMode: 'contain' },
+  equipmentRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, flexWrap: 'wrap' },
+  equipmentItem: { position: 'relative' },
+  equipIconImage: { width: 28, height: 28, marginRight: 20, marginBottom: 10, resizeMode: 'contain' },
   tabPlaceholder: { padding: 40, alignItems: 'center' },
   placeholderText: { color: '#999', fontStyle: 'italic' },
   sectionHeader: { paddingHorizontal: 25, paddingTop: 10 },
@@ -294,11 +513,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 25,
-    justifyContent: 'space-between',
+    gap: 5,
   },
   friendCard: { width: (width - 60) / 3, marginBottom: 15, borderRadius: 10, overflow: 'hidden' },
   friendImage: { width: '100%', height: 110 },
-  friendLabel: { backgroundColor: '#0E713E', paddingVertical: 5, alignItems: 'center', paddingBottom: 24 },
+  friendLabel: { backgroundColor: '#0E713E', padding: 10, alignItems: 'center' },
   friendName: { color: '#FFF', fontSize: 12 },
   seeAllButton: {
     backgroundColor: '#0E713E',
@@ -323,6 +542,80 @@ const styles = StyleSheet.create({
   avatarText: { color: '#FFF', fontWeight: 'bold' },
   input: { flex: 1, paddingHorizontal: 10, height: 40, color: '#000', fontSize: 12 },
   inputImageIcon: { width: 24, height: 24, tintColor: '#0E713E' },
+  friendsLoader: { marginVertical: 20 },
+  noFriendsContainer: {
+    alignItems: 'center',
+    paddingVertical: 30,
+    marginHorizontal: 25,
+  },
+  noFriendsText: {
+    color: '#666',
+    fontSize: 14,
+    marginBottom: 15,
+  },
+  findFriendsButton: {
+    backgroundColor: '#0E713E',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+  },
+  findFriendsText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 20,
+    width: width - 40,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  closeIcon: {
+    width: 24,
+    height: 24,
+    tintColor: '#666',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    color: '#000',
+    minHeight: 40,
+    textAlignVertical: 'top',
+  },
+  saveButton: {
+    backgroundColor: '#0E713E',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  saveButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
 });
 
 export default ProfileScreen;

@@ -24,7 +24,7 @@ export const RootNavigator = () => {
       await dispatch(checkAuth());
     };
     
-    initializeAuth();
+    // initializeAuth();
     
     // Network listener
     const unsubscribe = NetInfo.addEventListener(state => {
@@ -47,10 +47,12 @@ export const RootNavigator = () => {
       <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
         {!isAuthenticated ? (
           <Stack.Screen name="Auth" component={AuthNavigator} />
-        ) : needsVerification ? (
-          // If user is authenticated but not verified, redirect to verification
-          <Stack.Screen name="SignUpConfirmation" component={SignUpConfirmationScreen} />
-        ) : (
+        ) 
+        // : needsVerification ? (
+        //   // If user is authenticated but not verified, redirect to verification
+        //   <Stack.Screen name="SignUpConfirmation" component={SignUpConfirmationScreen} />
+        // ) 
+        : (
           <Stack.Screen name="Main" component={MainNavigator} />
         )}
       </Stack.Navigator>

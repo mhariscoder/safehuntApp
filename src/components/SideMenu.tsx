@@ -39,10 +39,12 @@ interface SideMenuProps {
   userName?: string;
 }
 
-const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, userName = "William jack" }) => {
+const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, userName = "Display Name" }) => {
   const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
-  const { isLoading } = useAppSelector((state) => state.auth);
+  const { isLoading, user } = useAppSelector((state) => state.auth);
+
+  userName = user?.displayname || userName;
   
   const drawerAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
 

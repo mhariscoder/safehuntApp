@@ -4,6 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authReducer } from '../../features/auth/authSlice';
 import { postsReducer } from '../../features/posts/postsSlice';
 import { uiReducer } from '../../features/ui/uiSlice';
+import { friendsReducer } from '../../features/friends/friendsSlice';
+import { userEquipmentReducer } from '../../features/userEquipment/userEquipmentSlice';
 
 const persistConfig = {
   key: 'root',
@@ -16,6 +18,8 @@ const rootReducer = combineReducers({
   auth: authReducer,
   posts: postsReducer,
   ui: uiReducer,
+  friends: friendsReducer,
+  userEquipment: userEquipmentReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
@@ -34,7 +38,5 @@ export const store = configureStore({
 });
 
 export const persistor = persistStore(store);
-
-// Infer the `RootState` and `AppDispatch` types from the store itself
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

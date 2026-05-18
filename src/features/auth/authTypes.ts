@@ -16,6 +16,9 @@ export interface User {
   isRequestSent?: boolean;
   isRequestReceived?: boolean;
   requestedBy?: any;
+  huntingExperience?: string;
+  skills?: string;
+  bio?: string;
 }
 
 export interface AuthState {

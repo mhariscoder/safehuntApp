@@ -70,10 +70,7 @@ class AuthService {
         confirmPassword: userData.confirmPassword,
       });
       
-      
-      
       const data = response.data.data.user;
-    console.log('Signup response received:', data);
       const token = data.token;
       const user = {
         id: data.id,
