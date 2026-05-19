@@ -5,7 +5,6 @@ import {
   View,
   Text,
   Image,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Dimensions,
@@ -15,11 +14,14 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../app/store/hooks';
 import { useFriends } from '../hooks/useFriends';
 import { useUserEquipment } from '../hooks/useUserEquipment';
 import { updateUser } from '../features/auth/authActions';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { API_BASE_URL } from '../constants/config';
 
 const { width } = Dimensions.get('window');
 
@@ -39,14 +41,52 @@ const ASSETS = {
   knifeIcon: require('../../assets/knife_icon.png'),
   editIcon: require('../../assets/edit_icon.png'),
   closeIcon: require('../../assets/close_icon.png'),
+  cameraIcon: require('../../assets/camera_icon.png'),
+};
+
+interface EditFormData {
+  displayname: string;
+  username: string;
+  bio: string;
+  huntingExperience: string;
+  skills: string;
+  email: string;
+  phonenumber: string;
+}
+
+interface ImageFile {
+  uri: string;
+  type: string;
+  name: string;
+}
+
+const getFullImageUrl = (imagePath: string | null | undefined): string | null => {
+  if (!imagePath) return null;
+
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+
+  const cleanPath = imagePath.replace('./public/uploads/', '');
+  return `${API_BASE_URL}/public/uploads/${cleanPath}`;
 };
 
 const ProfileScreen = () => {
   const [activeTab, setActiveTab] = useState('Details');
   const [showAllFriends, setShowAllFriends] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editingField, setEditingField] = useState('');
-  const [editValue, setEditValue] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [profileImage, setProfileImage] = useState<ImageFile | null>(null);
+  const [coverImage, setCoverImage] = useState<ImageFile | null>(null);
+  const [editFormData, setEditFormData] = useState<EditFormData>({
+    displayname: '',
+    username: '',
+    bio: '',
+    huntingExperience: '',
+    skills: '',
+    email: '',
+    phonenumber: '',
+  });
   
   const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
@@ -68,6 +108,20 @@ const ProfileScreen = () => {
     }
   }, [currentUserId]);
 
+  useEffect(() => {
+    if (user) {
+      setEditFormData({
+        displayname: user.displayname || '',
+        username: user.username || '',
+        bio: user.bio || '',
+        huntingExperience: user.huntingExperience || '',
+        skills: Array.isArray(user.skills) ? user.skills.join(', ') : (user.skills || ''),
+        email: user.email || '',
+        phonenumber: user.phonenumber || '',
+      });
+    }
+  }, [user]);
+
   const loadFriends = async () => {
     try {
       await getFriends(currentUserId!);
@@ -76,37 +130,92 @@ const ProfileScreen = () => {
     }
   };
 
-  const handleEdit = (field: string, currentValue: string) => {
-    setEditingField(field);
-    setEditValue(currentValue);
+  const handleEditPress = () => {
+    setEditFormData({
+      displayname: user?.displayname || '',
+      username: user?.username || '',
+      bio: user?.bio || '',
+      huntingExperience: user?.huntingExperience || '',
+      skills: Array.isArray(user?.skills) ? user.skills.join(', ') : (user?.skills || ''),
+      email: user?.email || '',
+      phonenumber: user?.phonenumber || '',
+    });
+    setProfileImage(null);
+    setCoverImage(null);
     setEditModalVisible(true);
   };
 
+  const selectImage = (type: 'profile' | 'cover') => {
+    const options = {
+      mediaType: 'photo' as const,
+      includeBase64: false,
+      maxHeight: 2000,
+      maxWidth: 2000,
+      quality: 0.8,
+    };
+
+    launchImageLibrary(options, (response) => {
+      if (response.didCancel) {
+        console.log('User cancelled image picker');
+      } else if (response.error) {
+        console.log('ImagePicker Error: ', response.error);
+        Alert.alert('Error', 'Failed to select image');
+      } else if (response.assets && response.assets[0]) {
+        const asset = response.assets[0];
+        const imageFile: ImageFile = {
+          uri: asset.uri || '',
+          type: asset.type || 'image/jpeg',
+          name: asset.fileName || `image_${Date.now()}.jpg`,
+        };
+        
+        if (type === 'profile') {
+          setProfileImage(imageFile);
+        } else {
+          setCoverImage(imageFile);
+        }
+      }
+    });
+  };
+
   const handleSaveEdit = async () => {
+    setLoading(true);
     try {
-      const updateData: any = {};
+      const updateData: any = {
+        displayname: editFormData.displayname,
+        username: editFormData.username,
+        bio: editFormData.bio,
+        huntingExperience: editFormData.huntingExperience,
+        email: editFormData.email,
+        phonenumber: editFormData.phonenumber,
+      };
       
-      switch (editingField) {
-        case 'huntingExperience':
-          updateData.huntingExperience = editValue;
-          break;
-        case 'skills':
-          updateData.skills = editValue;
-          break;
-        case 'bio':
-          updateData.bio = editValue;
-          break;
+      if (editFormData.skills.trim()) {
+        updateData.skills = editFormData.skills.split(',').map(skill => skill.trim());
       }
       
-      await dispatch(updateUser({ userId: user?.id, userData: updateData })).unwrap();
+      // Prepare files for upload
+      const files: any = {};
+      if (profileImage) {
+        files.profilePhoto = profileImage;
+      }
+      if (coverImage) {
+        files.coverPhoto = coverImage;
+      }
       
-      Alert.alert('Success', `${editingField} updated successfully`);
+      await dispatch(updateUser({ 
+        userId: user?.id, 
+        userData: updateData,
+        files: Object.keys(files).length > 0 ? files : undefined
+      })).unwrap();
+      
+      Alert.alert('Success', 'Profile updated successfully');
       setEditModalVisible(false);
-      
-      // Refresh user data
-      // You might want to dispatch an action to refresh user data
+      setProfileImage(null);
+      setCoverImage(null);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update');
+      Alert.alert('Error', error.message || 'Failed to update profile');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -116,6 +225,9 @@ const ProfileScreen = () => {
 
   const displayedFriends = showAllFriends ? friends : friends.slice(0, 6);
   const hasMoreFriends = friends.length > 6;
+
+  const profilePhotoUrl = getFullImageUrl(user?.profilePhoto);
+  const coverPhotoUrl = getFullImageUrl(user?.coverPhoto);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -147,40 +259,43 @@ const ProfileScreen = () => {
       case 'Details':
         return (
           <View style={styles.detailsContainer}>
-            {/* Bio Section with Edit */}
             <View style={styles.detailItem}>
-              <View style={styles.detailHeader}>
-                <Text style={styles.detailLabel}>Bio</Text>
-                <TouchableOpacity onPress={() => handleEdit('bio', user?.bio || '')}>
-                  <Image source={ASSETS.editIcon} style={styles.editIcon} />
-                </TouchableOpacity>
-              </View>
+              <Text style={styles.detailLabel}>Display Name</Text>
+              <Text style={styles.detailValue}>{user?.displayname || 'Not specified'}</Text>
+            </View>
+
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>Username</Text>
+              <Text style={styles.detailValue}>{user?.username || 'Not specified'}</Text>
+            </View>
+
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>Email</Text>
+              <Text style={styles.detailValue}>{user?.email || 'Not specified'}</Text>
+            </View>
+
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>Phone Number</Text>
+              <Text style={styles.detailValue}>{user?.phonenumber || 'Not specified'}</Text>
+            </View>
+
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>Bio</Text>
               <Text style={styles.detailValue}>{user?.bio || 'No bio available'}</Text>
             </View>
 
-            {/* Hunting Experiences with Edit */}
             <View style={styles.detailItem}>
-              <View style={styles.detailHeader}>
-                <Text style={styles.detailLabel}>Hunting Experiences</Text>
-                <TouchableOpacity onPress={() => handleEdit('huntingExperience', user?.huntingExperience || '')}>
-                  <Image source={ASSETS.editIcon} style={styles.editIcon} />
-                </TouchableOpacity>
-              </View>
+              <Text style={styles.detailLabel}>Hunting Experiences</Text>
               <Text style={styles.detailValue}>{user?.huntingExperience || 'Not specified'}</Text>
             </View>
 
-            {/* Skills with Edit */}
             <View style={styles.detailItem}>
-              <View style={styles.detailHeader}>
-                <Text style={styles.detailLabel}>Skills</Text>
-                <TouchableOpacity onPress={() => handleEdit('skills', user?.skills || '')}>
-                  <Image source={ASSETS.editIcon} style={styles.editIcon} />
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.skillsValue}>{user?.skills || 'Not specified'}</Text>
+              <Text style={styles.detailLabel}>Skills</Text>
+              <Text style={styles.skillsValue}>
+                {Array.isArray(user?.skills) ? user.skills.join(', ') : (user?.skills || 'Not specified')}
+              </Text>
             </View>
 
-            {/* Equipment with Add Button */}
             <View style={styles.detailItem}>
               <View style={styles.detailHeader}>
                 <Text style={styles.detailLabel}>Equipment</Text>
@@ -227,18 +342,27 @@ const ProfileScreen = () => {
           <Text style={styles.headerTitle}>{user?.displayname}</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.searchCircle}>
-          <Image source={ASSETS.iconSearch} style={styles.searchIcon} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.searchCircle}>
+            <Image source={ASSETS.iconSearch} style={styles.searchIcon} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.moreButton} onPress={handleEditPress}>
+            <Image source={ASSETS.moreIcon} style={styles.moreDots} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.headerContainer}>
-          <Image source={ASSETS.coverImage} style={styles.coverImage} />
+          <Image 
+            source={coverPhotoUrl ? { uri: coverPhotoUrl } : ASSETS.coverImage}
+            style={styles.coverImage} 
+          />
 
           <View style={styles.profilePicContainer}>
             <Image 
-              source={user?.profilePhoto ? { uri: user.profilePhoto } : ASSETS.profilePic} 
+              source={profilePhotoUrl ? { uri: profilePhotoUrl } : ASSETS.profilePic}
               style={styles.profilePic} 
             />
           </View>
@@ -266,7 +390,7 @@ const ProfileScreen = () => {
               <Image source={ASSETS.messageIcon} style={styles.btnIcon} />
               <Text style={styles.btnText}>Message</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.btnMore}>
+            <TouchableOpacity style={styles.btnMore} onPress={handleEditPress}>
               <Image source={ASSETS.moreIcon} style={styles.moreDots} />
             </TouchableOpacity>
           </View>
@@ -353,40 +477,176 @@ const ProfileScreen = () => {
 
       </ScrollView>
 
-      {/* Edit Modal */}
+      {/* Edit Profile Modal */}
       <Modal
         animationType="slide"
         transparent={true}
         visible={editModalVisible}
         onRequestClose={() => setEditModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                Edit {editingField === 'huntingExperience' ? 'Hunting Experience' : 
-                       editingField === 'skills' ? 'Skills' : 'Bio'}
-              </Text>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
               <TouchableOpacity onPress={() => setEditModalVisible(false)}>
                 <Image source={ASSETS.closeIcon} style={styles.closeIcon} />
               </TouchableOpacity>
             </View>
             
-            <TextInput
-              style={styles.modalInput}
-              value={editValue}
-              onChangeText={setEditValue}
-              placeholder={`Enter ${editingField}`}
-              placeholderTextColor="#999"
-              multiline={editingField === 'bio'}
-              numberOfLines={editingField === 'bio' ? 4 : 1}
-            />
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.modalBody}>
+                
+                {/* Profile Photo Upload */}
+                <View style={styles.imageUploadSection}>
+                  <Text style={styles.inputLabel}>Profile Photo</Text>
+                  <TouchableOpacity 
+                    style={styles.imageUploadContainer}
+                    onPress={() => selectImage('profile')}
+                  >
+                    {profileImage || user?.profilePhoto ? (
+                      <Image 
+                        source={profileImage ? { uri: profileImage.uri } : { uri: user?.profilePhoto }} 
+                        style={styles.imagePreview} 
+                      />
+                    ) : (
+                      <View style={styles.imagePlaceholder}>
+                        <Image source={ASSETS.cameraIcon} style={styles.cameraIcon} />
+                        <Text style={styles.imagePlaceholderText}>Add Profile Photo</Text>
+                      </View>
+                    )}
+                    <View style={styles.imageOverlay}>
+                      <Text style={styles.changeText}>Change</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Cover Photo Upload */}
+                <View style={styles.imageUploadSection}>
+                  <Text style={styles.inputLabel}>Cover Photo</Text>
+                  <TouchableOpacity 
+                    style={styles.imageUploadContainer}
+                    onPress={() => selectImage('cover')}
+                  >
+                    {coverImage || user?.coverPhoto ? (
+                      <Image 
+                        source={coverImage ? { uri: coverImage.uri } : { uri: user?.coverPhoto }} 
+                        style={styles.imagePreview} 
+                      />
+                    ) : (
+                      <View style={styles.imagePlaceholder}>
+                        <Image source={ASSETS.cameraIcon} style={styles.cameraIcon} />
+                        <Text style={styles.imagePlaceholderText}>Add Cover Photo</Text>
+                      </View>
+                    )}
+                    <View style={styles.imageOverlay}>
+                      <Text style={styles.changeText}>Change</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* Text Fields */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Display Name</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editFormData.displayname}
+                    onChangeText={(text) => setEditFormData({...editFormData, displayname: text})}
+                    placeholder="Enter display name"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Username</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editFormData.username}
+                    onChangeText={(text) => setEditFormData({...editFormData, username: text})}
+                    placeholder="Enter username"
+                    placeholderTextColor="#999"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Email</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editFormData.email}
+                    onChangeText={(text) => setEditFormData({...editFormData, email: text})}
+                    placeholder="Enter email"
+                    placeholderTextColor="#999"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Phone Number</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editFormData.phonenumber}
+                    onChangeText={(text) => setEditFormData({...editFormData, phonenumber: text})}
+                    placeholder="Enter phone number"
+                    placeholderTextColor="#999"
+                    keyboardType="phone-pad"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Bio</Text>
+                  <TextInput
+                    style={[styles.modalInput, styles.textArea]}
+                    value={editFormData.bio}
+                    onChangeText={(text) => setEditFormData({...editFormData, bio: text})}
+                    placeholder="Enter bio"
+                    placeholderTextColor="#999"
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Hunting Experience</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editFormData.huntingExperience}
+                    onChangeText={(text) => setEditFormData({...editFormData, huntingExperience: text})}
+                    placeholder="Enter hunting experience"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Skills (comma separated)</Text>
+                  <TextInput
+                    style={[styles.modalInput, styles.textArea]}
+                    value={editFormData.skills}
+                    onChangeText={(text) => setEditFormData({...editFormData, skills: text})}
+                    placeholder="Enter skills separated by commas"
+                    placeholderTextColor="#999"
+                    multiline
+                    numberOfLines={2}
+                  />
+                </View>
+              </View>
+            </ScrollView>
             
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveEdit}>
-              <Text style={styles.saveButtonText}>Save Changes</Text>
+            <TouchableOpacity 
+              style={[styles.saveButton, loading && styles.saveButtonDisabled]} 
+              onPress={handleSaveEdit}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              )}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -396,7 +656,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
   headerContainer: { height: 260, position: 'relative' },
-  coverImage: { width: '100%', height: 215 },
+  coverImage: { width: '100%', height: 215, resizeMode: 'cover' },
   header: {
     height: 60,
     backgroundColor: '#0E713E', 
@@ -405,6 +665,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 25,
     marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
   },
   headerTitle: {
     color: '#FFF',
@@ -423,7 +688,7 @@ const styles = StyleSheet.create({
     tintColor: '#FFF',
   },
   searchCircle: {
-    paddingHorizontal: 25,
+    paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#FFF',
@@ -431,9 +696,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   searchIcon: {
-    width: 20,
-    height: 20,
+    width: 18,
+    height: 18,
     tintColor: '#4D3626',
+  },
+  moreButton: {
+    padding: 5,
   },
   profilePicContainer: {
     position: 'absolute',
@@ -471,7 +739,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  btnMore: { backgroundColor: '#AACEBC', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 25 },
+  btnMore: { 
+    backgroundColor: '#AACEBC', 
+    paddingVertical: 10, 
+    paddingHorizontal: 20, 
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   btnIcon: { width: 12, height: 14, resizeMode: 'contain', marginRight: 8, tintColor: '#FFF' },
   btnText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
   moreDots: { width: 20, height: 20, tintColor: '#ffffff', resizeMode: 'contain' },
@@ -495,7 +770,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
-  detailLabel: { fontSize: 12, fontWeight: 'bold', color: '#000' },
+  detailLabel: { fontSize: 12, fontWeight: 'bold', color: '#000', marginBottom: 4 },
   detailValue: { fontSize: 12, color: '#666' },
   editIcon: { width: 16, height: 16, tintColor: '#0E713E' },
   addButtonText: { fontSize: 12, color: '#0E713E', fontWeight: '600' },
@@ -515,17 +790,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 25,
     gap: 5,
   },
-  friendCard: { width: (width - 60) / 3, marginBottom: 15, borderRadius: 10, overflow: 'hidden' },
-  friendImage: { width: '100%', height: 110 },
-  friendLabel: { backgroundColor: '#0E713E', padding: 10, alignItems: 'center' },
-  friendName: { color: '#FFF', fontSize: 12 },
+  friendCard: { width: (width - 60) / 3, marginBottom: 15, borderRadius: 10, overflow: 'hidden', backgroundColor: '#F5F5F5' },
+  friendImage: { width: '100%', height: 110, resizeMode: 'cover' },
+  friendLabel: { backgroundColor: '#0E713E', padding: 8, alignItems: 'center' },
+  friendName: { color: '#FFF', fontSize: 11, fontWeight: '500' },
   seeAllButton: {
     backgroundColor: '#0E713E',
     marginHorizontal: 20,
-    paddingVertical: 15,
-    borderRadius: 60,
+    paddingVertical: 12,
+    borderRadius: 25,
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   seeAllText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
   postInputSection: { padding: 20, backgroundColor: '#0E713E', marginHorizontal: 20, borderRadius: 15, marginBottom: 20 },
@@ -576,13 +851,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     width: width - 40,
-    maxHeight: '80%',
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
   },
   modalTitle: {
     fontSize: 18,
@@ -594,6 +872,70 @@ const styles = StyleSheet.create({
     height: 24,
     tintColor: '#666',
   },
+  modalBody: {
+    paddingBottom: 20,
+  },
+  imageUploadSection: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  imageUploadContainer: {
+    position: 'relative',
+    width: '100%',
+    height: 180,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F5F5F5',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+  cameraIcon: {
+    width: 40,
+    height: 40,
+    tintColor: '#999',
+    marginBottom: 10,
+  },
+  imagePlaceholderText: {
+    fontSize: 14,
+    color: '#999',
+  },
+  imageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  changeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#EEE',
+    marginVertical: 20,
+  },
+  inputGroup: {
+    marginBottom: 15,
+  },
   modalInput: {
     borderWidth: 1,
     borderColor: '#DDD',
@@ -601,20 +943,26 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 14,
     color: '#000',
-    minHeight: 40,
+    backgroundColor: '#F9F9F9',
+  },
+  textArea: {
+    minHeight: 60,
     textAlignVertical: 'top',
   },
   saveButton: {
     backgroundColor: '#0E713E',
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 10,
+  },
+  saveButtonDisabled: {
+    opacity: 0.7,
   },
   saveButtonText: {
     color: '#FFF',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 16,
   },
 });
 

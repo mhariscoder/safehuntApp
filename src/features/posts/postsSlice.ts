@@ -1,16 +1,23 @@
+// src/features/posts/postsSlice.ts
+
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { PostsState, Post } from './postsTypes';
 import {
-  fetchPosts,
-  fetchPostById,
   createPost,
+  getAllPosts,
+  getMyPosts,
+  getPostsByUserId,
+  getPostById,
   updatePost,
   deletePost,
-  likePost,
+  getPendingPosts,
+  updateGroupPostStatus,
+  toggleLike, // ✅ Import toggleLike instead of likePost/unlikePost
 } from './postsActions';
 
 const initialState: PostsState = {
   posts: [],
+  myPosts: [],
   selectedPost: null,
   isLoading: false,
   error: null,
@@ -20,65 +27,55 @@ const initialState: PostsState = {
     total: 0,
     hasMore: true,
   },
+  pendingPosts: [],
 };
 
 const postsSlice = createSlice({
   name: 'posts',
   initialState,
   reducers: {
-    clearPosts: (state) => {
-      state.posts = [];
-      state.pagination.page = 1;
-      state.pagination.hasMore = true;
-    },
-    clearSelectedPost: (state) => {
-      state.selectedPost = null;
-    },
     clearError: (state) => {
       state.error = null;
     },
+    clearPosts: (state) => {
+      state.posts = [];
+      state.myPosts = [];
+      state.selectedPost = null;
+      state.pagination.page = 1;
+      state.pagination.hasMore = true;
+    },
+    clearPendingPosts: (state) => {
+      state.pendingPosts = [];
+    },
+    // Local actions for optimistic updates
+    toggleLikeLocally: (state, action: PayloadAction<number>) => {
+      const postId = action.payload;
+      
+      // Helper function to toggle like on a post
+      const togglePostLike = (post: any) => {
+        if (post) {
+          post.postLiked = !post.postLiked;
+          post.likesCount = post.postLiked 
+            ? (post.likesCount || 0) + 1 
+            : Math.max((post.likesCount || 0) - 1, 0);
+        }
+      };
+      
+      // Update in main posts array
+      const postInPosts = state.posts.find(p => p.id === postId);
+      togglePostLike(postInPosts);
+      
+      // Update in myPosts array
+      const postInMyPosts = state.myPosts.find(p => p.id === postId);
+      togglePostLike(postInMyPosts);
+      
+      // Update selected post if it's the same
+      if (state.selectedPost?.id === postId) {
+        togglePostLike(state.selectedPost);
+      }
+    },
   },
   extraReducers: (builder) => {
-    // Fetch Posts
-    builder.addCase(fetchPosts.pending, (state) => {
-      state.isLoading = true;
-      state.error = null;
-    });
-    builder.addCase(fetchPosts.fulfilled, (state, action) => {
-      state.isLoading = false;
-      if (action.payload.page === 1) {
-        state.posts = action.payload.posts;
-      } else {
-        state.posts = [...state.posts, ...action.payload.posts];
-      }
-      state.pagination = {
-        ...state.pagination,
-        page: action.payload.page,
-        total: action.payload.total,
-        hasMore: action.payload.hasMore,
-      };
-      state.error = null;
-    });
-    builder.addCase(fetchPosts.rejected, (state, action) => {
-      state.isLoading = false;
-      state.error = action.payload as string;
-    });
-
-    // Fetch Post By ID
-    builder.addCase(fetchPostById.pending, (state) => {
-      state.isLoading = true;
-      state.error = null;
-    });
-    builder.addCase(fetchPostById.fulfilled, (state, action) => {
-      state.isLoading = false;
-      state.selectedPost = action.payload;
-      state.error = null;
-    });
-    builder.addCase(fetchPostById.rejected, (state, action) => {
-      state.isLoading = false;
-      state.error = action.payload as string;
-    });
-
     // Create Post
     builder.addCase(createPost.pending, (state) => {
       state.isLoading = true;
@@ -86,7 +83,8 @@ const postsSlice = createSlice({
     });
     builder.addCase(createPost.fulfilled, (state, action) => {
       state.isLoading = false;
-      state.posts = [action.payload, ...state.posts];
+      state.posts.unshift(action.payload);
+      state.myPosts.unshift(action.payload);
       state.error = null;
     });
     builder.addCase(createPost.rejected, (state, action) => {
@@ -94,34 +92,175 @@ const postsSlice = createSlice({
       state.error = action.payload as string;
     });
 
+    // Get All Posts
+    builder.addCase(getAllPosts.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(getAllPosts.fulfilled, (state, action) => {
+      state.isLoading = false;
+      const { posts, currentPage, totalPages } = action.payload;
+      
+      if (currentPage === 1) {
+        state.posts = posts;
+      } else {
+        state.posts = [...state.posts, ...posts];
+      }
+      
+      state.pagination = {
+        page: currentPage,
+        limit: 10,
+        total: action.payload.totalPosts || 0,
+        hasMore: currentPage < totalPages,
+      };
+      state.error = null;
+    });
+    builder.addCase(getAllPosts.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
+    });
+
+    // Get My Posts
+    builder.addCase(getMyPosts.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(getMyPosts.fulfilled, (state, action) => {
+      state.isLoading = false;
+      const { posts, currentPage, totalPages } = action.payload;
+      
+      if (currentPage === 1) {
+        state.myPosts = posts;
+      } else {
+        state.myPosts = [...state.myPosts, ...posts];
+      }
+      
+      state.pagination = {
+        page: currentPage,
+        limit: 10,
+        total: action.payload.totalPosts || 0,
+        hasMore: currentPage < totalPages,
+      };
+      state.error = null;
+    });
+    builder.addCase(getMyPosts.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
+    });
+
+    // Get Posts By User ID
+    builder.addCase(getPostsByUserId.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(getPostsByUserId.fulfilled, (state, action) => {
+      state.isLoading = false;
+      state.posts = action.payload;
+      state.error = null;
+    });
+    builder.addCase(getPostsByUserId.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
+    });
+
+    // Get Post By ID
+    builder.addCase(getPostById.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(getPostById.fulfilled, (state, action) => {
+      state.isLoading = false;
+      state.selectedPost = action.payload;
+      state.error = null;
+    });
+    builder.addCase(getPostById.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
+    });
+
     // Update Post
+    builder.addCase(updatePost.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
     builder.addCase(updatePost.fulfilled, (state, action) => {
-      const index = state.posts.findIndex((post) => post.id === action.payload.id);
+      state.isLoading = false;
+      const index = state.posts.findIndex(p => p.id === action.payload.id);
       if (index !== -1) {
         state.posts[index] = action.payload;
       }
       if (state.selectedPost?.id === action.payload.id) {
         state.selectedPost = action.payload;
       }
+      state.error = null;
+    });
+    builder.addCase(updatePost.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
     });
 
     // Delete Post
+    builder.addCase(deletePost.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
     builder.addCase(deletePost.fulfilled, (state, action) => {
-      state.posts = state.posts.filter((post) => post.id !== action.payload);
-      if (state.selectedPost?.id === action.payload) {
+      state.isLoading = false;
+      state.posts = state.posts.filter(p => p.id !== action.payload.id);
+      state.myPosts = state.myPosts.filter(p => p.id !== action.payload.id);
+      if (state.selectedPost?.id === action.payload.id) {
         state.selectedPost = null;
       }
+      state.error = null;
+    });
+    builder.addCase(deletePost.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
     });
 
-    // Like Post
-    builder.addCase(likePost.fulfilled, (state, action) => {
-      const post = state.posts.find((p) => p.id === action.payload.id);
-      if (post) {
-        post.likes = action.payload.likes;
-      }
+    // Get Pending Posts
+    builder.addCase(getPendingPosts.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(getPendingPosts.fulfilled, (state, action) => {
+      state.isLoading = false;
+      state.pendingPosts = action.payload;
+      state.error = null;
+    });
+    builder.addCase(getPendingPosts.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
+    });
+
+    // Update Group Post Status
+    builder.addCase(updateGroupPostStatus.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(updateGroupPostStatus.fulfilled, (state, action) => {
+      state.isLoading = false;
+      state.pendingPosts = state.pendingPosts.filter(p => p.id !== action.payload.postId);
+      state.error = null;
+    });
+    builder.addCase(updateGroupPostStatus.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
+    });
+
+    // ✅ Toggle Like - Handle API response (no need for extra state update since optimistic already did it)
+    builder.addCase(toggleLike.rejected, (state, action) => {
+      // If API fails, we need to revert the optimistic update
+      // The error will be shown to the user, and the local action should have already been reverted
+      state.error = action.payload as string;
     });
   },
 });
 
-export const { clearPosts, clearSelectedPost, clearError } = postsSlice.actions;
+export const { 
+  clearError, 
+  clearPosts, 
+  clearPendingPosts, 
+  toggleLikeLocally 
+} = postsSlice.actions;
 export const postsReducer = postsSlice.reducer;

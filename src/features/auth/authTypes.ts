@@ -10,6 +10,7 @@ export interface User {
   profilecomplete?: boolean;
   status?: 'OTP_VERIFIED' | 'PENDING_VERIFICATION';
   subscriptionTier?: 'free' | 'premium';
+  subscriptionStatus?: 'active' | 'inactive';
   createdAt?: string;
   coverPhoto?: string;
   equipmentImages?: string[];
@@ -19,6 +20,7 @@ export interface User {
   huntingExperience?: string;
   skills?: string;
   bio?: string;
+  phonenumber?: string;
 }
 
 export interface AuthState {

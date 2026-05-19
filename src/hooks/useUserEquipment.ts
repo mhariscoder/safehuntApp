@@ -1,3 +1,5 @@
+// src/hooks/useUserEquipment.ts
+import { useCallback } from 'react';
 import { useAppSelector, useAppDispatch } from '../app/store/hooks';
 import {
   assignEquipmentToUser,
@@ -7,38 +9,41 @@ import { clearError, clearUserEquipments, removeEquipment } from '../features/us
 
 export const useUserEquipment = () => {
   const dispatch = useAppDispatch();
-  const { userEquipments, isLoading, error, pagination } = useAppSelector(
-    (state) => state.userEquipment
-  );
+  
+  // ✅ Always access state, even if it might be undefined initially
+  const userEquipmentState = useAppSelector((state) => state.userEquipment);
+  
+  // ✅ Provide default values if state is undefined
+  const userEquipments = userEquipmentState?.userEquipments || [];
+  const isLoading = userEquipmentState?.isLoading || false;
+  const error = userEquipmentState?.error || null;
+  const pagination = userEquipmentState?.pagination || { page: 1, limit: 10, total: 0, hasMore: true };
 
-  const handleAssignEquipment = async (equipmentId: number) => {
+  const handleAssignEquipment = useCallback(async (equipmentId: number) => {
     return dispatch(assignEquipmentToUser({ equipmentId })).unwrap();
-  };
+  }, [dispatch]);
 
-  const handleGetUserEquipments = async () => {
+  const handleGetUserEquipments = useCallback(async () => {
     return dispatch(getUserEquipments()).unwrap();
-  };
+  }, [dispatch]);
 
-  const handleClearError = () => {
+  const handleClearError = useCallback(() => {
     dispatch(clearError());
-  };
+  }, [dispatch]);
 
-  const handleClearUserEquipments = () => {
+  const handleClearUserEquipments = useCallback(() => {
     dispatch(clearUserEquipments());
-  };
+  }, [dispatch]);
 
-  const handleRemoveEquipment = (equipmentId: number) => {
+  const handleRemoveEquipment = useCallback((equipmentId: number) => {
     dispatch(removeEquipment(equipmentId));
-  };
+  }, [dispatch]);
 
   return {
-    // State
     userEquipments,
     isLoading,
     error,
     pagination,
-    
-    // Actions
     assignEquipment: handleAssignEquipment,
     getUserEquipments: handleGetUserEquipments,
     clearError: handleClearError,

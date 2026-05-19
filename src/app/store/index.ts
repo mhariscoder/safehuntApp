@@ -6,6 +6,7 @@ import { postsReducer } from '../../features/posts/postsSlice';
 import { uiReducer } from '../../features/ui/uiSlice';
 import { friendsReducer } from '../../features/friends/friendsSlice';
 import { userEquipmentReducer } from '../../features/userEquipment/userEquipmentSlice';
+import { commentsReducer } from '../../features/comments/commentsSlice';
 
 const persistConfig = {
   key: 'root',
@@ -17,6 +18,7 @@ const persistConfig = {
 const rootReducer = combineReducers({
   auth: authReducer,
   posts: postsReducer,
+  comments: commentsReducer,
   ui: uiReducer,
   friends: friendsReducer,
   userEquipment: userEquipmentReducer,

@@ -10,8 +10,14 @@ import {
   StatusBar,
   Dimensions,
   Platform,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native'; //
+import { useNavigation } from '@react-navigation/native';
+import { usePosts } from '../hooks/usePosts';
+import { useAppSelector } from '../app/store/hooks';
+import { launchImageLibrary } from 'react-native-image-picker';
 
 const { height } = Dimensions.get('window');
 
@@ -33,22 +39,80 @@ const ActionSheetItem = ({ icon, label, onPress }: { icon: any; label: string; o
 
 const CreatePostScreen = () => {
   const [postText, setPostText] = useState('');
-  const navigation = useNavigation<any>(); //
+  const [selectedImage, setSelectedImage] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const navigation = useNavigation<any>();
+  const { user } = useAppSelector((state) => state.auth);
+  const { createPost } = usePosts();
 
-  // Function to handle moving back to the feed
-  const handleNavigateBack = () => {
-    navigation.goBack(); // Or navigation.navigate('Feed') depending on your stack
+  const handleSelectImage = () => {
+    const options: any = {
+      mediaType: 'photo' as const,
+      includeBase64: false,
+      maxHeight: 2000,
+      maxWidth: 2000,
+      quality: 0.8,
+    };
+
+    launchImageLibrary(options, (response: any) => {
+      if (response.didCancel) {
+        console.log('User cancelled image picker');
+      } else if (response.error) {
+        console.log('ImagePicker Error: ', response.error);
+        Alert.alert('Error', 'Failed to select image');
+      } else if (response.assets && response.assets[0]) {
+        const asset = response.assets[0];
+        setSelectedImage({
+          uri: asset.uri,
+          type: asset.type || 'image/jpeg',
+          name: asset.fileName || `image_${Date.now()}.jpg`,
+        });
+      }
+    });
+  };
+
+  const handleCreatePost = async () => {
+    if (!postText.trim() && !selectedImage) {
+      Alert.alert('Error', 'Please add some content to your post');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const postData: any = {
+        description: postText,
+      };
+      
+      if (selectedImage) {
+        postData.image = selectedImage;
+      }
+      
+      await createPost(postData);
+      
+      Alert.alert('Success', 'Post created successfully!', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to create post');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0E713E" />
 
-      {/* Header - Navigation added to both buttons */}
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.headerButton} 
-          onPress={handleNavigateBack} // Close button navigation
+          onPress={() => navigation.goBack()}
+          disabled={loading}
         >
           <Image source={ASSETS.iconClose} style={styles.headerCloseIcon} />
         </TouchableOpacity>
@@ -57,18 +121,25 @@ const CreatePostScreen = () => {
         
         <TouchableOpacity 
           style={styles.headerButton} 
-          onPress={handleNavigateBack} // Post button navigation
+          onPress={handleCreatePost}
+          disabled={loading}
         >
-          <Text style={styles.headerPostText}>Post</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Text style={styles.headerPostText}>Post</Text>
+          )}
         </TouchableOpacity>
       </View>
 
-      <View style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.profileIndicator}>
           <View style={styles.profileCircle}>
-            <Text style={styles.profileInitial}>W</Text>
+            <Text style={styles.profileInitial}>
+              {user?.displayname?.charAt(0) || user?.username?.charAt(0) || 'U'}
+            </Text>
           </View>
-          <Text style={styles.profileName}>William jack</Text>
+          <Text style={styles.profileName}>{user?.displayname || user?.username}</Text>
         </View>
 
         <TextInput
@@ -79,8 +150,18 @@ const CreatePostScreen = () => {
           value={postText}
           onChangeText={setPostText}
           textAlignVertical="top"
+          editable={!loading}
         />
-      </View>
+
+        {selectedImage && (
+          <View style={styles.imagePreviewContainer}>
+            <Image source={{ uri: selectedImage.uri }} style={styles.imagePreview} />
+            <TouchableOpacity style={styles.removeImageButton} onPress={handleRemoveImage}>
+              <Text style={styles.removeImageText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
 
       <View style={styles.actionSheetContainer}>
         <View style={styles.actionSheetPill}>
@@ -90,7 +171,7 @@ const CreatePostScreen = () => {
             <ActionSheetItem
               icon={ASSETS.iconMedia}
               label="Media"
-              onPress={() => {}}
+              onPress={handleSelectImage}
             />
             <ActionSheetItem
               icon={ASSETS.iconLocation}
@@ -105,7 +186,7 @@ const CreatePostScreen = () => {
           </View>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -140,7 +221,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '500',
     fontSize: 16,
-    opacity: 0.7,
   },
   content: {
     flex: 1,
@@ -171,10 +251,36 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   textInput: {
-    flex: 1,
     fontSize: 14,
     color: '#000',
     lineHeight: 22,
+    minHeight: 150,
+  },
+  imagePreviewContainer: {
+    marginTop: 15,
+    position: 'relative',
+  },
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    resizeMode: 'cover',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeImageText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   actionSheetContainer: {
     position: 'absolute',
@@ -213,6 +319,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     resizeMode: 'contain',
+    tintColor: '#FFF',
   },
   actionLabel: {
     fontSize: 18,

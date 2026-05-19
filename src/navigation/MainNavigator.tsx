@@ -15,7 +15,6 @@ import NewNoteScreen from '../screens/NewNoteScreen';
 import SubscriptionScreen from '../screens/SubscriptionScreen';
 import CardDetailScreen from '../screens/CardDetailScreen';
 import FriendsScreen from '../screens/FriendsScreen';
-import AvailableEquipmentScreen from '../screens/AvailableEquipmentScreen';
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
@@ -44,7 +43,6 @@ export const MainNavigator = () => {
       <Stack.Screen name="Subscription" component={SubscriptionScreen} />
       <Stack.Screen name="CardDetail" component={CardDetailScreen} />
       <Stack.Screen name="Friends" component={FriendsScreen} />
-      <Stack.Screen name="AvailableEquipment" component={AvailableEquipmentScreen} />
     </Stack.Navigator>
   );
 };

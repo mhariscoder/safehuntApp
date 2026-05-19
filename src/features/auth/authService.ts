@@ -30,13 +30,22 @@ class AuthService {
       const token = data.token;
       const user = {
         id: data.id,
+        role: data.role,
         email: data.email,
         username: data.username,
         displayname: data.displayname,
         profilePhoto: data.profilePhoto,
+        coverPhoto: data.coverPhoto,
         profilePicture: data.profilePicture,
         profilecomplete: data.profilecomplete,
         status: data.status,
+        phonenumber: data.phonenumber,
+        bio: data.bio,
+        huntingExperience: data.huntingExperience,
+        skills: data.skills,
+        currentLatitude: data.currentLatitude,
+        currentLongitude: data.currentLongitude,
+        subscriptionStatus: data.subscriptionStatus,
       };
       
       // Store token securely
@@ -74,13 +83,22 @@ class AuthService {
       const token = data.token;
       const user = {
         id: data.id,
+        role: data.role,
         email: data.email,
         username: data.username,
         displayname: data.displayname,
         profilePhoto: data.profilePhoto,
         profilePicture: data.profilePicture,
+        coverPhoto: data.coverPhoto,
         profilecomplete: data.profilecomplete,
         status: data.status,
+        phonenumber: data.phonenumber,
+        bio: data.bio,
+        huntingExperience: data.huntingExperience,
+        skills: data.skills,
+        currentLatitude: data.currentLatitude,
+        currentLongitude: data.currentLongitude,
+        subscriptionStatus: data.subscriptionStatus,
       };
       
       await Keychain.setGenericPassword(user.username || userData.username, token);
