@@ -7,6 +7,8 @@ import { uiReducer } from '../../features/ui/uiSlice';
 import { friendsReducer } from '../../features/friends/friendsSlice';
 import { userEquipmentReducer } from '../../features/userEquipment/userEquipmentSlice';
 import { commentsReducer } from '../../features/comments/commentsSlice';
+import { notificationsReducer } from '../../features/notifications/notificationsSlice';
+import { huntingJournalReducer } from '../../features/huntingJournal/huntingJournalSlice';
 
 const persistConfig = {
   key: 'root',
@@ -22,6 +24,8 @@ const rootReducer = combineReducers({
   ui: uiReducer,
   friends: friendsReducer,
   userEquipment: userEquipmentReducer,
+  notifications: notificationsReducer,
+  huntingJournal: huntingJournalReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

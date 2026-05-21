@@ -1,5 +1,5 @@
-import { useNavigation } from '@react-navigation/native';
-import React, { useState } from 'react';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import React, { useState, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,7 +9,12 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
 } from 'react-native';
+import { useHuntingJournal } from '../hooks/useHuntingJournal';
+import { useAppSelector } from '../app/store/hooks';
 
 const ASSETS = {
   backIcon: require('../../assets/back_white.png'),
@@ -26,31 +31,40 @@ const JournalEntry = ({
   date,
   description,
   location,
-  temp,
+  weather,
+  onEdit,
+  onDelete,
   activeMenu,
   onToggleMenu,
 }: {
-  id: string;
+  id: number;
   title: string;
   date: string;
   description: string;
   location: string;
-  temp: string;
-  activeMenu: string | null;
-  onToggleMenu: (id: string) => void;
+  weather: string;
+  onEdit: (id: number) => void;
+  onDelete: (id: number) => void;
+  activeMenu: number | null;
+  onToggleMenu: (id: number) => void;
 }) => {
   const isMenuVisible = activeMenu === id;
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'Unknown date';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB');
+  };
 
   return (
     <View style={styles.entryCard}>
       <View style={styles.cardHeader}>
         <View style={styles.cardBody}>
-          <Text style={styles.entryTitle}>{title}</Text>
-
+          <Text style={styles.entryTitle}>{title || 'Untitled'}</Text>
           <Text style={styles.entryDate}>
-            {date}{' '}
+            {formatDate(date)}{' '}
             <Text style={styles.entryDescSnippet}>
-              {description}
+              {description?.length > 50 ? description.substring(0, 50) + '...' : description || ''}
             </Text>
           </Text>
         </View>
@@ -62,13 +76,25 @@ const JournalEntry = ({
 
           {isMenuVisible && (
             <View style={styles.dropdown}>
-              <TouchableOpacity style={styles.dropdownItem}>
-                <Text style={styles.dropdownText}>Share</Text>
+              <TouchableOpacity 
+                style={styles.dropdownItem} 
+                onPress={() => {
+                  onToggleMenu(id);
+                  onEdit(id);
+                }}
+              >
+                <Text style={styles.dropdownText}>Edit</Text>
               </TouchableOpacity>
 
               <View style={styles.dropdownDivider} />
 
-              <TouchableOpacity style={styles.dropdownItem}>
+              <TouchableOpacity 
+                style={styles.dropdownItem} 
+                onPress={() => {
+                  onToggleMenu(id);
+                  onDelete(id);
+                }}
+              >
                 <Text style={styles.dropdownText}>Delete</Text>
               </TouchableOpacity>
             </View>
@@ -79,12 +105,11 @@ const JournalEntry = ({
       <View style={styles.cardFooter}>
         <View style={styles.footerItem}>
           <Image source={ASSETS.locationIcon} style={styles.footerIcon} />
-          <Text style={styles.footerText}>{location}</Text>
+          <Text style={styles.footerText}>{location || 'Unknown Location'}</Text>
         </View>
-
         <View style={styles.footerItem}>
           <Image source={ASSETS.weatherIcon} style={styles.footerIcon} />
-          <Text style={styles.footerText}>{temp}</Text>
+          <Text style={styles.footerText}>{weather || 'Not specified'}</Text>
         </View>
       </View>
     </View>
@@ -93,12 +118,115 @@ const JournalEntry = ({
 
 const HuntingJournalScreen = () => {
   const navigation = useNavigation<any>();
+  const { user } = useAppSelector((state) => state.auth);
+  const {
+    journals = [],
+    isLoading,
+    getMyJournals,
+    deleteJournal,
+  } = useHuntingJournal();
 
-  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [activeMenu, setActiveMenu] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [groupedJournals, setGroupedJournals] = useState<{ [key: string]: any[] }>({});
 
-  const handleToggleMenu = (id: string) => {
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id) {
+        loadJournals();
+      }
+    }, [user?.id])
+  );
+
+  const loadJournals = async () => {
+    try {
+      await getMyJournals(1, 100);
+    } catch (error) {
+      console.error('Error loading journals:', error);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadJournals();
+    setRefreshing(false);
+  };
+
+  const handleToggleMenu = (id: number) => {
     setActiveMenu(prev => (prev === id ? null : id));
   };
+
+  const handleEdit = (id: number) => {
+    const journal = journals.find(j => j?.id === id);
+    navigation.navigate('NewNote', { journal });
+  };
+
+  const handleDelete = (id: number) => {
+    Alert.alert(
+      'Delete Journal',
+      'Are you sure you want to delete this journal entry?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteJournal(id);
+              loadJournals();
+              Alert.alert('Success', 'Journal entry deleted successfully');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to delete journal');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const filterJournals = (journal: any) => {
+    if (!searchQuery) return true;
+    return (
+      journal?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      journal?.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      journal?.location?.locationText?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  };
+
+  const groupByMonth = (journalsList: any[]) => {
+    if (!journalsList || journalsList.length === 0) return {};
+    
+    const grouped: { [key: string]: any[] } = {};
+    
+    journalsList.filter(filterJournals).forEach((journal) => {
+      if (!journal) return;
+      const date = new Date(journal.date || journal.createdAt);
+      const monthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+      
+      if (!grouped[monthYear]) {
+        grouped[monthYear] = [];
+      }
+      grouped[monthYear].push(journal);
+    });
+    
+    return grouped;
+  };
+
+  React.useEffect(() => {
+    if (journals && journals.length > 0) {
+      setGroupedJournals(groupByMonth(journals));
+    } else {
+      setGroupedJournals({});
+    }
+  }, [journals, searchQuery]);
+
+  // ✅ Log journals to debug
+  React.useEffect(() => {
+    console.log('Journals data:', JSON.stringify(journals, null, 2));
+  }, [journals]);
+
+  const showLoadingInList = isLoading && journals.length === 0;
 
   return (
     <View style={styles.container}>
@@ -111,7 +239,6 @@ const HuntingJournalScreen = () => {
           >
             <Image source={ASSETS.backIcon} style={styles.headerIcon} />
           </TouchableOpacity>
-
           <Text style={styles.headerTitle}>Hunting Journal</Text>
         </View>
 
@@ -120,8 +247,9 @@ const HuntingJournalScreen = () => {
             placeholder="Search..."
             placeholderTextColor="#999"
             style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
           />
-
           <TouchableOpacity style={styles.searchButton}>
             <Image source={ASSETS.searchIcon} style={styles.searchIcon} />
           </TouchableOpacity>
@@ -131,46 +259,50 @@ const HuntingJournalScreen = () => {
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0E713E"]} />
+        }
       >
-        <Text style={styles.sectionTitle}>Previous 30 Days</Text>
-
-        {[1, 2, 3].map(id => (
-          <JournalEntry
-            key={`30d-${id}`}
-            id={`30d-${id}`}
-            title="Deer Season"
-            date="28/03/24"
-            description="Lorem ipsum dolor sit amet..."
-            location="Sierra National Forest"
-            temp="31°"
-            activeMenu={activeMenu}
-            onToggleMenu={handleToggleMenu}
-          />
-        ))}
-
-        <Text style={styles.sectionTitle}>January</Text>
-
-        {[1, 2].map(id => (
-          <JournalEntry
-            key={`jan-${id}`}
-            id={`jan-${id}`}
-            title="Deer Season"
-            date="28/03/24"
-            description="Lorem ipsum dolor sit amet..."
-            location="Sierra National Forest"
-            temp="31°"
-            activeMenu={activeMenu}
-            onToggleMenu={handleToggleMenu}
-          />
-        ))}
-
+        {showLoadingInList ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#0E713E" />
+            <Text style={styles.loadingText}>Loading your journals...</Text>
+          </View>
+        ) : journals && journals.length > 0 ? (
+          Object.entries(groupedJournals).map(([month, monthJournals]) => (
+            <View key={month}>
+              <Text style={styles.sectionTitle}>{month}</Text>
+              {monthJournals.map((journal) => (
+                <JournalEntry
+                  key={journal?.id?.toString() || Math.random().toString()}
+                  id={journal?.id || 0}
+                  title={journal?.title || 'Untitled'}
+                  date={journal?.date || journal?.createdAt || new Date().toISOString()}
+                  description={journal?.description || ''}
+                  location={journal?.location?.locationText || 'Unknown Location'}
+                  weather={journal?.weather || 'Not specified'}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  activeMenu={activeMenu}
+                  onToggleMenu={handleToggleMenu}
+                />
+              ))}
+            </View>
+          ))
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No journal entries yet</Text>
+            <Text style={styles.emptySubtext}>
+              Start documenting your hunting adventures!
+            </Text>
+          </View>
+        )}
         <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* FLOATING BOTTOM BAR */}
       <View style={styles.bottomBar}>
-        <Text style={styles.notesCount}>14 Notes</Text>
-
+        <Text style={styles.notesCount}>{journals?.length || 0} Notes</Text>
         <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('NewNote')}>
           <Image source={ASSETS.addNoteIcon} style={styles.addIcon} />
         </TouchableOpacity>
@@ -181,37 +313,42 @@ const HuntingJournalScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF' },
-
+  loadingContainer: { 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    paddingVertical: 50 
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#666',
+  },
   header: {
     backgroundColor: '#0E713E',
     padding: 25,
   },
-
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   headerIcon: {
     width: 20,
     height: 20,
     marginRight: 10,
     resizeMode: 'contain',
+    tintColor: '#FFF',
   },
-
   headerTitle: {
     color: '#FFF',
     fontSize: 16,
     fontWeight: '900',
   },
-
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 15,
     marginTop: 10,
   },
-
   searchContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFF',
@@ -220,35 +357,29 @@ const styles = StyleSheet.create({
     paddingLeft: 20,
     height: 45,
   },
-
   searchInput: {
     flex: 1,
     fontSize: 10,
     color: '#000',
   },
-
   searchButton: {
     padding: 10,
     marginRight: 5,
   },
-
   searchIcon: {
     width: 20,
     height: 20,
   },
-
   content: {
     paddingHorizontal: 20,
     paddingTop: 20,
   },
-
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#000',
     marginBottom: 15,
   },
-
   entryCard: {
     backgroundColor: '#AACEBC',
     borderRadius: 12,
@@ -256,42 +387,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 15,
   },
-
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 18,
   },
-
   cardBody: {
     flex: 1,
     paddingRight: 20,
   },
-
   entryTitle: {
     fontSize: 10,
     fontWeight: 'bold',
     color: '#000',
   },
-
   entryDate: {
     fontSize: 8,
     color: '#333',
     marginTop: 2,
   },
-
   entryDescSnippet: {
     fontWeight: '400',
     color: '#555',
   },
-
   moreIcon: {
     width: 4,
     height: 20,
     tintColor: '#000',
     resizeMode: 'contain',
   },
-
   dropdown: {
     position: 'absolute',
     top: 25,
@@ -301,53 +425,41 @@ const styles = StyleSheet.create({
     width: 130,
     zIndex: 999,
     elevation: 5,
-
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
-
   dropdownItem: {
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
-
   dropdownText: {
     color: '#FFF',
     fontSize: 14,
     fontWeight: '500',
   },
-
   dropdownDivider: {
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
-
   cardFooter: {
     flexDirection: 'row',
   },
-
   footerItem: {
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 20,
   },
-
   footerIcon: {
     width: 14,
     height: 14,
     marginRight: 5,
   },
-
   footerText: {
     fontSize: 8,
     color: '#333',
   },
-
   bottomBar: {
     position: 'absolute',
     bottom: 0,
@@ -359,22 +471,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
-
   notesCount: {
     color: '#004925',
     fontSize: 8,
     fontWeight: '500',
   },
-
   addButton: {
     position: 'absolute',
     right: 20,
   },
-
   addIcon: {
     width: 24,
     height: 24,
   },
+  emptyContainer: { alignItems: 'center', paddingTop: 50 },
+  emptyText: { fontSize: 16, color: '#999', marginBottom: 8 },
+  emptySubtext: { fontSize: 12, color: '#CCC', textAlign: 'center' },
 });
 
 export default HuntingJournalScreen;

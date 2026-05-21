@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,9 +10,11 @@ import {
   ScrollView,
   Platform,
   Modal,
-  Pressable,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { useHuntingJournal } from '../hooks/useHuntingJournal';
 
 const ASSETS = {
   backIcon: require('../../assets/back_black.png'),
@@ -21,21 +23,83 @@ const ASSETS = {
   weatherIcon: require('../../assets/weather_icon.png'),
   deleteIcon: require('../../assets/delete_icon.png'),
   saveIcon: require('../../assets/save_note_icon.png'),
-  trashIconRed: require('../../assets/trash_red.png'), // Add a small trash icon for the modal
+  trashIconRed: require('../../assets/trash_red.png'),
 };
 
 const NewNoteScreen = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const journalParam = route.params?.journal;
+  
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  
-  // Modal State
+  const [weather, setWeather] = useState('');
+  const [locationText, setLocationText] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  
+  const { createJournal, updateJournal, deleteJournal } = useHuntingJournal();
+  
+  const isEditing = !!journalParam;
 
-  const handleDelete = () => {
+  useEffect(() => {
+    if (journalParam) {
+      setTitle(journalParam.title || '');
+      setDescription(journalParam.description || '');
+      setWeather(journalParam.weather || '');
+      setLocationText(journalParam.location?.locationText || '');
+    }
+  }, [journalParam]);
+
+  const handleSave = async () => {
+    if (!title.trim() || !description.trim()) {
+      Alert.alert('Error', 'Please fill in title and description');
+      return;
+    }
+
+    setIsSaving(true);
+    
+    const journalData = {
+      title: title.trim(),
+      description: description.trim(),
+      weather: weather.trim() || 'Not specified',
+      date: new Date().toISOString(),
+      location: {
+        locationText: locationText.trim() || 'Unknown Location',
+        latitude: 0,
+        longitude: 0,
+      },
+    };
+
+    try {
+      if (isEditing) {
+        await updateJournal({ id: journalParam.id, ...journalData });
+        Alert.alert('Success', 'Journal updated successfully');
+      } else {
+        await createJournal(journalData);
+        Alert.alert('Success', 'Journal created successfully');
+      }
+      navigation.goBack();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to save journal');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
     setDeleteModalVisible(false);
-    console.log('Note Deleted');
-    navigation.goBack();
+    setIsSaving(true);
+    
+    try {
+      await deleteJournal(journalParam.id);
+      Alert.alert('Success', 'Journal deleted successfully');
+      navigation.goBack();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to delete journal');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -48,9 +112,6 @@ const NewNoteScreen = () => {
           <Image source={ASSETS.backIcon} style={styles.iconBack} />
           <Text style={styles.headerTitle}>Hunting Journal</Text>
         </TouchableOpacity>
-        <TouchableOpacity>
-          <Image source={ASSETS.moreIcon} style={styles.iconMore} />
-        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -60,6 +121,7 @@ const NewNoteScreen = () => {
           placeholderTextColor="#6D6A5B"
           value={title}
           onChangeText={setTitle}
+          editable={!isSaving}
         />
 
         <TextInput
@@ -70,29 +132,54 @@ const NewNoteScreen = () => {
           textAlignVertical="top"
           value={description}
           onChangeText={setDescription}
+          editable={!isSaving}
+        />
+
+        <TextInput
+          style={styles.weatherInput}
+          placeholder="Weather (e.g., Sunny, Rainy, Cloudy)"
+          placeholderTextColor="#6D6A5B"
+          value={weather}
+          onChangeText={setWeather}
+          editable={!isSaving}
+        />
+
+        <TextInput
+          style={styles.locationInput}
+          placeholder="Location"
+          placeholderTextColor="#6D6A5B"
+          value={locationText}
+          onChangeText={setLocationText}
+          editable={!isSaving}
         />
 
         <View style={styles.dataContainer}>
           <View style={styles.dataRow}>
             <Image source={ASSETS.locationIcon} style={styles.dataIcon} />
-            <Text style={styles.dataText}>Sierra National Forest</Text>
+            <Text style={styles.dataText}>{locationText || 'Sierra National Forest'}</Text>
           </View>
 
           <View style={styles.dataRow}>
             <Image source={ASSETS.weatherIcon} style={styles.dataIcon} />
-            <Text style={styles.dataText}>Breezy with hazy sun Hi: 31°</Text>
+            <Text style={styles.dataText}>{weather || 'Not specified'}</Text>
           </View>
         </View>
       </ScrollView>
 
       {/* --- FOOTER ACTIONS --- */}
       <View style={styles.footer}>
-        <TouchableOpacity onPress={() => setDeleteModalVisible(true)}>
-          <Image source={ASSETS.deleteIcon} style={styles.footerIcon} />
-        </TouchableOpacity>
+        {isEditing && (
+          <TouchableOpacity onPress={() => setDeleteModalVisible(true)} disabled={isSaving}>
+            <Image source={ASSETS.deleteIcon} style={styles.footerIcon} />
+          </TouchableOpacity>
+        )}
         
-        <TouchableOpacity onPress={() => console.log('Saving Note...')}>
-          <Image source={ASSETS.saveIcon} style={styles.footerIcon} />
+        <TouchableOpacity onPress={handleSave} disabled={isSaving}>
+          {isSaving ? (
+            <ActivityIndicator size="small" color="#0E713E" />
+          ) : (
+            <Image source={ASSETS.saveIcon} style={styles.footerIcon} />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -105,22 +192,19 @@ const NewNoteScreen = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            {/* Modal Header */}
             <View style={styles.modalHeader}>
               <Image source={ASSETS.trashIconRed} style={styles.modalTrashIcon} />
               <Text style={styles.modalTitle}>
-                Delete {title || 'Deer Season'}?
+                Delete {title || 'this note'}?
               </Text>
             </View>
 
             <View style={styles.modalDivider} />
 
-            {/* Modal Body */}
             <Text style={styles.modalMessage}>
-              Are You Sure You Want To Delete This {title || 'Dear Season'}?
+              Are you sure you want to delete this journal entry?
             </Text>
 
-            {/* Modal Buttons */}
             <View style={styles.modalButtonsRow}>
               <TouchableOpacity 
                 style={styles.cancelButton} 
@@ -144,7 +228,6 @@ const NewNoteScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  // ... (Existing styles remain the same)
   container: { flex: 1, backgroundColor: '#FFFFFF' },
   header: {
     height: 60, 
@@ -160,18 +243,18 @@ const styles = StyleSheet.create({
   iconMore: { width: 20, height: 20, resizeMode: 'contain' },
   scrollContent: { paddingHorizontal: 25, paddingTop: 10 },
   titleInput: { fontSize: 24, fontWeight: 'bold', color: '#000', marginBottom: 20, padding: 0 },
-  descriptionInput: { fontSize: 14, color: '#6D6A5B', minHeight: 100, marginBottom: 30, padding: 0 },
+  descriptionInput: { fontSize: 14, color: '#6D6A5B', minHeight: 100, marginBottom: 15, padding: 0 },
+  weatherInput: { fontSize: 14, color: '#6D6A5B', marginBottom: 15, padding: 0 },
+  locationInput: { fontSize: 14, color: '#6D6A5B', marginBottom: 15, padding: 0 },
   dataContainer: { marginTop: 10 },
   dataRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   dataIcon: { width: 18, height: 18, marginRight: 15, resizeMode: 'contain' },
   dataText: { fontSize: 10, color: '#333', fontWeight: '500' },
   footer: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, paddingVertical: 20, backgroundColor: '#FFFFFF' },
   footerIcon: { width: 24, height: 24, tintColor: '#0E713E', resizeMode: 'contain' },
-
-  // --- NEW MODAL STYLES ---
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(14, 113, 62, 0.4)', // Dimmed green-tinted background from image
+    backgroundColor: 'rgba(14, 113, 62, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 30,
@@ -228,7 +311,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 45,
     borderWidth: 1,
-    borderColor: '#4A321F', // Dark brown border
+    borderColor: '#4A321F',
     borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
@@ -241,7 +324,7 @@ const styles = StyleSheet.create({
   confirmDeleteButton: {
     flex: 1,
     height: 45,
-    backgroundColor: '#4A321F', // Dark brown solid background
+    backgroundColor: '#4A321F',
     borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',

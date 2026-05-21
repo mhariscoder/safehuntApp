@@ -118,7 +118,6 @@ class PostsService {
     }
   }
 
-  // Get my posts
   async getMyPosts(params: GetPostsParams = {}) {
     try {
       const { page = 1, limit = 10, groupId } = params;
@@ -126,21 +125,40 @@ class PostsService {
         params: { page, limit, groupId }
       });
       
+      console.log('Raw getMyPosts response:', JSON.stringify(response.data, null, 2));
+      
       let postsArray = [];
       let currentPage = page;
       let totalPages = 1;
       let totalPosts = 0;
       
-      if (response.data && Array.isArray(response.data.posts)) {
+      // ✅ Handle the nested data structure: response.data.data.posts
+      if (response.data?.data?.posts) {
+        postsArray = response.data.data.posts;
+        currentPage = parseInt(response.data.data.currentPage) || page;
+        totalPages = response.data.data.totalPages || 1;
+        totalPosts = response.data.data.totalPosts || 0;
+      } 
+      // Handle case where posts is at root level
+      else if (response.data?.posts) {
         postsArray = response.data.posts;
         currentPage = response.data.currentPage || page;
         totalPages = response.data.totalPages || 1;
         totalPosts = response.data.totalPosts || 0;
-      } else if (response.data && Array.isArray(response.data)) {
+      }
+      // Handle case where response is direct array
+      else if (Array.isArray(response.data)) {
         postsArray = response.data;
-      } else {
+      }
+      // Handle case where response.data.data is array
+      else if (response.data?.data && Array.isArray(response.data.data)) {
+        postsArray = response.data.data;
+      }
+      else {
         postsArray = [];
       }
+      
+      console.log('Extracted posts array length:', postsArray.length);
       
       const processedPosts = postsArray.map((post: any) => this.processPost(post));
       

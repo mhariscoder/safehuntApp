@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,7 +6,6 @@ import {
   Image,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   StatusBar,
   ActivityIndicator,
   Alert,
@@ -15,8 +14,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   FlatList,
+  Dimensions,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { usePosts } from '../hooks/usePosts';
 import { useComments } from '../hooks/useComments';
 import { useAppSelector } from '../app/store/hooks';
@@ -24,19 +24,14 @@ import TopHeader from '../components/TopHeader';
 import SideMenu from '../components/SideMenu';
 import BottomTabNav from '../components/BottomTabNav';
 import { API_BASE_URL } from '../constants/config';
+import { Post } from '../features/posts/postsTypes';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const POST_IMAGE_HEIGHT = SCREEN_WIDTH * 0.8;
+
+// Assets
 const ASSETS = {
-  profileHeader: require('../../assets/tab_2.png'),
-  postImage: require('../../assets/post_image.png'),
   userHenry: require('../../assets/circle_profile.png'),
-  userAkari: require('../../assets/circle_profile.png'),
-  iconMenu: require('../../assets/nav_1.png'),
-  iconSearch: require('../../assets/nav_2.png'),
-  tabFeed: require('../../assets/tab_2.png'),
-  tabNotif: require('../../assets/tab_3.png'),
-  tabMap: require('../../assets/tab_0.png'),
-  tabMsg: require('../../assets/tab_1.png'),
-  tabSettings: require('../../assets/tab_4.png'),
   greenHeart: require('../../assets/green_heart.png'),
   greenComment: require('../../assets/green_comment.png'),
   greenShare: require('../../assets/green_share.png'),
@@ -45,14 +40,218 @@ const ASSETS = {
 };
 
 // Helper function to get full image URL
-const getFullImageUrl = (imagePath: string | null | undefined): string | null => {
+const getFullImageUrl = (imagePath: string | null | undefined, size?: string): string | null => {
   if (!imagePath) return null;
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
   const cleanPath = imagePath.replace('./public/uploads/', '').replace('public/uploads/', '');
-  return `${API_BASE_URL}/uploads/${cleanPath}`;
+  const sizeParam = size ? `?size=${size}` : '';
+  return `${API_BASE_URL}/uploads/${cleanPath}${sizeParam}`;
 };
+
+// Memoized Post Component
+const PostCard = memo(({ 
+  post, 
+  onLike, 
+  onCommentPress, 
+  onToggleComments, 
+  showAllComments, 
+  formatTimeAgo, 
+  user,
+  onLikeComment,
+  onReplyPress,
+  onDeleteComment,
+  onAddReply,
+  onDeleteReply,
+  onLikeReply,
+  replyText,
+  showReplyInput,
+  setReplyText
+}: any) => {
+  const postDate = post.created_at || post.createdAt;
+  const imageUrl = post.image ? getFullImageUrl(post.image) : null;
+  const userAvatar = post.user?.profilePhoto ? getFullImageUrl(post.user.profilePhoto) : null;
+  const displayComments = showAllComments ? post.comments : post.comments?.slice(0, 2);
+
+  return (
+    <View style={styles.postCard}>
+      <View style={styles.postHeader}>
+        <Image 
+          source={userAvatar ? { uri: userAvatar } : ASSETS.userHenry} 
+          style={styles.avatar} 
+        />
+        <View style={styles.headerInfo}>
+          <Text style={styles.userName}>{post.user?.displayname || post.user?.username || 'User'}</Text>
+          <Text style={styles.location}>
+            {formatTimeAgo(postDate)} • {post.location || 'Sierra National Forest'}
+          </Text>
+        </View>
+        <TouchableOpacity>
+          <Text style={styles.moreIcon}>⋮</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.postCaption}>
+        {post.description}
+        {post.tags && <Text style={styles.hashtag}> {post.tags}</Text>}
+      </Text>
+
+      {imageUrl && (
+        <Image 
+          source={{ uri: imageUrl }} 
+          style={styles.mainPostImage}
+          resizeMode="cover"
+          progressiveRenderingEnabled={true}
+        />
+      )}
+
+      <View style={styles.statsRow}>
+        <Text style={styles.statsText}>❤️ {post.likesCount || 0} {(post.likesCount === 1 ? 'Like' : 'Likes')}</Text>
+        <Text style={styles.statsText}>{post.comments?.length || 0} Comments</Text>
+      </View>
+
+      <View style={styles.actionButtons}>
+        <TouchableOpacity 
+          style={styles.actionBtn}
+          onPress={() => onLike(post.id)}
+        >
+          <Image 
+            source={ASSETS.greenHeart} 
+            resizeMode='contain' 
+            style={[styles.actionImage, post.postLiked && styles.actionImageActive]} 
+          />
+          <Text style={[styles.actionBtnText, post.postLiked && styles.actionBtnTextActive]}>
+            {post.postLiked ? 'Liked' : 'Like'}
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.actionBtn}
+          onPress={() => onCommentPress(post)}
+        >
+          <Image source={ASSETS.greenComment} resizeMode='contain' style={styles.actionImage} />
+          <Text style={styles.actionBtnText}>Comment</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.actionBtn}>
+          <Image source={ASSETS.greenShare} resizeMode='contain' style={styles.actionImage} />
+          <Text style={styles.actionBtnText}>Share</Text>
+        </TouchableOpacity>
+      </View>
+
+      {post.comments && post.comments.length > 0 && (
+        <View style={styles.commentsSection}>
+          <TouchableOpacity 
+            style={styles.commentDropdown}
+            onPress={() => onToggleComments(post.id)}
+          >
+            <Text style={styles.allCommentsText}>
+              {showAllComments ? 'Hide Comments' : `View Comments (${post.comments.length})`}
+            </Text>
+            <Image 
+              source={showAllComments ? ASSETS.arrowUp : ASSETS.arrowDown} 
+              resizeMode='contain' 
+              style={styles.dropdownArrow} 
+            />
+          </TouchableOpacity>
+
+          {showAllComments && displayComments?.map((comment: any) => {
+            const commentDate = comment.created_at || comment.createdAt;
+            const commentAvatar = comment.user?.profilePhoto ? getFullImageUrl(comment.user.profilePhoto) : null;
+            const isReplyInputVisible = showReplyInput?.[comment.id] || false;
+            
+            return (
+              <View key={comment.id} style={styles.commentItem}>
+                <Image 
+                  source={commentAvatar ? { uri: commentAvatar } : ASSETS.userHenry} 
+                  style={styles.commentAvatar} 
+                />
+                <View style={styles.commentContent}>
+                  <View style={styles.commentBubble}>
+                    <Text style={styles.commentUser}>{comment.user?.displayname || comment.user?.username || 'User'}</Text>
+                    <Text style={styles.commentText}>{comment.content}</Text>
+                  </View>
+                  <View style={styles.commentFooter}>
+                    <Text style={styles.footerActionText}>{formatTimeAgo(commentDate)}</Text>
+                    <TouchableOpacity onPress={() => onLikeComment(comment.id)}>
+                      <Text style={styles.footerActionText}>
+                        {comment.commentLiked ? 'Unlike' : 'Like'} ({comment.likeCount || 0})
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => onReplyPress(comment.id)}>
+                      <Text style={styles.footerActionText}>Reply</Text>
+                    </TouchableOpacity>
+                    {comment.user?.id === user?.id && (
+                      <TouchableOpacity onPress={() => onDeleteComment(comment.id)}>
+                        <Text style={[styles.footerActionText, styles.deleteText]}>Delete</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Reply Input */}
+                  {isReplyInputVisible && (
+                    <View style={styles.replyInputContainer}>
+                      <TextInput
+                        style={styles.replyInput}
+                        placeholder="Write a reply..."
+                        placeholderTextColor="#999"
+                        value={replyText || ''}
+                        onChangeText={setReplyText}
+                        multiline
+                      />
+                      <TouchableOpacity style={styles.replyButton} onPress={() => onAddReply(comment.id)}>
+                        <Text style={styles.replyButtonText}>Post</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* Replies */}
+                  {comment.replies && comment.replies.length > 0 && (
+                    <View style={styles.repliesContainer}>
+                      {comment.replies.map((reply: any) => {
+                        const replyDate = reply.created_at || reply.createdAt;
+                        const replyAvatar = reply.user?.profilePhoto ? getFullImageUrl(reply.user.profilePhoto) : null;
+                        
+                        return (
+                          <View key={reply.id} style={styles.replyItem}>
+                            <Image 
+                              source={replyAvatar ? { uri: replyAvatar } : ASSETS.userHenry} 
+                              style={styles.replyAvatar} 
+                            />
+                            <View style={styles.replyContent}>
+                              <View style={styles.replyBubble}>
+                                <Text style={styles.replyUser}>{reply.user?.displayname || reply.user?.username || 'User'}</Text>
+                                <Text style={styles.replyText}>{reply.content}</Text>
+                              </View>
+                              <View style={styles.replyFooter}>
+                                <Text style={styles.footerActionText}>{formatTimeAgo(replyDate)}</Text>
+                                <TouchableOpacity onPress={() => onLikeReply(reply.id)}>
+                                  <Text style={styles.footerActionText}>
+                                    {reply.replyLiked ? 'Unlike' : 'Like'} ({reply.likeCount || 0})
+                                  </Text>
+                                </TouchableOpacity>
+                                {reply.user?.id === user?.id && (
+                                  <TouchableOpacity onPress={() => onDeleteReply(reply.id)}>
+                                    <Text style={[styles.footerActionText, styles.deleteText]}>Delete</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+});
 
 const FeedScreen = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -66,6 +265,8 @@ const FeedScreen = () => {
   const [isCommentModalVisible, setIsCommentModalVisible] = useState(false);
   const [modalComments, setModalComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
+  const [page, setPage] = useState(1);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   const navigation = useNavigation<any>();
   const { user } = useAppSelector((state) => state.auth);
@@ -88,15 +289,34 @@ const FeedScreen = () => {
     unlikeReply,
   } = useComments();
 
-  useEffect(() => {
-    loadPosts();
-  }, []);
+  const flatListRef = useRef<FlatList>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPosts();
+    }, [])
+  );
 
   const loadPosts = async () => {
     try {
+      setPage(1);
       await getAllPosts({ page: 1, limit: 20 });
     } catch (error) {
       console.error('Error loading posts:', error);
+    }
+  };
+
+  const loadMorePosts = async () => {
+    if (isLoadingMore || isLoading) return;
+    setIsLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      await getAllPosts({ page: nextPage, limit: 20 });
+      setPage(nextPage);
+    } catch (error) {
+      console.error('Error loading more posts:', error);
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
@@ -106,13 +326,13 @@ const FeedScreen = () => {
     setRefreshing(false);
   };
 
-  const handleLike = async (postId: number) => {
+  const handleLike = useCallback(async (postId: number) => {
     try {
       await toggleLike(postId);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to update like');
     }
-  };
+  }, [toggleLike]);
 
   const handleCommentPress = async (post: any) => {
     setSelectedPost(post);
@@ -136,15 +356,13 @@ const FeedScreen = () => {
     }
 
     try {
-      const newComment = await addComment({
+      await addComment({
         postId: selectedPost.id,
         content: commentText
       });
       setCommentText('');
-      // Refresh comments
       const commentsData = await getCommentsByPost(selectedPost.id);
       setModalComments(commentsData.comments || []);
-      // Update the post's comment count in the feed
       await loadPosts();
       Alert.alert('Success', 'Comment added successfully');
     } catch (error: any) {
@@ -152,38 +370,14 @@ const FeedScreen = () => {
     }
   };
 
-  const handleDeleteComment = async (commentId: number) => {
-    Alert.alert(
-      'Delete Comment',
-      'Are you sure you want to delete this comment?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteComment(commentId);
-              // Refresh comments
-              const commentsData = await getCommentsByPost(selectedPost.id);
-              setModalComments(commentsData.comments || []);
-              await loadPosts();
-              Alert.alert('Success', 'Comment deleted successfully');
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to delete comment');
-            }
-          }
-        }
-      ]
-    );
-  };
-
+  // Comment handlers
   const handleLikeComment = async (commentId: number) => {
     try {
       await likeComment(commentId);
-      // Refresh comments
-      const commentsData = await getCommentsByPost(selectedPost.id);
-      setModalComments(commentsData.comments || []);
+      if (selectedPost) {
+        const commentsData = await getCommentsByPost(selectedPost.id);
+        setModalComments(commentsData.comments || []);
+      }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to like comment');
     }
@@ -207,13 +401,41 @@ const FeedScreen = () => {
       });
       setReplyText('');
       setShowReplyInput(prev => ({ ...prev, [selectedCommentId]: false }));
-      // Refresh comments
-      const commentsData = await getCommentsByPost(selectedPost.id);
-      setModalComments(commentsData.comments || []);
+      if (selectedPost) {
+        const commentsData = await getCommentsByPost(selectedPost.id);
+        setModalComments(commentsData.comments || []);
+      }
       Alert.alert('Success', 'Reply added successfully');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to add reply');
     }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    Alert.alert(
+      'Delete Comment',
+      'Are you sure you want to delete this comment?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteComment(commentId);
+              if (selectedPost) {
+                const commentsData = await getCommentsByPost(selectedPost.id);
+                setModalComments(commentsData.comments || []);
+                await loadPosts();
+              }
+              Alert.alert('Success', 'Comment deleted successfully');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to delete comment');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleDeleteReply = async (replyId: number) => {
@@ -228,9 +450,10 @@ const FeedScreen = () => {
           onPress: async () => {
             try {
               await deleteReply(replyId);
-              // Refresh comments
-              const commentsData = await getCommentsByPost(selectedPost.id);
-              setModalComments(commentsData.comments || []);
+              if (selectedPost) {
+                const commentsData = await getCommentsByPost(selectedPost.id);
+                setModalComments(commentsData.comments || []);
+              }
               Alert.alert('Success', 'Reply deleted successfully');
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete reply');
@@ -244,19 +467,20 @@ const FeedScreen = () => {
   const handleLikeReply = async (replyId: number) => {
     try {
       await likeReply(replyId);
-      // Refresh comments
-      const commentsData = await getCommentsByPost(selectedPost.id);
-      setModalComments(commentsData.comments || []);
+      if (selectedPost) {
+        const commentsData = await getCommentsByPost(selectedPost.id);
+        setModalComments(commentsData.comments || []);
+      }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to like reply');
     }
   };
 
-  const toggleShowAllComments = (postId: number) => {
+  const toggleShowAllComments = useCallback((postId: number) => {
     setShowAllComments(prev => ({ ...prev, [postId]: !prev[postId] }));
-  };
+  }, []);
 
-  const formatTimeAgo = (dateString: string) => {
+  const formatTimeAgo = useCallback((dateString: string) => {
     if (!dateString) return 'recently';
     const date = new Date(dateString);
     const now = new Date();
@@ -269,285 +493,63 @@ const FeedScreen = () => {
     if (diffMins < 60) return `${diffMins}m`;
     if (diffHours < 24) return `${diffHours}h`;
     return `${diffDays}d`;
-  };
+  }, []);
 
-  const renderCommentItem = ({ item: comment }: { item: any }) => {
-    const commentDate = comment.created_at || comment.createdAt;
-    const commentAvatar = comment.user?.profilePhoto ? getFullImageUrl(comment.user.profilePhoto) : null;
-    
+  const renderPostItem = useCallback(({ item }: { item: Post }) => (
+    <PostCard
+      post={item}
+      onLike={handleLike}
+      onCommentPress={handleCommentPress}
+      onToggleComments={toggleShowAllComments}
+      showAllComments={showAllComments[item.id]}
+      formatTimeAgo={formatTimeAgo}
+      user={user}
+      onLikeComment={handleLikeComment}
+      onReplyPress={handleReplyPress}
+      onDeleteComment={handleDeleteComment}
+      onAddReply={handleAddReply}
+      onDeleteReply={handleDeleteReply}
+      onLikeReply={handleLikeReply}
+      replyText={replyText}
+      showReplyInput={showReplyInput}
+      setReplyText={setReplyText}
+    />
+  ), [showAllComments, handleLike, handleCommentPress, toggleShowAllComments, formatTimeAgo, user, handleLikeComment, handleReplyPress, handleDeleteComment, handleAddReply, handleDeleteReply, handleLikeReply, replyText, showReplyInput]);
+
+  const renderFooter = () => {
+    if (!isLoadingMore) return null;
     return (
-      <View style={styles.modalCommentItem}>
-        <Image 
-          source={commentAvatar ? { uri: commentAvatar } : ASSETS.userHenry} 
-          style={styles.commentAvatar} 
-        />
-        <View style={styles.commentContent}>
-          <View style={styles.commentBubble}>
-            <Text style={styles.commentUser}>{comment.user?.displayname || comment.user?.username || 'User'}</Text>
-            <Text style={styles.commentText}>{comment.content}</Text>
-          </View>
-          <View style={styles.commentFooter}>
-            <Text style={styles.footerActionText}>{formatTimeAgo(commentDate)}</Text>
-            <TouchableOpacity onPress={() => handleLikeComment(comment.id)}>
-              <Text style={styles.footerActionText}>
-                {comment.commentLiked ? 'Unlike' : 'Like'} ({comment.likeCount || 0})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => handleReplyPress(comment.id)}>
-              <Text style={styles.footerActionText}>Reply</Text>
-            </TouchableOpacity>
-            {comment.user?.id === user?.id && (
-              <TouchableOpacity onPress={() => handleDeleteComment(comment.id)}>
-                <Text style={[styles.footerActionText, styles.deleteText]}>Delete</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Reply Input */}
-          {showReplyInput[comment.id] && (
-            <View style={styles.replyInputContainer}>
-              <TextInput
-                style={styles.replyInput}
-                placeholder="Write a reply..."
-                placeholderTextColor="#999"
-                value={replyText}
-                onChangeText={setReplyText}
-                multiline
-              />
-              <TouchableOpacity style={styles.replyButton} onPress={handleAddReply}>
-                <Text style={styles.replyButtonText}>Post</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Replies */}
-          {comment.replies && comment.replies.length > 0 && (
-            <View style={styles.repliesContainer}>
-              {comment.replies.map((reply: any) => {
-                const replyDate = reply.created_at || reply.createdAt;
-                const replyAvatar = reply.user?.profilePhoto ? getFullImageUrl(reply.user.profilePhoto) : null;
-                
-                return (
-                  <View key={reply.id} style={styles.replyItem}>
-                    <Image 
-                      source={replyAvatar ? { uri: replyAvatar } : ASSETS.userHenry} 
-                      style={styles.replyAvatar} 
-                    />
-                    <View style={styles.replyContent}>
-                      <View style={styles.replyBubble}>
-                        <Text style={styles.replyUser}>{reply.user?.displayname || reply.user?.username || 'User'}</Text>
-                        <Text style={styles.replyText}>{reply.content}</Text>
-                      </View>
-                      <View style={styles.replyFooter}>
-                        <Text style={styles.footerActionText}>{formatTimeAgo(replyDate)}</Text>
-                        <TouchableOpacity onPress={() => handleLikeReply(reply.id)}>
-                          <Text style={styles.footerActionText}>
-                            {reply.replyLiked ? 'Unlike' : 'Like'} ({reply.likeCount || 0})
-                          </Text>
-                        </TouchableOpacity>
-                        {reply.user?.id === user?.id && (
-                          <TouchableOpacity onPress={() => handleDeleteReply(reply.id)}>
-                            <Text style={[styles.footerActionText, styles.deleteText]}>Delete</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color="#0E713E" />
       </View>
     );
   };
 
-  const renderPost = (post: any) => {
-    const postDate = post.created_at || post.createdAt;
-    const imageUrl = post.image ? getFullImageUrl(post.image) : null;
-    const userAvatar = post.user?.profilePhoto ? getFullImageUrl(post.user.profilePhoto) : null;
-    const displayComments = showAllComments[post.id] ? post.comments : post.comments?.slice(0, 2);
-    
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>No posts yet</Text>
+      <TouchableOpacity 
+        style={styles.createPostButton}
+        onPress={() => navigation.navigate('CreatePost')}
+      >
+        <Text style={styles.createPostButtonText}>Create Your First Post</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  if (isLoading && posts.length === 0) {
     return (
-      <View key={post.id} style={styles.postCard}>
-        <View style={styles.postHeader}>
-          <Image 
-            source={userAvatar ? { uri: userAvatar } : ASSETS.userHenry} 
-            style={styles.avatar} 
-          />
-          <View style={styles.headerInfo}>
-            <Text style={styles.userName}>{post.user?.displayname || post.user?.username || 'User'}</Text>
-            <Text style={styles.location}>
-              {formatTimeAgo(postDate)} • {post.location || 'Sierra National Forest'}
-            </Text>
-          </View>
-          <TouchableOpacity>
-            <Text style={styles.moreIcon}>⋮</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.postCaption}>
-          {post.description}
-          {post.tags && <Text style={styles.hashtag}> {post.tags}</Text>}
-        </Text>
-
-        {imageUrl && (
-          <Image source={{ uri: imageUrl }} style={styles.mainPostImage} />
-        )}
-
-        <View style={styles.statsRow}>
-          <Text style={styles.statsText}>❤️ {post.likesCount || 0} {(post.likesCount === 1 ? 'Like' : 'Likes')}</Text>
-          <Text style={styles.statsText}>{post.comments?.length || 0} Comments</Text>
-        </View>
-
-        <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={styles.actionBtn}
-            onPress={() => handleLike(post.id)}
-          >
-            <Image 
-              source={ASSETS.greenHeart} 
-              resizeMode='contain' 
-              style={[styles.actionImage, post.postLiked && styles.actionImageActive]} 
-            />
-            <Text style={[styles.actionBtnText, post.postLiked && styles.actionBtnTextActive]}>
-              {post.postLiked ? 'Liked' : 'Like'}
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.actionBtn}
-            onPress={() => handleCommentPress(post)}
-          >
-            <Image source={ASSETS.greenComment} resizeMode='contain' style={styles.actionImage} />
-            <Text style={styles.actionBtnText}>Comment</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.actionBtn}>
-            <Image source={ASSETS.greenShare} resizeMode='contain' style={styles.actionImage} />
-            <Text style={styles.actionBtnText}>Share</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Comments Section */}
-        {post.comments && post.comments.length > 0 && (
-          <View style={styles.commentsSection}>
-            <TouchableOpacity 
-              style={styles.commentDropdown}
-              onPress={() => toggleShowAllComments(post.id)}
-            >
-              <Text style={styles.allCommentsText}>
-                {showAllComments[post.id] ? 'Hide Comments' : `View Comments (${post.comments.length})`}
-              </Text>
-              <Image 
-                source={showAllComments[post.id] ? ASSETS.arrowUp : ASSETS.arrowDown} 
-                resizeMode='contain' 
-                style={styles.dropdownArrow} 
-              />
-            </TouchableOpacity>
-
-            {showAllComments[post.id] && displayComments?.map((comment: any) => {
-              const commentDate = comment.created_at || comment.createdAt;
-              const commentAvatar = comment.user?.profilePhoto ? getFullImageUrl(comment.user.profilePhoto) : null;
-              
-              return (
-                <View key={comment.id} style={styles.commentItem}>
-                  <Image 
-                    source={commentAvatar ? { uri: commentAvatar } : ASSETS.userHenry} 
-                    style={styles.commentAvatar} 
-                  />
-                  <View style={styles.commentContent}>
-                    <View style={styles.commentBubble}>
-                      <Text style={styles.commentUser}>{comment.user?.displayname || comment.user?.username || 'User'}</Text>
-                      <Text style={styles.commentText}>{comment.content}</Text>
-                    </View>
-                    <View style={styles.commentFooter}>
-                      <Text style={styles.footerActionText}>{formatTimeAgo(commentDate)}</Text>
-                      <TouchableOpacity onPress={() => handleLikeComment(comment.id)}>
-                        <Text style={styles.footerActionText}>
-                          {comment.commentLiked ? 'Unlike' : 'Like'} ({comment.likeCount || 0})
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleReplyPress(comment.id)}>
-                        <Text style={styles.footerActionText}>Reply</Text>
-                      </TouchableOpacity>
-                      {comment.user?.id === user?.id && (
-                        <TouchableOpacity onPress={() => handleDeleteComment(comment.id)}>
-                          <Text style={[styles.footerActionText, styles.deleteText]}>Delete</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-
-                    {/* Reply Input */}
-                    {showReplyInput[comment.id] && (
-                      <View style={styles.replyInputContainer}>
-                        <TextInput
-                          style={styles.replyInput}
-                          placeholder="Write a reply..."
-                          placeholderTextColor="#999"
-                          value={replyText}
-                          onChangeText={setReplyText}
-                          multiline
-                        />
-                        <TouchableOpacity style={styles.replyButton} onPress={handleAddReply}>
-                          <Text style={styles.replyButtonText}>Post</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-
-                    {/* Replies */}
-                    {comment.replies && comment.replies.length > 0 && (
-                      <View style={styles.repliesContainer}>
-                        {comment.replies.map((reply: any) => {
-                          const replyDate = reply.created_at || reply.createdAt;
-                          const replyAvatar = reply.user?.profilePhoto ? getFullImageUrl(reply.user.profilePhoto) : null;
-                          
-                          return (
-                            <View key={reply.id} style={styles.replyItem}>
-                              <Image 
-                                source={replyAvatar ? { uri: replyAvatar } : ASSETS.userHenry} 
-                                style={styles.replyAvatar} 
-                              />
-                              <View style={styles.replyContent}>
-                                <View style={styles.replyBubble}>
-                                  <Text style={styles.replyUser}>{reply.user?.displayname || reply.user?.username || 'User'}</Text>
-                                  <Text style={styles.replyText}>{reply.content}</Text>
-                                </View>
-                                <View style={styles.replyFooter}>
-                                  <Text style={styles.footerActionText}>{formatTimeAgo(replyDate)}</Text>
-                                  <TouchableOpacity onPress={() => handleLikeReply(reply.id)}>
-                                    <Text style={styles.footerActionText}>
-                                      {reply.replyLiked ? 'Unlike' : 'Like'} ({reply.likeCount || 0})
-                                    </Text>
-                                  </TouchableOpacity>
-                                  {reply.user?.id === user?.id && (
-                                    <TouchableOpacity onPress={() => handleDeleteReply(reply.id)}>
-                                      <Text style={[styles.footerActionText, styles.deleteText]}>Delete</Text>
-                                    </TouchableOpacity>
-                                  )}
-                                </View>
-                              </View>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#0E713E" />
       </View>
     );
-  };
+  }
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0E713E" />
       <SideMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
 
-      {/* --- TOP HEADER --- */}
       <View style={styles.header}>
         <TopHeader 
           onMenuPress={() => setMenuOpen(true)}
@@ -558,7 +560,6 @@ const FeedScreen = () => {
           }}
         />
 
-        {/* --- POST INPUT AREA --- */}
         <TouchableOpacity 
           activeOpacity={0.9} 
           onPress={() => navigation.navigate('CreatePost')}
@@ -582,33 +583,32 @@ const FeedScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <FlatList
+        ref={flatListRef}
+        data={posts}
+        renderItem={renderPostItem}
+        keyExtractor={(item) => item.id.toString()}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0E713E"]} />
         }
-      >
-        {isLoading && posts.length === 0 ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color="#0E713E" />
-          </View>
-        ) : posts.length > 0 ? (
-          posts.map(renderPost)
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No posts yet</Text>
-            <TouchableOpacity 
-              style={styles.createPostButton}
-              onPress={() => navigation.navigate('CreatePost')}
-            >
-              <Text style={styles.createPostButtonText}>Create Your First Post</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
+        onEndReached={loadMorePosts}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={renderEmpty}
+        initialNumToRender={5}
+        maxToRenderPerBatch={3}
+        windowSize={10}
+        removeClippedSubviews={true}
+        getItemLayout={(data, index) => ({
+          length: 500,
+          offset: 500 * index,
+          index,
+        })}
+      />
 
-      <View style={styles.bottomTabContainer}>
-        <BottomTabNav containerStyle={{ marginBottom: 30 }} />
+      <View style={styles.bottomNavContainer}>
+        <BottomTabNav />
       </View>
 
       {/* Comment Modal */}
@@ -645,7 +645,84 @@ const FeedScreen = () => {
             ) : (
               <FlatList
                 data={modalComments}
-                renderItem={renderCommentItem}
+                renderItem={({ item }) => (
+                  <View style={styles.modalCommentItem}>
+                    <Image 
+                      source={item.user?.profilePhoto ? { uri: getFullImageUrl(item.user.profilePhoto) } : ASSETS.userHenry} 
+                      style={styles.commentAvatar} 
+                    />
+                    <View style={styles.commentContent}>
+                      <View style={styles.commentBubble}>
+                        <Text style={styles.commentUser}>{item.user?.displayname || item.user?.username || 'User'}</Text>
+                        <Text style={styles.commentText}>{item.content}</Text>
+                      </View>
+                      <View style={styles.commentFooter}>
+                        <Text style={styles.footerActionText}>{formatTimeAgo(item.created_at || item.createdAt)}</Text>
+                        <TouchableOpacity onPress={() => handleLikeComment(item.id)}>
+                          <Text style={styles.footerActionText}>
+                            {item.commentLiked ? 'Unlike' : 'Like'} ({item.likeCount || 0})
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleReplyPress(item.id)}>
+                          <Text style={styles.footerActionText}>Reply</Text>
+                        </TouchableOpacity>
+                        {item.user?.id === user?.id && (
+                          <TouchableOpacity onPress={() => handleDeleteComment(item.id)}>
+                            <Text style={[styles.footerActionText, styles.deleteText]}>Delete</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      {showReplyInput[item.id] && (
+                        <View style={styles.replyInputContainer}>
+                          <TextInput
+                            style={styles.replyInput}
+                            placeholder="Write a reply..."
+                            placeholderTextColor="#999"
+                            value={replyText}
+                            onChangeText={setReplyText}
+                            multiline
+                          />
+                          <TouchableOpacity style={styles.replyButton} onPress={handleAddReply}>
+                            <Text style={styles.replyButtonText}>Post</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {item.replies && item.replies.length > 0 && (
+                        <View style={styles.repliesContainer}>
+                          {item.replies.map((reply: any) => (
+                            <View key={reply.id} style={styles.replyItem}>
+                              <Image 
+                                source={reply.user?.profilePhoto ? { uri: getFullImageUrl(reply.user.profilePhoto) } : ASSETS.userHenry} 
+                                style={styles.replyAvatar} 
+                              />
+                              <View style={styles.replyContent}>
+                                <View style={styles.replyBubble}>
+                                  <Text style={styles.replyUser}>{reply.user?.displayname || reply.user?.username || 'User'}</Text>
+                                  <Text style={styles.replyText}>{reply.content}</Text>
+                                </View>
+                                <View style={styles.replyFooter}>
+                                  <Text style={styles.footerActionText}>{formatTimeAgo(reply.created_at || reply.createdAt)}</Text>
+                                  <TouchableOpacity onPress={() => handleLikeReply(reply.id)}>
+                                    <Text style={styles.footerActionText}>
+                                      {reply.replyLiked ? 'Unlike' : 'Like'} ({reply.likeCount || 0})
+                                    </Text>
+                                  </TouchableOpacity>
+                                  {reply.user?.id === user?.id && (
+                                    <TouchableOpacity onPress={() => handleDeleteReply(reply.id)}>
+                                      <Text style={[styles.footerActionText, styles.deleteText]}>Delete</Text>
+                                    </TouchableOpacity>
+                                  )}
+                                </View>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                )}
                 keyExtractor={(item) => item.id.toString()}
                 style={styles.modalCommentsList}
                 ListEmptyComponent={
@@ -678,8 +755,8 @@ const FeedScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
   header: { backgroundColor: '#0E713E', paddingHorizontal: 20, paddingBottom: 20 },
-  
   inputContainer: { 
     flexDirection: 'row', 
     backgroundColor: '#FFF', 
@@ -691,7 +768,6 @@ const styles = StyleSheet.create({
   profileInitial: { color: '#FFF', fontWeight: 'bold' },
   textInput: { flex: 1, marginHorizontal: 10, fontSize: 12 },
   imagePickerIcon: { width: 24, height: 24 },
-
   postCard: { backgroundColor: '#FFF', marginTop: 10, paddingVertical: 15, marginBottom: 5 },
   postHeader: { flexDirection: 'row', paddingHorizontal: 25, alignItems: 'center', marginBottom: 10 },
   avatar: { width: 45, height: 45, borderRadius: 22.5 },
@@ -699,23 +775,19 @@ const styles = StyleSheet.create({
   userName: { fontWeight: '900', fontSize: 16 },
   location: { color: '#666', fontSize: 10 },
   moreIcon: { fontSize: 20, color: '#666' },
-  
   postCaption: { paddingHorizontal: 25, marginBottom: 10, fontSize: 12, lineHeight: 20 },
   hashtag: { fontWeight: 'bold', color: '#0E713E' },
-  mainPostImage: { width: '100%', height: 300, resizeMode: 'cover' },
-  
+  mainPostImage: { width: '100%', height: POST_IMAGE_HEIGHT, resizeMode: 'cover' },
   statsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#EEE' },
   statsText: { color: '#666', fontSize: 12 },
-  
   actionButtons: { backgroundColor: '#0E713E', flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 25, gap: 10 },
-  actionBtn: { backgroundColor: '#FFFFFF', flex:1, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', borderRadius: 20, justifyContent: 'center' },
+  actionBtn: { backgroundColor: '#FFFFFF', flex: 1, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', borderRadius: 20, justifyContent: 'center' },
   actionBtnText: { color: '#0E713E', fontWeight: 'bold', fontSize: 10 },
   actionBtnTextActive: { color: '#FF6B6B' },
   actionImage: { width: 14, height: 14, marginRight: 5, resizeMode: 'contain', tintColor: '#0E713E' },
   actionImageActive: { tintColor: '#FF6B6B' },
-  
-  bottomTabContainer: { paddingHorizontal: 25 },
-  
+  bottomTabContainer: { paddingHorizontal: 25, position: 'absolute', bottom: 30, left: 0, right: 0 },
+  bottomNavContainer: { position: 'absolute', bottom: 30, left: 20, right: 20,},
   commentsSection: { paddingHorizontal: 25, marginTop: 10 },
   commentDropdown: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
   allCommentsText: { fontSize: 12, fontWeight: '700', color: '#333' },
@@ -723,22 +795,16 @@ const styles = StyleSheet.create({
   commentItem: { flexDirection: 'row', marginBottom: 15 },
   commentAvatar: { width: 35, height: 35, borderRadius: 17.5, marginRight: 10 },
   commentContent: { flex: 1 },
-  commentBubble: { 
-    backgroundColor: '#AACEBC', 
-    padding: 10, 
-    borderRadius: 14,
-  },
+  commentBubble: { backgroundColor: '#AACEBC', padding: 10, borderRadius: 14 },
   commentUser: { fontWeight: 'bold', fontSize: 12, marginBottom: 2 },
   commentText: { fontSize: 11, color: '#444', lineHeight: 16 },
   commentFooter: { flexDirection: 'row', gap: 15, marginTop: 5, paddingLeft: 5, flexWrap: 'wrap' },
   footerActionText: { fontSize: 10, color: '#888' },
   deleteText: { color: '#FF6B6B' },
-  
   replyInputContainer: { flexDirection: 'row', marginTop: 10, alignItems: 'center' },
   replyInput: { flex: 1, backgroundColor: '#F0F0F0', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, fontSize: 12, marginRight: 10 },
   replyButton: { backgroundColor: '#0E713E', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20 },
   replyButtonText: { color: '#FFF', fontSize: 12, fontWeight: '600' },
-  
   repliesContainer: { marginTop: 10, marginLeft: 20 },
   replyItem: { flexDirection: 'row', marginBottom: 10 },
   replyAvatar: { width: 25, height: 25, borderRadius: 12.5, marginRight: 8 },
@@ -747,19 +813,18 @@ const styles = StyleSheet.create({
   replyUser: { fontWeight: 'bold', fontSize: 11, marginBottom: 2 },
   replyText: { fontSize: 10, color: '#444', lineHeight: 14 },
   replyFooter: { flexDirection: 'row', gap: 12, marginTop: 4, paddingLeft: 5 },
-  
-  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 50 },
+  footerLoader: { paddingVertical: 20, alignItems: 'center' },
   emptyContainer: { alignItems: 'center', paddingTop: 50, paddingBottom: 50 },
   emptyText: { color: '#666', fontSize: 14, marginBottom: 15 },
   createPostButton: { backgroundColor: '#0E713E', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 25 },
   createPostButtonText: { color: '#FFF', fontWeight: '600', fontSize: 12 },
-  
+  loaderContainer: { padding: 40, alignItems: 'center' },
   modalContainer: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#EEE' },
   modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#000' },
   modalClose: { fontSize: 20, color: '#666', padding: 5 },
-  modalCommentsList: { padding: 20, maxHeight: 400 },
+  modalCommentsList: { padding: 20 },
   modalCommentItem: { flexDirection: 'row', marginBottom: 15 },
   modalInputContainer: { flexDirection: 'row', padding: 20, borderTopWidth: 1, borderTopColor: '#EEE', alignItems: 'center' },
   modalInput: { flex: 1, backgroundColor: '#F5F5F5', borderRadius: 25, paddingHorizontal: 15, paddingVertical: 10, fontSize: 14, marginRight: 10 },

@@ -15,10 +15,12 @@ import {
   Modal,
   Alert,
   KeyboardAvoidingView,
+  FlatList,
 } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../app/store/hooks';
 import { useFriends } from '../hooks/useFriends';
 import { useUserEquipment } from '../hooks/useUserEquipment';
+import { usePosts } from '../hooks/usePosts';
 import { updateUser } from '../features/auth/authActions';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { API_BASE_URL } from '../constants/config';
@@ -42,6 +44,9 @@ const ASSETS = {
   editIcon: require('../../assets/edit_icon.png'),
   closeIcon: require('../../assets/close_icon.png'),
   cameraIcon: require('../../assets/camera_icon.png'),
+  greenHeart: require('../../assets/green_heart.png'),
+  greenComment: require('../../assets/green_comment.png'),
+  greenShare: require('../../assets/green_share.png'),
 };
 
 interface EditFormData {
@@ -62,13 +67,26 @@ interface ImageFile {
 
 const getFullImageUrl = (imagePath: string | null | undefined): string | null => {
   if (!imagePath) return null;
-
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
-
   const cleanPath = imagePath.replace('./public/uploads/', '');
   return `${API_BASE_URL}/public/uploads/${cleanPath}`;
+};
+
+const formatTimeAgo = (dateString: string) => {
+  if (!dateString) return 'recently';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m`;
+  if (diffHours < 24) return `${diffHours}h`;
+  return `${diffDays}d`;
 };
 
 const ProfileScreen = () => {
@@ -100,11 +118,19 @@ const ProfileScreen = () => {
   } = useFriends();
 
   const { userEquipments, getUserEquipments } = useUserEquipment();
+  
+  const {
+    myPosts,
+    isLoading: postsLoading,
+    getMyPosts,
+    toggleLike,
+  } = usePosts();
 
   useEffect(() => {
     if (currentUserId) {
       loadFriends();
       getUserEquipments();
+      loadMyPosts();
     }
   }, [currentUserId]);
 
@@ -130,6 +156,23 @@ const ProfileScreen = () => {
     }
   };
 
+  const loadMyPosts = async () => {
+    try {
+      await getMyPosts({ page: 1, limit: 20 });
+    } catch (error) {
+      console.error('Error loading my posts:', error);
+    }
+  };
+
+  const handleLike = async (postId: number) => {
+    try {
+      await toggleLike(postId);
+      await loadMyPosts(); // Refresh posts after like
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update like');
+    }
+  };
+
   const handleEditPress = () => {
     setEditFormData({
       displayname: user?.displayname || '',
@@ -146,7 +189,7 @@ const ProfileScreen = () => {
   };
 
   const selectImage = (type: 'profile' | 'cover') => {
-    const options = {
+    const options: any = {
       mediaType: 'photo' as const,
       includeBase64: false,
       maxHeight: 2000,
@@ -154,7 +197,7 @@ const ProfileScreen = () => {
       quality: 0.8,
     };
 
-    launchImageLibrary(options, (response) => {
+    launchImageLibrary(options, (response: any) => {
       if (response.didCancel) {
         console.log('User cancelled image picker');
       } else if (response.error) {
@@ -193,7 +236,6 @@ const ProfileScreen = () => {
         updateData.skills = editFormData.skills.split(',').map(skill => skill.trim());
       }
       
-      // Prepare files for upload
       const files: any = {};
       if (profileImage) {
         files.profilePhoto = profileImage;
@@ -229,25 +271,124 @@ const ProfileScreen = () => {
   const profilePhotoUrl = getFullImageUrl(user?.profilePhoto);
   const coverPhotoUrl = getFullImageUrl(user?.coverPhoto);
 
+  const renderPostItem = ({ item: post }: { item: any }) => {
+    const postDate = post.created_at || post.createdAt;
+    const imageUrl = post.image ? getFullImageUrl(post.image) : null;
+    const userAvatar = post.user?.profilePhoto ? getFullImageUrl(post.user.profilePhoto) : null;
+
+    return (
+      <View style={styles.postCard}>
+        <View style={styles.postHeader}>
+          <Image 
+            source={userAvatar ? { uri: userAvatar } : ASSETS.profilePic} 
+            style={styles.postAvatar} 
+          />
+          <View style={styles.postHeaderInfo}>
+            <Text style={styles.postUserName}>{post.user?.displayname || post.user?.username || 'User'}</Text>
+            <Text style={styles.postLocation}>
+              {formatTimeAgo(postDate)} • {post.location || 'Sierra National Forest'}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.postCaption}>
+          {post.description}
+          {post.tags && <Text style={styles.hashtag}> {post.tags}</Text>}
+        </Text>
+
+        {imageUrl && (
+          <Image source={{ uri: imageUrl }} style={styles.postImage} />
+        )}
+
+        <View style={styles.postStatsRow}>
+          <Text style={styles.postStatsText}>❤️ {post.likesCount || 0} {(post.likesCount === 1 ? 'Like' : 'Likes')}</Text>
+          <Text style={styles.postStatsText}>{post.comments?.length || 0} Comments</Text>
+        </View>
+
+        <View style={styles.postActionButtons}>
+          <TouchableOpacity 
+            style={styles.postActionBtn}
+            onPress={() => handleLike(post.id)}
+          >
+            <Image 
+              source={ASSETS.greenHeart} 
+              resizeMode='contain' 
+              style={[styles.postActionImage, post.postLiked && styles.postActionImageActive]} 
+            />
+            <Text style={[styles.postActionBtnText, post.postLiked && styles.postActionBtnTextActive]}>
+              {post.postLiked ? 'Liked' : 'Like'}
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.postActionBtn}>
+            <Image source={ASSETS.greenComment} resizeMode='contain' style={styles.postActionImage} />
+            <Text style={styles.postActionBtnText}>Comment</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.postActionBtn}>
+            <Image source={ASSETS.greenShare} resizeMode='contain' style={styles.postActionImage} />
+            <Text style={styles.postActionBtnText}>Share</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'Posts':
         return (
-          <View style={styles.postInputSection}>
-            <Text style={styles.postHeader}>{user?.displayname}'s posts</Text>
-            <View style={styles.inputWrapper}>
-              <View style={styles.miniAvatar}>
-                <Text style={styles.avatarText}>{user?.displayname?.charAt(0) || 'U'}</Text>
+          <>
+            <TouchableOpacity 
+              activeOpacity={0.9} 
+              onPress={() => navigation.navigate('CreatePost')}
+            >
+              <View style={styles.postInputSection}>
+                <Text style={styles.postHeader}>{user?.displayname}'s posts</Text>
+                <View style={styles.inputWrapper}>
+                  <View style={styles.miniAvatar}>
+                    <Text style={styles.avatarText}>{user?.displayname?.charAt(0) || 'U'}</Text>
+                  </View>
+                  <TextInput 
+                    placeholder={`Write Something To ${user?.displayname}...`} 
+                    style={styles.input}
+                    placeholderTextColor="#666"
+                  />
+                  <Image source={ASSETS.imagePlaceholder} style={styles.inputImageIcon} />
+                </View>
               </View>
-              <TextInput 
-                placeholder={`Write Something To ${user?.displayname}...`} 
-                style={styles.input}
-                placeholderTextColor="#666"
-              />
-              <Image source={ASSETS.imagePlaceholder} style={styles.inputImageIcon} />
+            </TouchableOpacity>
+            <View style={styles.postsContainer}>
+              {postsLoading && myPosts.length === 0 ? (
+                <ActivityIndicator size="large" color="#0E713E" style={styles.postsLoader} />
+              ) : myPosts && myPosts.length > 0 ? (
+                <FlatList
+                  data={myPosts}
+                  renderItem={renderPostItem}
+                  keyExtractor={(item, index) => {
+                    // ✅ Safe key extraction with fallback
+                    if (item && item.id) {
+                      return item.id.toString();
+                    }
+                    return index.toString();
+                  }}
+                  scrollEnabled={false}
+                  showsVerticalScrollIndicator={false}
+                />
+              ) : (
+                <View style={styles.noPostsContainer}>
+                  <Text style={styles.noPostsText}>No posts yet</Text>
+                  <TouchableOpacity 
+                    style={styles.createPostButton}
+                    onPress={() => navigation.navigate('CreatePost')}
+                  >
+                    <Text style={styles.createPostButtonText}>Create Your First Post</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
-          </View>
-        );
+          </>
+        )
 
       case 'Photos':
         return (
@@ -308,7 +449,7 @@ const ProfileScreen = () => {
                   userEquipments.map((item) => (
                     <View key={item.id} style={styles.equipmentItem}>
                       <Image 
-                        source={item.equipment?.imageUrl ? { uri: item.equipment.imageUrl } : ASSETS.pistolIcon} 
+                        source={item.equipment?.imageUrl ? { uri: getFullImageUrl(item.equipment.imageUrl) } : ASSETS.pistolIcon} 
                         style={styles.equipIconImage} 
                       />
                     </View>
@@ -430,7 +571,7 @@ const ProfileScreen = () => {
                     onPress={() => navigation.navigate('Profile', { userId: item.id })}
                   >
                     <Image 
-                      source={item.profilePhoto ? { uri: item.profilePhoto } : ASSETS.profilePic} 
+                      source={item.profilePhoto ? { uri: getFullImageUrl(item.profilePhoto) } : ASSETS.profilePic} 
                       style={styles.friendImage} 
                     />
                     <View style={styles.friendLabel}>
@@ -503,9 +644,9 @@ const ProfileScreen = () => {
                     style={styles.imageUploadContainer}
                     onPress={() => selectImage('profile')}
                   >
-                    {profileImage || user?.profilePhoto ? (
+                    {profileImage || profilePhotoUrl ? (
                       <Image 
-                        source={profileImage ? { uri: profileImage.uri } : { uri: user?.profilePhoto }} 
+                        source={profileImage ? { uri: profileImage.uri } : { uri: profilePhotoUrl! }} 
                         style={styles.imagePreview} 
                       />
                     ) : (
@@ -527,9 +668,9 @@ const ProfileScreen = () => {
                     style={styles.imageUploadContainer}
                     onPress={() => selectImage('cover')}
                   >
-                    {coverImage || user?.coverPhoto ? (
+                    {coverImage || coverPhotoUrl ? (
                       <Image 
-                        source={coverImage ? { uri: coverImage.uri } : { uri: user?.coverPhoto }} 
+                        source={coverImage ? { uri: coverImage.uri } : { uri: coverPhotoUrl! }} 
                         style={styles.imagePreview} 
                       />
                     ) : (
@@ -803,20 +944,31 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   seeAllText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
-  postInputSection: { padding: 20, backgroundColor: '#0E713E', marginHorizontal: 20, borderRadius: 15, marginBottom: 20 },
-  postHeader: { color: '#FFF', marginBottom: 15, fontSize: 16, fontWeight: 'bold' },
-  inputWrapper: {
-    flexDirection: 'row',
-    backgroundColor: '#FFF',
-    borderRadius: 30,
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  miniAvatar: { width: 35, height: 35, borderRadius: 20, backgroundColor: '#4A321F', justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#FFF', fontWeight: 'bold' },
-  input: { flex: 1, paddingHorizontal: 10, height: 40, color: '#000', fontSize: 12 },
-  inputImageIcon: { width: 24, height: 24, tintColor: '#0E713E' },
+  // Posts styles
+  postsContainer: { paddingHorizontal: 25, paddingVertical: 15 },
+  postsLoader: { marginVertical: 20 },
+  postCard: { backgroundColor: '#FFF', marginBottom: 20, borderRadius: 12, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
+  postHeader: {  color: '#FFF', flexDirection: 'row', alignItems: 'center', padding: 15 },
+  postAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },
+  postHeaderInfo: { flex: 1 },
+  postUserName: { fontWeight: 'bold', fontSize: 14, color: '#000' },
+  postLocation: { fontSize: 10, color: '#666', marginTop: 2 },
+  postCaption: { paddingHorizontal: 15, marginBottom: 10, fontSize: 12, lineHeight: 18 },
+  hashtag: { fontWeight: 'bold', color: '#0E713E' },
+  postImage: { width: '100%', height: 200, resizeMode: 'cover' },
+  postStatsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 15, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#EEE' },
+  postStatsText: { color: '#666', fontSize: 10 },
+  postActionButtons: { flexDirection: 'row', paddingHorizontal: 15, paddingVertical: 8, gap: 10 },
+  postActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 6, backgroundColor: '#0E713E', borderRadius: 20 },
+  postActionBtnText: { color: '#FFF', fontSize: 10, fontWeight: '600', marginLeft: 5 },
+  postActionBtnTextActive: { color: '#FF6B6B' },
+  postActionImage: { width: 14, height: 14, tintColor: '#FFF' },
+  postActionImageActive: { tintColor: '#FF6B6B' },
+  noPostsContainer: { alignItems: 'center', paddingVertical: 40 },
+  noPostsText: { color: '#999', fontSize: 14, marginBottom: 15 },
+  createPostButton: { backgroundColor: '#0E713E', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 25 },
+  createPostButtonText: { color: '#FFF', fontWeight: '600', fontSize: 12 },
+  // End posts styles
   friendsLoader: { marginVertical: 20 },
   noFriendsContainer: {
     alignItems: 'center',
@@ -964,6 +1116,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
+  postInputSection: { padding: 20, backgroundColor: '#0E713E', marginHorizontal: 20, borderRadius: 15, marginBottom: 20 },
+  inputWrapper: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF',
+    borderRadius: 30,
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  miniAvatar: { width: 35, height: 35, borderRadius: 20, backgroundColor: '#4A321F', justifyContent: 'center', alignItems: 'center' },
+  avatarText: { color: '#FFF', fontWeight: 'bold' },
+  input: { flex: 1, paddingHorizontal: 10, height: 40, color: '#000', fontSize: 12 },
+  inputImageIcon: { width: 24, height: 24, tintColor: '#0E713E' },
 });
 
 export default ProfileScreen;

@@ -151,9 +151,9 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, userName = "Displa
           
           <View style={styles.menuList}>
             <MenuItem label="My profile" icon={ASSETS.profile} onPress={() => handlePress('Profile')} />
-            <MenuItem label="Notification" icon={ASSETS.notification} onPress={() => handlePress('Notifications')} />
+            <MenuItem label="Notification" icon={ASSETS.notification} onPress={() => handlePress('Notification')} />
             <MenuItem label="Feed" icon={ASSETS.feed} onPress={() => handlePress('Feed')} />
-            <MenuItem label="Messages" icon={ASSETS.messages} onPress={() => handlePress('Messages')} />
+            <MenuItem label="Messages" icon={ASSETS.messages} onPress={() => handlePress('Message')} />
             <MenuItem label="Map" icon={ASSETS.map} onPress={() => handlePress('Home')} />
             <MenuItem label="Setting" icon={ASSETS.setting} onPress={() => handlePress('Settings')} />
             <MenuItem label="Hunting Journal" icon={ASSETS.setting} onPress={() => handlePress('HuntingJournal')} />
