@@ -9,11 +9,12 @@ import { userEquipmentReducer } from '../../features/userEquipment/userEquipment
 import { commentsReducer } from '../../features/comments/commentsSlice';
 import { notificationsReducer } from '../../features/notifications/notificationsSlice';
 import { huntingJournalReducer } from '../../features/huntingJournal/huntingJournalSlice';
+import { groupsReducer } from '../../features/groups/groupsSlice';
 
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'ui'], // only auth and ui will be persisted
+  whitelist: ['auth', 'ui', 'groups'], // only auth, ui, and groups will be persisted
   blacklist: ['posts'], // posts won't be persisted
 };
 
@@ -26,6 +27,7 @@ const rootReducer = combineReducers({
   userEquipment: userEquipmentReducer,
   notifications: notificationsReducer,
   huntingJournal: huntingJournalReducer,
+  groups: groupsReducer
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

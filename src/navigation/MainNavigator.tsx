@@ -15,6 +15,9 @@ import NewNoteScreen from '../screens/NewNoteScreen';
 import SubscriptionScreen from '../screens/SubscriptionScreen';
 import CardDetailScreen from '../screens/CardDetailScreen';
 import FriendsScreen from '../screens/FriendsScreen';
+import GroupPostsScreen from '../screens/GroupPostsScreen';
+import CreateGroupPostScreen from '../screens/CreateGroupPostScreen.tsx';
+import CreateGroupScreen from '../screens/CreateGroupScreen.tsx';
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
@@ -43,6 +46,9 @@ export const MainNavigator = () => {
       <Stack.Screen name="Subscription" component={SubscriptionScreen} />
       <Stack.Screen name="CardDetail" component={CardDetailScreen} />
       <Stack.Screen name="Friends" component={FriendsScreen} />
+      <Stack.Screen name="GroupPosts" component={GroupPostsScreen} />
+      <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
+      <Stack.Screen name="CreateGroupPost" component={CreateGroupPostScreen} />
     </Stack.Navigator>
   );
 };

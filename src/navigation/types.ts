@@ -29,6 +29,9 @@ export type MainStackParamList = {
   CardDetail: undefined;
   Friends: undefined;
   AvailableEquipment: undefined;
+  GroupPosts: { groupId: number; groupName: string; groupLogo?: string; groupCover?: string; groupDescription?: string };
+  CreateGroup: undefined;
+  CreateGroupPost: { groupId: number; groupName: string };
 };
 
 export type RootStackParamList = {

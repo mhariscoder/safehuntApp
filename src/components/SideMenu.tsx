@@ -137,7 +137,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, userName = "Displa
       {isOpen && <Pressable style={styles.overlay} onPress={onClose} />}
       
       <Animated.View style={[styles.drawer, { transform: [{ translateX: drawerAnim }] }]}>
-        <SafeAreaView style={styles.drawerContent}>
+        <View style={styles.drawerContent}>
           <View style={styles.drawerHeader}>
             <View style={styles.profileCircle}>
               <Text style={styles.profileInitial}>{userName.charAt(0)}</Text>
@@ -156,7 +156,6 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, userName = "Displa
             <MenuItem label="Messages" icon={ASSETS.messages} onPress={() => handlePress('Message')} />
             <MenuItem label="Map" icon={ASSETS.map} onPress={() => handlePress('Home')} />
             <MenuItem label="Setting" icon={ASSETS.setting} onPress={() => handlePress('Settings')} />
-            <MenuItem label="Hunting Journal" icon={ASSETS.setting} onPress={() => handlePress('HuntingJournal')} />
             <MenuItem label="Terms & conditions" icon={ASSETS.terms} onPress={() => handlePress('Terms')} />
             <MenuItem label="Privacy policy" icon={ASSETS.privacy} onPress={() => handlePress('Privacy')} />
             <MenuItem 
@@ -166,7 +165,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, userName = "Displa
               isLogout={true}
             />
           </View>
-        </SafeAreaView>
+        </View>
       </Animated.View>
     </>
   );

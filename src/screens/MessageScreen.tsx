@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,11 +8,27 @@ import {
   StatusBar,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFriends } from '../hooks/useFriends';
+import { useGroups } from '../hooks/useGroups';
+import { useAppSelector } from '../app/store/hooks';
 import BottomTabNav from '../components/BottomTabNav';
+import { API_BASE_URL } from '../constants/config';
 
-const CHATS = [
+const getFullImageUrl = (imagePath: string | null | undefined): string | null => {
+  if (!imagePath) return null;
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  const cleanPath = imagePath.replace('./public/uploads/', '').replace('public/uploads/', '');
+  return `${API_BASE_URL}/public/uploads/${cleanPath}`;
+};
+
+const RECENT_CHATS = [
   {
     id: '1',
     user: 'Henry',
@@ -38,7 +54,7 @@ const CHATS = [
     message: "Yes, That's Gonna Work, Hopefully.",
     time: '06:12',
     unreadCount: 0,
-    statusColor: '#00FF00', // Green
+    statusColor: '#00FF00',
     avatar: require('../../assets/circle_profile.png'),
     isUnread: false,
   },
@@ -61,79 +77,378 @@ const CHATS = [
     isUnread: false,
   },
 ];
- 
+
+type TabType = 'recent' | 'people' | 'groups';
+
 const MessageScreen = () => {
-    const navigation = useNavigation<any>();
+  const navigation = useNavigation<any>();
+  const { user } = useAppSelector((state) => state.auth);
+  const {
+    friends,
+    isLoading: friendsLoading,
+    getFriends,
+    currentUserId,
+  } = useFriends();
+
+  const {
+    groups,
+    isLoading: groupsLoading,
+    getAllGroups,
+    addMember,
+  } = useGroups();
+
+  const [activeTab, setActiveTab] = useState<TabType>('recent');
+  const [refreshing, setRefreshing] = useState(false);
+  const [joiningGroupId, setJoiningGroupId] = useState<number | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (currentUserId) {
+        loadData();
+      }
+    }, [currentUserId, activeTab])
+  );
+
+  const loadData = async () => {
+    try {
+      if (activeTab === 'people') {
+        await getFriends(currentUserId!);
+      } else if (activeTab === 'groups') {
+        await getAllGroups();
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const handleRecentChatPress = (chatId: string) => {
+    navigation.navigate('MessageDetail', { chatId });
+  };
+
+  const handleFriendPress = (userId: number, displayname: string) => {
+    navigation.navigate('MessageDetail', { userId, displayname });
+  };
+
+  // Navigate to Group Posts Screen
+  const handleGroupPress = (groupId: number, groupName: string, groupLogo?: string, groupCover?: string, groupDescription?: string) => {
+    navigation.navigate('GroupPosts', { 
+      groupId, 
+      groupName,
+      groupLogo,
+      groupCover,
+      groupDescription
+    });
+  };
+
+  const handleJoinGroup = async (groupId: number, groupName: string) => {
+    if (!currentUserId) {
+      Alert.alert('Error', 'Please login to join groups');
+      return;
+    }
+
+    Alert.alert(
+      'Join Group',
+      `Are you sure you want to request to join "${groupName}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Join',
+          onPress: async () => {
+            setJoiningGroupId(groupId);
+            try {
+              await addMember({
+                groupId: groupId,
+                memberId: currentUserId,
+                type: 'Member'
+              });
+              Alert.alert('Success', 'Join request sent to group admin');
+              await getAllGroups();
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to join group');
+            } finally {
+              setJoiningGroupId(null);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleCreateGroup = () => {
+    navigation.navigate('CreateGroup');
+  };
+
+  const renderRecentChats = () => {
+    return (
+      <>
+        {RECENT_CHATS.map((chat) => (
+          <TouchableOpacity 
+            key={chat.id} 
+            style={[styles.chatItem, chat.isUnread && styles.unreadChatBackground]}
+            onPress={() => handleRecentChatPress(chat.id)}
+          >
+            <View style={styles.avatarWrapper}>
+              <Image source={chat.avatar} style={styles.avatar} />
+              {chat.statusColor && (
+                <View style={[styles.statusDot, { backgroundColor: chat.statusColor }]} />
+              )}
+            </View>
+            
+            <View style={styles.textContainer}>
+              <View style={styles.nameRow}>
+                <Text style={styles.userName}>{chat.user}</Text>
+                <Text style={styles.timeText}>{chat.time}</Text>
+              </View>
+              <View style={styles.messageRow}>
+                <Text style={styles.messageText} numberOfLines={1}>
+                  {chat.message}
+                </Text>
+                {chat.unreadCount > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadBadgeText}>{chat.unreadCount}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </>
+    );
+  };
+
+  const renderPeopleTab = () => {
+    if (friendsLoading && friends.length === 0) {
+      return (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color="#0E713E" />
+        </View>
+      );
+    }
+
+    if (friends.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No friends yet</Text>
+          <Text style={styles.emptySubtext}>Add friends to start chatting</Text>
+        </View>
+      );
+    }
 
     return (
-        <View style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="#0E713E" />
+      <>
+        {friends.map((friend: any) => (
+          <TouchableOpacity 
+            key={friend.id} 
+            style={styles.chatItem}
+            onPress={() => handleFriendPress(parseInt(friend.id), friend.displayname || friend.username)}
+          >
+            <View style={styles.avatarWrapper}>
+              <Image 
+                source={friend.profilePhoto ? { uri: getFullImageUrl(friend.profilePhoto) } : require('../../assets/circle_profile.png')} 
+                style={styles.avatar} 
+              />
+            </View>
             
-            {/* --- HEADER --- */}
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Message</Text>
-                <TouchableOpacity style={styles.searchCircle}>
-                    <Image 
-                        source={require('../../assets/search_icon.png')} 
-                        style={styles.searchIcon} 
-                    />
-                </TouchableOpacity>
+            <View style={styles.textContainer}>
+              <View style={styles.nameRow}>
+                <Text style={styles.userName}>{friend.displayname || friend.username}</Text>
+              </View>
+              <View style={styles.messageRow}>
+                <Text style={styles.messageText} numberOfLines={1}>
+                  Tap to start conversation
+                </Text>
+              </View>
             </View>
-
-            {/* --- CHAT FILTER TABS --- */}
-            <View style={styles.tabContainer}>
-                <TouchableOpacity style={[styles.tabButton, styles.activeTab]}>
-                    <Text style={styles.activeTabText}>Recent Chats</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.tabButton, styles.inactiveTab]}>
-                    <Text style={styles.inactiveTabText}>People</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.tabButton, styles.inactiveTab]}>
-                    <Text style={styles.inactiveTabText}>Message Request</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* --- MESSAGE LIST --- */}
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                {CHATS.map((chat) => (
-                <TouchableOpacity 
-                    key={chat.id} 
-                    style={[styles.chatItem, chat.isUnread && styles.unreadChatBackground]}
-                    onPress={() => navigation.navigate('MessageDetail', { chatId: chat.id })}
-                >
-                    <View style={styles.avatarWrapper}>
-                    <Image source={chat.avatar} style={styles.avatar} />
-                    {chat.statusColor && (
-                        <View style={[styles.statusDot, { backgroundColor: chat.statusColor }]} />
-                    )}
-                    </View>
-                    
-                    <View style={styles.textContainer}>
-                    <View style={styles.nameRow}>
-                        <Text style={styles.userName}>{chat.user}</Text>
-                        <Text style={styles.timeText}>{chat.time}</Text>
-                    </View>
-                    <View style={styles.messageRow}>
-                        <Text style={styles.messageText} numberOfLines={1}>
-                        {chat.message}
-                        </Text>
-                        {chat.unreadCount > 0 && (
-                        <View style={styles.unreadBadge}>
-                            <Text style={styles.unreadBadgeText}>{chat.unreadCount}</Text>
-                        </View>
-                        )}
-                    </View>
-                    </View>
-                </TouchableOpacity>
-                ))}
-            </ScrollView>
-
-            {/* --- BOTTOM NAVIGATION --- */}
-            <View style={styles.bottomNavContainer}>
-                <BottomTabNav activeTab="Messages" />
-            </View>
-        </View>
+          </TouchableOpacity>
+        ))}
+      </>
     );
+  };
+
+  const renderGroupsTab = () => {
+    if (groupsLoading && groups.length === 0) {
+      return (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color="#0E713E" />
+        </View>
+      );
+    }
+
+    if (groups.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No groups yet</Text>
+          <Text style={styles.emptySubtext}>Join or create groups to start group chats</Text>
+        </View>
+      );
+    }
+
+    return (
+      <>
+        {groups.map((group: any) => {
+          const isMember = group.status === 'Joined';
+          const isPending = group.status === 'Pending';
+          const isNotMember = group.status === 'Not a Member';
+          
+          return (
+            <TouchableOpacity 
+              key={group.id} 
+              style={styles.groupCard}
+              activeOpacity={isMember ? 0.7 : 1}
+              onPress={() => {
+                if (isMember) {
+                  handleGroupPress(group.id, group.name, group.logo, group.cover, group.description);
+                }
+              }}
+            >
+              <View style={styles.groupHeader}>
+                <View style={styles.groupAvatarWrapper}>
+                  <Image 
+                    source={group.logo ? { uri: getFullImageUrl(group.logo) } : require('../../assets/group_avatar.png')} 
+                    style={[styles.groupAvatar, !isMember && styles.disabledAvatar]} 
+                  />
+                </View>
+                <View style={styles.groupInfo}>
+                  <Text style={[styles.groupName, !isMember && styles.disabledText]}>
+                    {group.name}
+                  </Text>
+                  {isPending && (
+                    <View style={styles.pendingBadge}>
+                      <Text style={styles.pendingBadgeText}>Pending</Text>
+                    </View>
+                  )}
+                  {isMember && (
+                    <View style={styles.memberBadge}>
+                      <Text style={styles.memberBadgeText}>Member</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+              
+              <Text style={[styles.groupDescription, !isMember && styles.disabledText]} numberOfLines={2}>
+                {group.description || 'No description available'}
+              </Text>
+              
+              {/* Join Button for non-members */}
+              {isNotMember && (
+                <TouchableOpacity 
+                  style={styles.joinButton}
+                  onPress={() => handleJoinGroup(group.id, group.name)}
+                  disabled={joiningGroupId === group.id}
+                >
+                  {joiningGroupId === group.id ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.joinButtonText}>Join Group</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+              
+              {/* Pending status text for pending members */}
+              {isPending && (
+                <View style={styles.pendingContainer}>
+                  <Text style={styles.pendingText}>Request sent to admin</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </>
+    );
+  };
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'recent':
+        return renderRecentChats();
+      case 'people':
+        return renderPeopleTab();
+      case 'groups':
+        return renderGroupsTab();
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#0E713E" />
+      
+      {/* --- HEADER --- */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Message</Text>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.searchCircle}>
+            <Image 
+              source={require('../../assets/search_icon.png')} 
+              style={styles.searchIcon} 
+            />
+          </TouchableOpacity>
+          {/* Show plus icon only when Groups tab is active */}
+          {activeTab === 'groups' && (
+            <TouchableOpacity style={styles.addButton} onPress={handleCreateGroup}>
+              <Image 
+                source={require('../../assets/plus_icon.png')} 
+                style={styles.addIcon} 
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* --- CHAT FILTER TABS --- */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity 
+          style={[styles.tabButton, activeTab === 'recent' ? styles.activeTab : styles.inactiveTab]}
+          onPress={() => setActiveTab('recent')}
+        >
+          <Text style={activeTab === 'recent' ? styles.activeTabText : styles.inactiveTabText}>
+            Recent Chats
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.tabButton, activeTab === 'people' ? styles.activeTab : styles.inactiveTab]}
+          onPress={() => setActiveTab('people')}
+        >
+          <Text style={activeTab === 'people' ? styles.activeTabText : styles.inactiveTabText}>
+            People
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.tabButton, activeTab === 'groups' ? styles.activeTab : styles.inactiveTab]}
+          onPress={() => setActiveTab('groups')}
+        >
+          <Text style={activeTab === 'groups' ? styles.activeTabText : styles.inactiveTabText}>
+            Groups
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* --- MESSAGE LIST --- */}
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0E713E"]} />
+        }
+      >
+        {renderContent()}
+      </ScrollView>
+
+      {/* --- BOTTOM NAVIGATION --- */}
+      <View style={styles.bottomNavContainer}>
+        <BottomTabNav activeTab="Messages" />
+      </View>
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
@@ -155,8 +470,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   searchCircle: {
-    paddingHorizontal: 25,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#FFF',
@@ -164,8 +484,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   searchIcon: {
-    width: 20,
-    height: 20,
+    width: 18,
+    height: 18,
+    tintColor: '#4D3626',
+  },
+  addButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addIcon: {
+    width: 18,
+    height: 18,
     tintColor: '#4D3626',
   },
   tabContainer: {
@@ -181,6 +514,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     minWidth: 90,
     alignItems: 'center',
+    position: 'relative',
   },
   activeTab: {
     backgroundColor: '#0E713E',
@@ -209,6 +543,45 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: '#F0F0F0',
   },
+  groupCard: {
+    paddingHorizontal: 25,
+    paddingVertical: 15,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#F0F0F0',
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  groupAvatarWrapper: {
+    marginRight: 15,
+  },
+  groupAvatar: {
+    width: 55,
+    height: 55,
+    borderRadius: 27.5,
+    borderWidth: 1,
+    borderColor: '#0E713E',
+  },
+  groupInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  groupName: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#000',
+  },
+  groupDescription: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 10,
+    lineHeight: 16,
+  },
   unreadChatBackground: {
     backgroundColor: '#AACEBC',
   },
@@ -221,6 +594,9 @@ const styles = StyleSheet.create({
     borderRadius: 32.5,
     borderWidth: 1,
     borderColor: '#0E713E',
+  },
+  disabledAvatar: {
+    opacity: 0.6,
   },
   statusDot: {
     position: 'absolute',
@@ -238,12 +614,17 @@ const styles = StyleSheet.create({
   },
   nameRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   userName: {
     fontSize: 16,
     fontWeight: '900',
     color: '#000',
+  },
+  disabledText: {
+    opacity: 0.5,
   },
   timeText: {
     fontSize: 10,
@@ -271,6 +652,67 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 10,
     fontWeight: '900',
+  },
+  pendingBadge: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  pendingBadgeText: {
+    color: '#000',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  memberBadge: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  memberBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  joinButton: {
+    backgroundColor: '#0E713E',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  joinButtonText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  pendingContainer: {
+    marginTop: 8,
+  },
+  pendingText: {
+    fontSize: 11,
+    color: '#FFD700',
+    fontWeight: '500',
+  },
+  loaderContainer: {
+    paddingTop: 50,
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingTop: 80,
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#999',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 12,
+    color: '#CCC',
+    textAlign: 'center',
   },
   bottomNavContainer: {
     position: 'absolute',

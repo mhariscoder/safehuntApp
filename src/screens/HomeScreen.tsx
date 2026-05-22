@@ -12,6 +12,7 @@ import {
   PanResponder,
   Animated,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import Slider from '@react-native-community/slider';
 import SideMenu from '../components/SideMenu';
 import TopHeader from '../components/TopHeader';
@@ -34,6 +35,7 @@ const ASSETS = {
 };
 
 const HomeScreen = () => {
+  const navigation = useNavigation<any>();
   const [menuOpen, setMenuOpen] = useState(false);
   const [range, setRange] = useState<any>([50, 500]);
   const pan = useRef(new Animated.ValueXY({ x: SLIDER_WIDTH / 2, y: 0 })).current;
@@ -64,7 +66,7 @@ const HomeScreen = () => {
           
           <TopHeader 
             onMenuPress={() => setMenuOpen(true)}
-            
+            onSearchPress={() => navigation.navigate('HuntingJournal')}
             containerStyle={{ 
               marginTop: 30, 
               backgroundColor: 'transparent' 
