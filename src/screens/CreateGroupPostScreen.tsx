@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
-  SafeAreaView,
   StatusBar,
   Dimensions,
   Platform,
@@ -15,7 +14,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useGroups } from '../hooks/useGroups';
+import { usePosts } from '../hooks/usePosts';
 import { useAppSelector } from '../app/store/hooks';
 import { launchImageLibrary } from 'react-native-image-picker';
 
@@ -45,7 +44,7 @@ const CreateGroupPostScreen = () => {
   const route = useRoute();
   const { groupId, groupName } = route.params as any;
   const { user } = useAppSelector((state) => state.auth);
-  const { addGroupPost } = useGroups();
+  const { createPost } = usePosts();
 
   const handleSelectImage = () => {
     const options: any = {
@@ -83,14 +82,14 @@ const CreateGroupPostScreen = () => {
     try {
       const postData: any = {
         description: postText,
-        groupId: groupId,
+        groupId: groupId, // Pass groupId to associate post with group
       };
       
       if (selectedImage) {
         postData.image = selectedImage;
       }
       
-      await addGroupPost(postData);
+      await createPost(postData);
       
       Alert.alert('Success', 'Post created successfully in ' + groupName + '!', [
         { text: 'OK', onPress: () => navigation.goBack() }

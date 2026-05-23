@@ -10,6 +10,7 @@ import { commentsReducer } from '../../features/comments/commentsSlice';
 import { notificationsReducer } from '../../features/notifications/notificationsSlice';
 import { huntingJournalReducer } from '../../features/huntingJournal/huntingJournalSlice';
 import { groupsReducer } from '../../features/groups/groupsSlice';
+import { chatReducer } from '../../features/chat/chatSlice';
 
 const persistConfig = {
   key: 'root',
@@ -27,7 +28,8 @@ const rootReducer = combineReducers({
   userEquipment: userEquipmentReducer,
   notifications: notificationsReducer,
   huntingJournal: huntingJournalReducer,
-  groups: groupsReducer
+  groups: groupsReducer,
+  chat: chatReducer
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

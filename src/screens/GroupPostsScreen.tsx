@@ -65,7 +65,6 @@ const GroupPostsScreen = () => {
   const { groupId, groupName, groupLogo, groupCover, groupDescription } = route.params as any;
   const { user } = useAppSelector((state) => state.auth);
   
-  // ✅ ALL HOOKS CALLED AT TOP LEVEL - in consistent order
   const {
     posts,
     isLoading,
@@ -85,7 +84,6 @@ const GroupPostsScreen = () => {
     unlikeReply,
   } = useComments();
 
-  // ✅ All useState hooks at top level
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [showAllComments, setShowAllComments] = useState<{ [key: number]: boolean }>({});
@@ -97,14 +95,12 @@ const GroupPostsScreen = () => {
   const [modalComments, setModalComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
 
-  // ✅ useEffect hooks after all useState
   useFocusEffect(
     useCallback(() => {
       loadGroupPosts();
     }, [groupId])
   );
 
-  // ✅ All functions defined after hooks
   const loadGroupPosts = async () => {
     try {
       await getAllPosts({ page: 1, limit: 20, groupId: groupId });
@@ -278,6 +274,9 @@ const GroupPostsScreen = () => {
   };
 
   const renderPost = ({ item: post }: { item: any }) => {
+    // ✅ Add safety check for post
+    if (!post) return null;
+    
     const postDate = post.created_at || post.createdAt;
     const imageUrl = post.image ? getFullImageUrl(post.image) : null;
     const userAvatar = post.user?.profilePhoto ? getFullImageUrl(post.user.profilePhoto) : null;
@@ -459,7 +458,14 @@ const GroupPostsScreen = () => {
     );
   };
 
-  // ✅ Early return AFTER all hooks
+  // ✅ Safe key extractor with fallback
+  const getKeyExtractor = (item: any, index: number) => {
+    if (item && item.id) {
+      return item.id.toString();
+    }
+    return index.toString();
+  };
+
   if (isLoading && posts.length === 0) {
     return (
       <View style={styles.centerContainer}>
@@ -527,7 +533,7 @@ const GroupPostsScreen = () => {
       <FlatList
         data={posts}
         renderItem={renderPost}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={getKeyExtractor}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0E713E"]} />
@@ -653,7 +659,7 @@ const GroupPostsScreen = () => {
                     </View>
                   </View>
                 )}
-                keyExtractor={(item) => item.id.toString()}
+                keyExtractor={(item, index) => item?.id ? item.id.toString() : index.toString()}
                 style={styles.modalCommentsList}
                 ListEmptyComponent={
                   <View style={styles.noCommentsContainer}>
@@ -702,9 +708,8 @@ const styles = StyleSheet.create({
   groupInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
-    backgroundColor: '#FFF',
-    marginBottom: 10,
+    padding: 25,
+    backgroundColor: '#FFF'
   },
   groupLogo: { width: 60, height: 60, borderRadius: 30, borderWidth: 2, borderColor: '#0E713E' },
   groupTextInfo: { flex: 1, marginLeft: 15 },
@@ -712,7 +717,7 @@ const styles = StyleSheet.create({
   groupDesc: { fontSize: 12, color: '#666' },
   createPostSection: {
     backgroundColor: '#0E713E',
-    padding: 25
+    padding: 25,
   },
   inputContainer: { 
     flexDirection: 'row', 

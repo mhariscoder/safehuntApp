@@ -1,4 +1,5 @@
 export const API_BASE_URL = 'https://app.safehunt.app';
+export const SOCKET_URL = 'ws://app.safehunt.app:4041';
 export const API_TIMEOUT = 30000;
 export const IS_DEVELOPMENT = __DEV__;
 
