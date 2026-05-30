@@ -18,6 +18,7 @@ import FriendsScreen from '../screens/FriendsScreen';
 import GroupPostsScreen from '../screens/GroupPostsScreen';
 import CreateGroupPostScreen from '../screens/CreateGroupPostScreen.tsx';
 import CreateGroupScreen from '../screens/CreateGroupScreen.tsx';
+import MapTestScreen from '../screens/MapTestScreen.tsx';
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
@@ -49,6 +50,7 @@ export const MainNavigator = () => {
       <Stack.Screen name="GroupPosts" component={GroupPostsScreen} />
       <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
       <Stack.Screen name="CreateGroupPost" component={CreateGroupPostScreen} />
+      <Stack.Screen name="MapTest" component={MapTestScreen} />
     </Stack.Navigator>
   );
 };

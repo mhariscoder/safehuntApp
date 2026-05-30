@@ -26,8 +26,8 @@ const getFullImageUrl = (imagePath: string | null | undefined): string | null =>
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
-  const cleanPath = imagePath.replace('./public/uploads/', '').replace('public/uploads/', '');
-  return `${API_BASE_URL}/uploads/${cleanPath}`;
+  const cleanPath = imagePath.replace('./uploads/', '').replace('/uploads/', '');
+  return `${API_BASE_URL}/public/uploads/${cleanPath}`;
 };
 
 const formatTime = (dateString: string) => {
@@ -112,50 +112,49 @@ const MessageDetailScreen = () => {
       return;
     }
 
-    console.log('📤 Sending message to user:', otherUserIdNumber);
     setIsSending(true);
-    
     const messageText = inputText.trim();
-    const attachment = selectedImage?.uri || null;
     
+    // Set type to 'file' if image is selected, otherwise 'text'
+    const messageType = selectedImage ? 'file' : 'text';
+    const attachmentBase64 = selectedImage?.base64 || null;
+    const localUri = selectedImage?.uri || null;
+
+    // Clear inputs immediately for better UX
     setInputText('');
     setSelectedImage(null);
-    
+
     const tempId = Date.now();
     sentMessageIds.current.add(tempId);
-    
+
+    // Optimistic UI update (optional, but keep dispatch commented if slice handles it)
+    /*
     const tempMessage = {
       id: tempId,
       senderId: user?.id,
       receiverId: otherUserIdNumber,
       message: messageText,
-      type: selectedImage ? 'image' : 'text',
+      type: messageType,
       status: 'sent',
-      attachment: attachment,
+      attachment: localUri, 
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    
-    console.log('📝 Adding optimistic message:', tempMessage);
     dispatch(receiveMessage(tempMessage));
-    
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 50);
+    */
 
     try {
       await dispatch(sendMessage({
         receiverUserId: otherUserIdNumber,
         message: messageText,
-        attachment: attachment,
-        type: selectedImage ? 'image' : 'text',
+        attachment: attachmentBase64, // The data:image/xxx;base64,... string
+        type: messageType,           // Now sent as 'file'
       })).unwrap();
-      console.log('✅ Message sent successfully');
+      
       logSocketStatus('sendMessage', { success: true });
     } catch (error: any) {
-      console.error('❌ Failed to send message:', error);
-      logSocketStatus('sendMessage_error', { error: error.message });
-      Alert.alert('Error', error.message || 'Failed to send message');
+      console.error('❌ Failed to send:', error);
+      Alert.alert('Error', 'Failed to send message');
       loadMessages();
     } finally {
       setIsSending(false);
@@ -165,22 +164,19 @@ const MessageDetailScreen = () => {
   const handleSelectImage = useCallback(() => {
     const options: any = {
       mediaType: 'photo' as const,
-      includeBase64: false,
+      includeBase64: true,
       maxHeight: 2000,
       maxWidth: 2000,
       quality: 0.8,
     };
 
-    launchImageLibrary(options, (response: any) => {
-      if (response.didCancel) {
-        console.log('User cancelled image picker');
-      } else if (response.error) {
-        console.log('ImagePicker Error: ', response.error);
-        Alert.alert('Error', 'Failed to select image');
-      } else if (response.assets && response.assets[0]) {
+    launchImageLibrary(options, (response) => {
+      if (response.assets && response.assets[0]) {
         const asset = response.assets[0];
         setSelectedImage({
           uri: asset.uri,
+          // Create the standard Data URI string your backend expects
+          base64: `data:${asset.type};base64,${asset.base64}`, 
           type: asset.type || 'image/jpeg',
           name: asset.fileName || `image_${Date.now()}.jpg`,
         });
@@ -266,33 +262,38 @@ const MessageDetailScreen = () => {
   // Receive message listener
   useEffect(() => {
     const handleReceiveMessage = (data: any) => {
-      console.log('📨 Received message in screen:', data);
-      
-      const senderIdNum = parseInt(data.senderUserId, 10);
-      
-      if (senderIdNum === otherUserIdNumber) {
-        const messageId = data.id || Date.now();
-        
-        if (sentMessageIds.current.has(messageId)) {
-          console.log('⚠️ Duplicate message detected, skipping:', messageId);
+      const receivedSenderId = Number(data.senderUserId || data.senderId);
+      const myId = Number(user?.id);
+      const targetChatPartnerId = Number(otherUserIdNumber);
+
+      if (receivedSenderId === myId) {
+        return;
+      }
+
+      if (receivedSenderId === targetChatPartnerId) {
+        const messageId = data.id;
+        const isAlreadyInStore = messages.some(msg => msg.id === messageId);
+
+        if (isAlreadyInStore || (messageId && sentMessageIds.current.has(messageId))) {
           return;
         }
-        
-        sentMessageIds.current.add(messageId);
+
+        if (messageId) {
+          sentMessageIds.current.add(messageId);
+        }
         
         const newMessage = {
-          id: messageId,
-          senderId: senderIdNum,
-          receiverId: user?.id,
+          id: messageId || Date.now(),
+          senderId: receivedSenderId,
+          receiverId: myId,
           message: data.message || '',
           type: data.type || 'text',
           status: data.status || 'delivered',
           attachment: data.attachment || null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: data.createdAt || new Date().toISOString(),
+          updatedAt: data.updatedAt || new Date().toISOString(),
         };
         
-        console.log('✅ Adding message to store:', newMessage);
         dispatch(receiveMessage(newMessage));
         
         setTimeout(() => {
@@ -306,16 +307,20 @@ const MessageDetailScreen = () => {
     return () => {
       ChatService.off('receiveMessage', handleReceiveMessage);
     };
-  }, [otherUserIdNumber, user?.id, dispatch]);
+  }, [otherUserIdNumber, user?.id, dispatch, messages]);
 
   useEffect(() => {
     console.log('📊 Current messages count:', messages.length);
   }, [messages]);
 
   const renderMessage = useCallback(({ item }: { item: any }) => {
+    console.log('item', item)
     const isMyMessage = item.senderId === user?.id;
     const messageDate = item.created_at || item.createdAt;
-    const imageUrl = item.attachment ? getFullImageUrl(item.attachment) : null;
+    const attachment = item.attachment;
+    const imageUrl = (attachment && (attachment.startsWith('data:') || attachment.startsWith('file:') || attachment.startsWith('content:')))
+      ? attachment 
+      : getFullImageUrl(attachment);
 
     return (
       <View style={[

@@ -32,6 +32,7 @@ export type MainStackParamList = {
   GroupPosts: { groupId: number; groupName: string; groupLogo?: string; groupCover?: string; groupDescription?: string };
   CreateGroup: undefined;
   CreateGroupPost: { groupId: number; groupName: string };
+  MapTest: undefined;
 };
 
 export type RootStackParamList = {
