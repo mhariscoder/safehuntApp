@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,8 +10,13 @@ import {
   ScrollView,
   Switch,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useAppSelector, useAppDispatch } from '../app/store/hooks';
+import { useNotifications } from '../hooks/useNotifications';
+import { deleteMyAccount } from '../features/auth/authActions';
 import BottomTabNav from '../components/BottomTabNav';
 
 const ASSETS = {
@@ -24,25 +29,163 @@ const ASSETS = {
 };
 
 const SettingScreen = () => {
+  // ✅ ALL HOOKS CALLED AT TOP LEVEL IN CONSISTENT ORDER
   const navigation = useNavigation<any>();
+  const dispatch = useAppDispatch();
+  const { user } = useAppSelector((state) => state.auth);
+  
+  // ✅ useNotifications hook - called unconditionally
+  const {
+    notificationSettings,
+    toggleNotifications,
+    toggleAppNotifications,
+    getNotificationStatus,
+    isLoading: notificationsLoading,
+  } = useNotifications();
+
+  // ✅ All useState hooks
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [appNotificationsEnabled, setAppNotificationsEnabled] = useState(true);
+  const [togglingNotifications, setTogglingNotifications] = useState(false);
+  const [togglingAppNotifications, setTogglingAppNotifications] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
-  const SettingItem = ({ label, onPress, showBorder = true, hasSwitch = false, switchValue, onSwitchChange }: any) => (
+  // ✅ useEffect hooks
+  useEffect(() => {
+    if (notificationSettings) {
+      setNotificationsEnabled(notificationSettings.notificationsEnabled);
+      setAppNotificationsEnabled(notificationSettings.appNotificationsEnabled);
+    }
+  }, [notificationSettings]);
+
+  // ✅ useFocusEffect hook
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id) {
+        loadNotificationStatus();
+      }
+    }, [user?.id])
+  );
+
+  // ✅ Helper functions (defined after all hooks)
+  const loadNotificationStatus = async () => {
+    if (user?.id) {
+      await getNotificationStatus(user.id);
+    }
+  };
+
+  const handleToggleNotifications = async (value: boolean) => {
+    if (!user?.id) return;
+    
+    setTogglingNotifications(true);
+    setNotificationsEnabled(value);
+    
+    try {
+      await toggleNotifications(user.id);
+      await getNotificationStatus(user.id);
+    } catch (error: any) {
+      setNotificationsEnabled(!value);
+      Alert.alert('Error', error.message || 'Failed to toggle notifications');
+    } finally {
+      setTogglingNotifications(false);
+    }
+  };
+
+  const handleToggleAppNotifications = async (value: boolean) => {
+    if (!user?.id) return;
+    
+    setTogglingAppNotifications(true);
+    setAppNotificationsEnabled(value);
+    
+    try {
+      await toggleAppNotifications(user.id);
+      await getNotificationStatus(user.id);
+    } catch (error: any) {
+      setAppNotificationsEnabled(!value);
+      Alert.alert('Error', error.message || 'Failed to toggle app notifications');
+    } finally {
+      setTogglingAppNotifications(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to delete your account? This action is irreversible and all your data will be permanently lost.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeletingAccount(true);
+            try {
+              await dispatch(deleteMyAccount()).unwrap();
+              Alert.alert(
+                'Account Deleted',
+                'Your account has been deleted successfully.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: 'Auth' }],
+                      });
+                    },
+                  },
+                ]
+              );
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to delete account. Please try again.');
+            } finally {
+              setIsDeletingAccount(false);
+            }
+          }
+        },
+      ]
+    );
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Logout', 
+          style: 'destructive',
+          onPress: () => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Auth' }],
+            });
+          }
+        },
+      ]
+    );
+  };
+
+  const SettingItem = ({ label, onPress, showBorder = true, hasSwitch = false, switchValue, onSwitchChange, isLoading: itemLoading = false }: any) => (
     <TouchableOpacity 
       style={[styles.settingItem, !showBorder && { borderBottomWidth: 0 }]} 
       onPress={onPress}
-      disabled={hasSwitch}
+      disabled={hasSwitch || itemLoading}
     >
       <Text style={styles.settingLabel}>{label}</Text>
       {hasSwitch ? (
-        <Switch
-          trackColor={{ false: '#D1D1D1', true: '#0E713E' }}
-          thumbColor={'#FFFFFF'}
-          ios_backgroundColor="#D1D1D1"
-          onValueChange={onSwitchChange}
-          value={switchValue}
-        />
+        itemLoading ? (
+          <ActivityIndicator size="small" color="#0E713E" />
+        ) : (
+          <Switch
+            trackColor={{ false: '#D1D1D1', true: '#0E713E' }}
+            thumbColor={'#FFFFFF'}
+            ios_backgroundColor="#D1D1D1"
+            onValueChange={onSwitchChange}
+            value={switchValue}
+          />
+        )
       ) : (
         <Image source={ASSETS.iconChevron} style={styles.chevron} />
       )}
@@ -55,6 +198,15 @@ const SettingScreen = () => {
       <Text style={styles.sectionTitle}>{title}</Text>
     </View>
   );
+
+  // ✅ Loading check AFTER all hooks
+  if (notificationsLoading && !notificationSettings) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#0E713E" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -77,40 +229,55 @@ const SettingScreen = () => {
         <SectionHeader icon={ASSETS.iconAccount} title="Account" />
         <View style={styles.sectionGroup}>
           <SettingItem label="Edit Profile" onPress={() => navigation.navigate('Profile')} />
-          <SettingItem label="Change Password" onPress={() => {}} />
-          <SettingItem label="Block" onPress={() => {}} showBorder={false} />
+          <SettingItem label="Change Password" onPress={() => navigation.navigate('ChangePassword')} />
+          <SettingItem label="Block" onPress={() => navigation.navigate('BlockedUsers')} showBorder={false} />
         </View>
 
         {/* --- NOTIFICATIONS SECTION --- */}
         <SectionHeader icon={ASSETS.iconBell} title="Notifications" />
         <View style={styles.sectionGroup}>
           <SettingItem 
-            label="Notifications" 
+            label="Push Notifications" 
             hasSwitch={true} 
             switchValue={notificationsEnabled} 
-            onSwitchChange={setNotificationsEnabled} 
+            onSwitchChange={handleToggleNotifications}
+            isLoading={togglingNotifications}
           />
           <SettingItem 
-            label="App Notifications" 
+            label="In-App Notifications" 
             hasSwitch={true} 
             switchValue={appNotificationsEnabled} 
-            onSwitchChange={setAppNotificationsEnabled} 
+            onSwitchChange={handleToggleAppNotifications}
             showBorder={false}
+            isLoading={togglingAppNotifications}
           />
         </View>
 
         {/* --- ABOUT SECTION --- */}
         <SectionHeader icon={ASSETS.iconAbout} title="About App" />
         <View style={styles.sectionGroup}>
-          <SettingItem label="Terms & Conditions" onPress={() => {}} />
-          <SettingItem label="Privacy Policy" onPress={() => {}} />
-          <SettingItem label="Rate Our App" onPress={() => {}} showBorder={false} />
+          <SettingItem label="Terms & Conditions" onPress={() => navigation.navigate('TermsConditions')} />
+          <SettingItem label="Privacy Policy" onPress={() => navigation.navigate('PrivacyPolicy')} />
         </View>
 
-        {/* --- LOGOUT BUTTON --- */}
-        <TouchableOpacity style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        {/* --- ACTION BUTTONS --- */}
+        <View style={styles.buttonsContainer}>
+          <TouchableOpacity 
+            style={[styles.deleteAccountButton, isDeletingAccount && styles.buttonDisabled]} 
+            onPress={handleDeleteAccount}
+            disabled={isDeletingAccount}
+          >
+            {isDeletingAccount ? (
+              <ActivityIndicator color="#FFF" size="small" />
+            ) : (
+              <Text style={styles.deleteAccountText}>Delete Account</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* --- BOTTOM NAVIGATION --- */}
@@ -124,6 +291,12 @@ const SettingScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
   },
   header: {
@@ -144,6 +317,7 @@ const styles = StyleSheet.create({
     height: 20,
     marginRight: 10,
     resizeMode: 'contain',
+    tintColor: '#FFF',
   },
   headerTitle: {
     color: '#FFF',
@@ -178,6 +352,7 @@ const styles = StyleSheet.create({
     height: 20,
     marginRight: 15,
     resizeMode: 'contain',
+    tintColor: '#0E713E',
   },
   sectionTitle: {
     fontSize: 16,
@@ -209,10 +384,25 @@ const styles = StyleSheet.create({
     tintColor: '#BCBCBC',
     resizeMode: 'contain',
   },
+  buttonsContainer: {
+    marginVertical: 20,
+    paddingHorizontal: 25,
+  },
+  deleteAccountButton: {
+    backgroundColor: '#FF6B6B',
+    height: 50,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  deleteAccountText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   logoutButton: {
     backgroundColor: '#0E713E',
-    marginHorizontal: 100,
-    marginTop: 40,
     height: 50,
     borderRadius: 30,
     justifyContent: 'center',
@@ -222,6 +412,9 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   bottomNavWrapper: {
     position: 'absolute',

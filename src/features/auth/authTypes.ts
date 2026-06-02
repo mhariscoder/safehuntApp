@@ -78,3 +78,8 @@ export interface UpdateUserData {
   equipmentImages?: string[];
   [key: string]: any;
 }
+
+export interface ChangePasswordData {
+  oldPassword: string;
+  newPassword: string;
+}

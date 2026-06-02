@@ -7,8 +7,6 @@ import {
   Image,
   ViewStyle,
   ActivityIndicator,
-  Platform,
-  PermissionsAndroid,
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 
@@ -40,6 +38,7 @@ const TopHeader: React.FC<TopHeaderProps> = ({
   const fetchWeather = async (lat: number, lon: number) => {
     try {
       setWeather(prev => ({ ...prev, loading: true }));
+      
       // MET Norway API requires 2 decimal places for better compatibility
       const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`;
       
@@ -67,45 +66,28 @@ const TopHeader: React.FC<TopHeaderProps> = ({
     }
   };
 
-  const getLocation = async () => {
+  const getLocationAndFetchWeather = () => {
     setWeather(prev => ({ ...prev, loading: true }));
-    
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          // If permission is denied, use a default fallback (Karachi)
-          // fetchWeather(24.86, 67.00);
-          return;
-        }
-      } catch (err) {
-        setWeather({ temp: '', icon: '', loading: false });
-        return;
-      }
-    }
 
+    // Because App.js enforces both permissions and GPS, this hook succeeds safely on mount
     Geolocation.getCurrentPosition(
       (position) => {
         fetchWeather(position.coords.latitude, position.coords.longitude);
       },
       (error) => {
-        console.warn("Geolocation Error:", error.message);
-        // FIX: If it times out or fails, use fallback coordinates instead of just showing error
-        // This ensures the user always sees weather info
-        // fetchWeather(24.86, 67.00); 
+        console.warn("Header Geolocation Error:", error.message);
+        setWeather({ temp: '', icon: '', loading: false });
       },
       { 
-        enableHighAccuracy: false, // Set to false for faster results on Emulators
-        timeout: 20000,           // Increased timeout to 20 seconds
-        maximumAge: 3600000       // Accept cached location from the last hour
+        enableHighAccuracy: false, // Reads fast cell tower triangulation networks seamlessly
+        timeout: 15000,           
+        maximumAge: 300000        // Accept coordinates cached within the past 5 minutes
       }
     );
   };
 
   useEffect(() => {
-    getLocation();
+    getLocationAndFetchWeather();
   }, []);
 
   return (
@@ -130,12 +112,12 @@ const TopHeader: React.FC<TopHeaderProps> = ({
         {weather.loading ? (
           <ActivityIndicator size="small" color="#4D3626" />
         ) : weather.temp ? (
-          <TouchableOpacity onPress={getLocation} style={styles.row} activeOpacity={0.6}>
+          <TouchableOpacity onPress={getLocationAndFetchWeather} style={styles.row} activeOpacity={0.6}>
             {weather.icon && <Image style={styles.weatherIconImage} source={{ uri: weather.icon }} />}
             <Text style={styles.weatherTemp}>{weather.temp}</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity onPress={getLocation} style={styles.retryButton}>
+          <TouchableOpacity onPress={getLocationAndFetchWeather} style={styles.retryButton}>
              <Image style={styles.refreshIcon} source={ASSETS.refresh} />
              <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
