@@ -34,6 +34,7 @@
     "react-native-keychain": "^10.0.0",
     "react-native-linear-gradient": "^2.8.3",
     "react-native-maps": "^1.27.2",
+    "react-native-maps-directions": "^1.9.0",
     "react-native-permissions": "^5.5.2",
     "react-native-safe-area-context": "^5.7.0",
     "react-native-screens": "^4.25.0",
