@@ -9,7 +9,8 @@ import {
   RequestResetPasswordData,
   RegenerateOtpData,
   ChangePasswordData,
-  UpdateUserData
+  UpdateUserData,
+  SocialLoginData
 } from './authTypes';
 import { RootState } from '../../app/store';
 
@@ -174,6 +175,20 @@ export const getAllUsers = createAsyncThunk(
       return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch users');
+    }
+  }
+);
+
+export const loginViaSocialToken = createAsyncThunk(
+  'auth/loginViaSocialToken',
+  async (payload: SocialLoginData, { rejectWithValue }) => {
+    try {
+      const response = await authService.loginViaSocialToken(payload);
+      return response;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || 'Social authentication processing failed'
+      );
     }
   }
 );

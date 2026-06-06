@@ -83,3 +83,12 @@ export interface ChangePasswordData {
   oldPassword: string;
   newPassword: string;
 }
+
+export interface SocialLoginData {
+  socialType: 'google' | 'facebook' | 'apple';
+  socialToken: string;
+  email?: string;
+  name?: string;
+  deviceToken?: string;
+  deviceType?: string;
+}

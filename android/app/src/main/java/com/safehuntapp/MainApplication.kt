@@ -1,4 +1,4 @@
-package com.safehuntapp
+package com.safehunt.app
 
 import android.app.Application
 import com.facebook.react.PackageList

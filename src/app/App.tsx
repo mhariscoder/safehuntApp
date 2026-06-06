@@ -13,6 +13,8 @@ import { store, persistor } from './store';
 import { RootNavigator } from '../navigation/RootNavigator';
 import BootSplash from 'react-native-bootsplash';
 
+import './../config/googleAuth';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

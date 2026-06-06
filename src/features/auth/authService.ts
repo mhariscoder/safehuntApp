@@ -10,7 +10,8 @@ import {
   RequestResetPasswordData,
   RegenerateOtpData,
   ChangePasswordData,
-  UpdateUserData
+  UpdateUserData,
+  SocialLoginData
 } from './authTypes';
 
 class AuthService {
@@ -322,6 +323,49 @@ class AuthService {
     } catch (error) {
       console.error('Error getting stored username:', error);
       return null;
+    }
+  }
+
+  async loginViaSocialToken(payload: SocialLoginData) {
+    try {
+      console.log(`Attempting social login via provider: ${payload.socialType}`);
+      
+      const response = await api.post('/social-auth/login', payload);
+      
+      console.log('Social login response received:', response.data);
+      
+      const { data } = response.data;
+      
+      const token = data.token;
+      const user = {
+        id: data.id,
+        role: data.role,
+        email: data.email,
+        username: data.username,
+        displayname: data.displayname,
+        profilePhoto: data.profilePhoto,
+        coverPhoto: data.coverPhoto,
+        profilePicture: data.profilePicture,
+        profilecomplete: data.profilecomplete,
+        status: data.status,
+        phonenumber: data.phonenumber,
+        bio: data.bio,
+        huntingExperience: data.huntingExperience,
+        skills: data.skills,
+        currentLatitude: data.currentLatitude,
+        currentLongitude: data.currentLongitude,
+        subscriptionStatus: data.subscriptionStatus,
+      };
+      
+      await Keychain.setGenericPassword(user.username || user.email, token);
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+      
+      console.log('Social auth credentials securely persisted');
+      
+      return { user, token };
+    } catch (error) {
+      console.error('Social login service error:', error);
+      throw error;
     }
   }
 }

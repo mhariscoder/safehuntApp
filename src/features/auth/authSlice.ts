@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { AuthState, User } from './authTypes';
-import { login, signup, logout, checkAuth, resetPassword } from './authActions';
+import { login, signup, logout, checkAuth, resetPassword, loginViaSocialToken } from './authActions';
 
 const initialState: AuthState = {
   user: null,
@@ -107,6 +107,23 @@ const authSlice = createSlice({
       state.error = null;
     });
     builder.addCase(resetPassword.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
+    });
+
+    // Social Login
+    builder.addCase(loginViaSocialToken.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(loginViaSocialToken.fulfilled, (state, action) => {
+      state.isLoading = false;
+      state.isAuthenticated = true;
+      state.user = action.payload.user;
+      state.token = action.payload.token;
+      state.error = null;
+    });
+    builder.addCase(loginViaSocialToken.rejected, (state, action) => {
       state.isLoading = false;
       state.error = action.payload as string;
     });

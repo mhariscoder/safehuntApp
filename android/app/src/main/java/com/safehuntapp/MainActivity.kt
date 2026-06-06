@@ -1,4 +1,4 @@
-package com.safehuntapp
+package com.safehunt.app
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
