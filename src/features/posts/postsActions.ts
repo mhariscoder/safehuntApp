@@ -66,6 +66,7 @@ export const getPostById = createAsyncThunk(
   async ({ id, groupId }: { id: number; groupId?: number }, { rejectWithValue }) => {
     try {
       const response = await postsService.getPostById(id, groupId);
+      console.log('Get post by ID response:', response);
       return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch post');

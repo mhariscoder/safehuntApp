@@ -5,13 +5,13 @@ import {
   Text,
   Image,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   TouchableOpacity,
   Platform,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native'; // 1. Added Navigation Hook import
 import { useNotifications } from '../hooks/useNotifications';
 import BottomTabNav from '../components/BottomTabNav';
 import { API_BASE_URL } from '../constants/config';
@@ -111,6 +111,7 @@ const getNotificationText = (notification: any) => {
 };
 
 const NotificationScreen = () => {
+  const navigation = useNavigation<any>(); // 2. Initialized Navigation
   const [refreshing, setRefreshing] = useState(false);
   const {
     notifications,
@@ -133,13 +134,15 @@ const NotificationScreen = () => {
     setRefreshing(false);
   };
 
+  // 3. FIXED REDIRECTION LOGIC
   const handleNotificationPress = async (notification: any) => {
     if (!notification.isRead) {
       await markNotificationAsRead(notification.id);
     }
-    // Optional: Navigate based on notification type and postId
-    if (notification.postId) {
-      // navigation.navigate('PostDetail', { postId: notification.postId });
+    
+    // Check if postId exists and explicitly filter out stringified 'null' configurations
+    if (notification.postId && notification.postId !== 'null') {
+      navigation.navigate('PostDetail', { postId: notification.postId });
     }
   };
 

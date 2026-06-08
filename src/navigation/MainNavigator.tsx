@@ -23,6 +23,7 @@ import TermsConditionsScreen from '../screens/TermsConditionsScreen.tsx';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen.tsx';
 import BlockedUsersScreen from '../screens/BlockedUsersScreen.tsx';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen.tsx';
+import PostDetailScreen from '../screens/PostDetailScreen';
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
@@ -59,6 +60,7 @@ export const MainNavigator = () => {
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="MapTest" component={MapTestScreen} />
+      <Stack.Screen name="PostDetail" component={PostDetailScreen} />
     </Stack.Navigator>
   );
 };

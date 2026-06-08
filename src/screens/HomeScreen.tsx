@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -23,9 +23,10 @@ import Geolocation from '@react-native-community/geolocation';
 import Slider from '@react-native-community/slider';
 
 import { useDispatch, useSelector } from 'react-redux';
-import { getAllJournals } from './../features/huntingJournal/huntingJournalActions'; 
-// ADDED: Import your friend action thunk
+import { getMyJournals } from './../features/huntingJournal/huntingJournalActions'; // 🔥 Swapped to your custom active API action
 import { sendFriendRequest } from './../features/friends/friendsActions'; 
+import { updateLocation } from './../features/chat/chatActions'; 
+import { connectSocket, disconnectSocket } from './../features/chat/chatActions'; 
 
 import SideMenu from '../components/SideMenu';
 import TopHeader from '../components/TopHeader';
@@ -49,7 +50,7 @@ interface LocationMarker {
     username: string;
     email: string;
     profilePhoto: string | null;
-    bio: string;
+    io: string;
     huntingExperience: string;
     skills: string[];
   };
@@ -84,58 +85,107 @@ const HomeScreen = () => {
   const [routeDistance, setRouteDistance] = useState<string | null>(null);
   const [routeDuration, setRouteDuration] = useState<string | null>(null);
   
-  // ADDED: Inline UI loading indicator targeting only the targeted request button
   const [sendingRequestId, setSendingRequestId] = useState<string | null>(null);
 
   const mapRef = useRef<MapView>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const locationUpdateTimeoutRef = useRef<any>(null);
 
-  const { journals, loading: journalsLoading } = useSelector((state: any) => state.huntingJournal || { journals: [], loading: false });
+  // ✂️ Removed huntingJournal selectors completely
+  const { isConnected: socketConnected } = useSelector((state: any) => state.chat || { isConnected: false });
+  const currentUserId = useSelector((state: any) => state.auth?.user?.id);
+
+  useEffect(() => {
+    if (currentUserId) {
+      console.log('🏠 HomeScreen: Initializing socket connection for user:', currentUserId);
+      dispatch(connectSocket({ receiverUserId: currentUserId.toString() }));
+    }
+
+    return () => {
+      console.log('🏠 HomeScreen: Cleaning up socket connection');
+      if (locationUpdateTimeoutRef.current) {
+        clearTimeout(locationUpdateTimeoutRef.current);
+      }
+      dispatch(disconnectSocket());
+    };
+  }, [currentUserId, dispatch]);
 
   useEffect(() => {
     const initializeApp = async () => {
       await requestLocationPermission();
-      fetchBackendJournals();
+      fetchMyJournalsData(); // 🔥 Call the updated API integration wrapper
     };
     initializeApp();
+
+    return () => {
+      if (watchIdRef.current !== null) {
+        Geolocation.clearWatch(watchIdRef.current);
+      }
+    };
   }, []);
 
-  useEffect(() => {
-    if (journals && journals.length > 0) {
-      const parsedMarkers: LocationMarker[] = journals.map((item: any) => ({
-        id: String(item.id),
-        coordinate: {
-          latitude: parseFloat(item.location?.latitude || '0'),
-          longitude: parseFloat(item.location?.longitude || '0'),
-        },
-        title: item.title || 'Untitled Spot',
-        description: item.description || '',
-        type: item.type || 'default',
-        weather: item.weather,
-        user: item.user ? {
-          id: String(item.user.id), // Managed as a string reference matching interface
-          displayname: item.user.displayname,
-          username: item.user.username,
-          email: item.user.email,
-          profilePhoto: item.user.profilePhoto,
-          bio: item.user.bio,
-          huntingExperience: item.user.huntingExperience,
-          skills: item.user.skills || [],
-        } : undefined
-      }));
-      
-      setLocations(parsedMarkers);
+  const debouncedLocationUpdate = useCallback((location: LatLng) => {
+    if (locationUpdateTimeoutRef.current) {
+      clearTimeout(locationUpdateTimeoutRef.current);
     }
-  }, [journals]);
 
-  const fetchBackendJournals = () => {
-    dispatch(getAllJournals())
+    locationUpdateTimeoutRef.current = setTimeout(() => {
+      if (location && currentUserId && socketConnected) {
+        console.log('📍 Sending location update:', location);
+        dispatch(updateLocation({
+          userId: Number(currentUserId), 
+          latitude: location.latitude,
+          longitude: location.longitude
+        }))
+        .unwrap()
+        .then(() => console.log('✅ Live telemetry coordinates pushed successfully.'))
+        .catch((err: any) => {
+          console.log('⚠️ Telemetry push failed:', err?.message || err);
+        });
+      }
+    }, 1000);
+  }, [currentUserId, socketConnected, dispatch]);
+
+  // useEffect(() => {
+  //   if (currentLocation && currentUserId && socketConnected) {
+  //     debouncedLocationUpdate(currentLocation);
+  //   }
+  // }, [currentLocation, currentUserId, socketConnected, debouncedLocationUpdate]);
+
+  // 🔥 Dynamically loads maps parameters from your custom target getMyJournals payload structure
+  const fetchMyJournalsData = () => {
+    dispatch(getMyJournals({ page: 1, limit: 10 }))
       .unwrap()
       .then((res: any) => {
-        const recordCount = res?.data?.length ?? res?.length ?? 0;
-        console.log('Successfully synced API records count:', recordCount);
+        const backendData = res?.data || res || [];
+        console.log('Successfully synced My Journals API context records:', backendData.length);
+        
+        const parsedMarkers: LocationMarker[] = backendData.map((item: any) => ({
+          id: String(item.id),
+          coordinate: {
+            latitude: parseFloat(item.location?.latitude || item.latitude || '0'),
+            longitude: parseFloat(item.location?.longitude || item.longitude || '0'),
+          },
+          title: item.title || 'My Hunting Spot',
+          description: item.description || '',
+          type: item.type || 'default',
+          weather: item.weather,
+          user: item.user ? {
+            id: String(item.user.id), 
+            displayname: item.user.displayname,
+            username: item.user.username,
+            email: item.user.email,
+            profilePhoto: item.user.profilePhoto,
+            bio: item.user.bio,
+            huntingExperience: item.user.huntingExperience,
+            skills: item.user.skills || [],
+          } : undefined
+        }));
+        
+        setLocations(parsedMarkers);
       })
       .catch((err: any) => {
-        console.error('Error fetching journals:', err);
+        console.error('Error executing custom journals call:', err);
       });
   };
 
@@ -153,7 +203,7 @@ const HomeScreen = () => {
           }
         );
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-          getCurrentLocation(true);
+          startLocationTracking();
         } else {
           setError('Location permission denied');
           setLoading(false);
@@ -165,11 +215,11 @@ const HomeScreen = () => {
         setLoading(false);
       }
     } else {
-      getCurrentLocation(true);
+      startLocationTracking();
     }
   };
 
-  const getCurrentLocation = (highAccuracy: boolean) => {
+  const startLocationTracking = () => {
     Geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
@@ -187,18 +237,40 @@ const HomeScreen = () => {
         setError(null);
       },
       (err) => {
-        if (highAccuracy) {
-          getCurrentLocation(false);
-        } else {
-          setError(`Unable to get location: ${err.message}`);
-          setLoading(false);
-          setDefaultLocation();
-        }
+        console.warn('High accuracy error, falling back...', err);
+        Geolocation.getCurrentPosition(
+          (pos) => {
+            const { latitude, longitude } = pos.coords;
+            setCurrentLocation({ latitude, longitude });
+            setLocationLoaded(true);
+            setInitialCamera({
+              center: { latitude, longitude },
+              pitch: 55, heading: 0, altitude: 1000, zoom: 16.5
+            });
+            setLoading(false);
+          },
+          (fallbackErr) => {
+            setError(`Unable to get location: ${fallbackErr.message}`);
+            setLoading(false);
+            setDefaultLocation();
+          },
+          { enableHighAccuracy: false, timeout: 15000 }
+        );
       },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+    );
+
+    watchIdRef.current = Geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setCurrentLocation({ latitude, longitude });
+      },
+      (err) => console.log('Background telemetry watch warning:', err),
       {
-        enableHighAccuracy: highAccuracy,
-        timeout: 10000,
-        maximumAge: 5000,
+        enableHighAccuracy: true,
+        distanceFilter: 10, 
+        interval: 10000,
+        fastestInterval: 5000
       }
     );
   };
@@ -249,7 +321,6 @@ const HomeScreen = () => {
       
       try {
         const currentCamera = await mapRef.current.getCamera();
-        
         mapRef.current.animateCamera({
           center: currentCamera.center,
           pitch: currentCamera.pitch ?? 55,
@@ -270,17 +341,15 @@ const HomeScreen = () => {
     }
   };
 
-  // FIXED: Integrated dynamic handling logic executing dispatch parameters using async thunks
   const handleSendFriendRequest = (recipientId: string | undefined, displayName: string) => {
     if (!recipientId) {
-      Alert.alert('Error', 'Unable to resolve specific hunter identification context.');
+      Alert.alert('Error', 'Unable to resolve hunter identification context.');
       return;
     }
 
     setSendingRequestId(recipientId);
 
-    // Dispatching request dynamic payload parameter mapping to expected thunk configuration
-    dispatch(sendFriendRequest({ recipientId }))
+    dispatch(sendFriendRequest({ recipientId } as any))
       .unwrap()
       .then(() => {
         Alert.alert('Request Sent', `Friend request successfully sent to ${displayName}`);
@@ -299,7 +368,7 @@ const HomeScreen = () => {
     return { uri: `${IMAGE_SERVER_BASE_URL}/${cleanPath}` };
   };
 
-  if (loading || journalsLoading) {
+  if (loading) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#0E713E" />
@@ -334,8 +403,13 @@ const HomeScreen = () => {
                 coordinate={currentLocation}
                 title="You are here"
                 description="Your current location"
-                pinColor="#0E713E"
-              />
+              >
+                <Image
+                  source={require('../../assets/tab_0.png')}
+                  style={{ width: 30, height: 30 }}
+                  resizeMode="contain"
+                />
+              </Marker>
             )}
             
             {getFilteredLocations().map((location) => (
@@ -414,7 +488,7 @@ const HomeScreen = () => {
             containerStyle={{ marginTop: 40, backgroundColor: 'transparent' }}
           />
 
-          <View style={styles.mapFrame}>
+          {/* <View style={styles.mapFrame}> */}
             {selectedLocation && (
               <View style={styles.locationInfoCard}>
                 <TouchableOpacity 
@@ -433,14 +507,14 @@ const HomeScreen = () => {
                 </TouchableOpacity>
 
                 <View style={styles.profileRow}>
-                  <Image 
+                  {/* <Image 
                     source={getProfileImageUri(selectedLocation.user?.profilePhoto)} 
                     style={styles.profileAvatar}
-                  />
+                  /> */}
                   <View style={styles.profileTextContainer}>
-                    <Text style={styles.locationInfoTitle}>
+                    {/* <Text style={styles.locationInfoTitle}>
                       {selectedLocation.user?.displayname || 'Anonymous Hunter'}
-                    </Text>
+                    </Text> */}
                     <Text style={styles.journalSpotTitle}>
                       📍 {selectedLocation.title}
                     </Text>
@@ -462,7 +536,7 @@ const HomeScreen = () => {
                   </View>
                 </View>
 
-                <View style={styles.locationInfoActions}>
+                {/* <View style={styles.locationInfoActions}>
                   <TouchableOpacity 
                     style={[
                       styles.friendRequestBtn,
@@ -496,21 +570,25 @@ const HomeScreen = () => {
                   >
                     <Text style={styles.centerBtnText}>Focus Spot</Text>
                   </TouchableOpacity>
-                </View>
+                </View> */}
               </View>
             )}
 
-            <Slider
-              style={{width: '100%', height: 40}} 
-              minimumValue={0.1}
-              maximumValue={0.5}
-              step={0.1}
-              value={currentZoom}
-              onValueChange={handleZoomChange}
-              minimumTrackTintColor="#0E713E"
-              maximumTrackTintColor="#4D3626"
-              thumbTintColor="#FFF"
-            />
+          <View style={{ marginTop: 'auto', marginBottom: 20, width: '100%' }}>
+            <View style={styles.sliderContainer}>
+              {/* <Text style={styles.zoomLabel}>Map Range Metric: {currentZoomLabel}</Text> */}
+              <Slider
+                style={{ width: '100%', height: 30 }} 
+                minimumValue={0.1}
+                maximumValue={0.5}
+                step={0.1}
+                value={currentZoom}
+                onValueChange={handleZoomChange}
+                minimumTrackTintColor="#0E713E"
+                maximumTrackTintColor="#4D3626"
+                thumbTintColor="#4D3626"
+              />
+            </View>
             
             <View style={styles.zoomPresets}>
               {ZOOM_OPTIONS.map((option) => (
@@ -532,6 +610,7 @@ const HomeScreen = () => {
               ))}
             </View>
           </View>
+          {/* </View> */}
 
           <BottomTabNav containerStyle={{ marginBottom: 30 }}/>
         </View>
@@ -548,8 +627,16 @@ const styles = StyleSheet.create({
   map: { flex: 1 },
   overlayContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'space-between', paddingHorizontal: 25 },
   mapFrame: { flex: 1, marginBottom: 50, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 30, backgroundColor: 'rgba(48, 78, 24, 0.15)', justifyContent: 'flex-end', alignItems: 'center', padding: 15, position: 'relative' },
-  sliderContainer: { width: '100%', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.85)', borderRadius: 15, padding: 15, marginBottom: 10 },
-  zoomLabel: { color: '#FFF', fontSize: 12, marginBottom: 5 },
+  sliderContainer: { 
+    width: '100%', 
+    alignItems: 'center', 
+    // backgroundColor: 'rgba(0,0,0,0.75)', 
+    borderRadius: 12, 
+    // paddingVertical: 8, 
+    // paddingHorizontal: 12, 
+    marginBottom: 10 
+  },
+  zoomLabel: { color: '#FFF', fontSize: 12, marginBottom: 4, fontWeight: '600' },
   zoomPresets: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 0, gap: 8 },
   zoomPresetButton: { flex: 1, backgroundColor: '#4D3626', paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
   zoomPresetButtonActive: { backgroundColor: '#0E713E' },
@@ -562,7 +649,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderWidth: 1.5,
     borderColor: '#0E713E',
-    position: 'absolute',
+    // position: 'absolute',
     top: 15,
     zIndex: 99,
     shadowColor: '#000',
@@ -673,21 +760,6 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 12,
   },
-  locationButton: { 
-    backgroundColor: '#FFF', 
-    padding: 12, 
-    borderRadius: 30, 
-    elevation: 5, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 2 }, 
-    shadowOpacity: 0.25, 
-    shadowRadius: 3.84, 
-    zIndex: 10,
-    alignSelf: 'flex-end',
-    marginRight: 5,
-    marginBottom: 5,
-  },
-  locationIcon: { width: 24, height: 24, tintColor: '#0E713E' },
 });
 
 export default HomeScreen;

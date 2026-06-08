@@ -67,30 +67,36 @@ const PostCard = memo(({
   onLikeReply,
   replyText,
   showReplyInput,
-  setReplyText
+  setReplyText,
+  navigation 
 }: any) => {
   const postDate = post.created_at || post.createdAt;
   const imageUrl = post.image ? getFullImageUrl(post.image) : null;
   const userAvatar = post.user?.profilePhoto ? getFullImageUrl(post.user.profilePhoto) : null;
   const displayComments = showAllComments ? post.comments : post.comments?.slice(0, 2);
+  const handlePostPress = () => {
+    navigation.navigate('PostDetail', { postId: post.id, groupId: post.groupId });
+  };
 
   return (
     <View style={styles.postCard}>
-      <View style={styles.postHeader}>
-        <Image 
-          source={userAvatar ? { uri: userAvatar } : ASSETS.userHenry} 
-          style={styles.avatar} 
-        />
-        <View style={styles.headerInfo}>
-          <Text style={styles.userName}>{post.user?.displayname || post.user?.username || 'User'}</Text>
-          <Text style={styles.location}>
-            {formatTimeAgo(postDate)} • {post.location || 'Sierra National Forest'}
-          </Text>
+      <TouchableOpacity activeOpacity={0.9} onPress={handlePostPress}>
+        <View style={styles.postHeader}>
+          <Image 
+            source={userAvatar ? { uri: userAvatar } : ASSETS.userHenry} 
+            style={styles.avatar} 
+          />
+          <View style={styles.headerInfo}>
+            <Text style={styles.userName}>{post.user?.displayname || post.user?.username || 'User'}</Text>
+            <Text style={styles.location}>
+              {formatTimeAgo(postDate)} • {post.location || 'Sierra National Forest'}
+            </Text>
+          </View>
+          <TouchableOpacity>
+            <Text style={styles.moreIcon}>⋮</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity>
-          <Text style={styles.moreIcon}>⋮</Text>
-        </TouchableOpacity>
-      </View>
+      </TouchableOpacity>
 
       <Text style={styles.postCaption}>
         {post.description}
@@ -513,6 +519,7 @@ const FeedScreen = () => {
       replyText={replyText}
       showReplyInput={showReplyInput}
       setReplyText={setReplyText}
+      navigation={navigation}
     />
   ), [showAllComments, handleLike, handleCommentPress, toggleShowAllComments, formatTimeAgo, user, handleLikeComment, handleReplyPress, handleDeleteComment, handleAddReply, handleDeleteReply, handleLikeReply, replyText, showReplyInput]);
 

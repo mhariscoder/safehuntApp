@@ -32,7 +32,7 @@ export type MainStackParamList = {
   GroupPosts: { groupId: number; groupName: string; groupLogo?: string; groupCover?: string; groupDescription?: string };
   CreateGroup: undefined;
   CreateGroupPost: { groupId: number; groupName: string };
-  
+  PostDetail: { postId: string };
   TermsConditions: undefined;
   PrivacyPolicy: undefined;
   BlockedUsers: undefined;

@@ -206,7 +206,7 @@ class PostsService {
       const response = await api.get(`/post/${id}`, {
         params: { groupId }
       });
-      return this.processPost(response.data);
+      return this.processPost(response.data.data);
     } catch (error) {
       console.error('Get post by ID error:', error);
       throw error;

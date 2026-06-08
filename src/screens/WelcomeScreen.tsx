@@ -98,7 +98,7 @@ const WelcomeScreen = ({ navigation }: any) => {
         style={StyleSheet.absoluteFill}
       />
 
-      <SafeAreaView style={styles.content}>
+      <View style={styles.content}>
         
         <LogoComponent style={{ marginTop: 60 }} />
 
@@ -148,7 +148,7 @@ const WelcomeScreen = ({ navigation }: any) => {
             <Text style={styles.phoneText}>Sign Up With Phone Number</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     </View>
   );
 };

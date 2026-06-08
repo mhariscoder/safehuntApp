@@ -110,8 +110,18 @@ export const markAsRead = createAsyncThunk(
 
 export const updateLocation = createAsyncThunk(
   'chat/updateLocation',
-  async ({ userId, latitude, longitude }: { userId: number; latitude: number; longitude: number }) => {
-    ChatService.updateLocation(userId, latitude, longitude);
-    return { success: true };
+  async ({ userId, latitude, longitude }: { userId: number; latitude: number; longitude: number }, thunkAPI) => {
+    // Structural guard: Verify socket instance exists and is actively linked
+    if (!ChatService.socket || !ChatService.socket.connected) {
+      return thunkAPI.rejectWithValue('Socket not connected, skipping telemetry broadcast.');
+    }
+
+    try {
+      // Call your core service class emitter method
+      ChatService.updateLocation(userId, latitude, longitude);
+      return { success: true };
+    } catch (error: any) {
+      return thunkAPI.rejectWithValue(error.message || 'Failed to emit location frame.');
+    }
   }
 );
