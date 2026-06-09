@@ -15,6 +15,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import axios from 'axios'; // ✅ Added Axios for network requests
 import { useFriends } from '../hooks/useFriends';
 import { useGroups } from '../hooks/useGroups';
 import { useAppSelector } from '../app/store/hooks';
@@ -32,62 +33,26 @@ const getFullImageUrl = (imagePath: string | null | undefined): string | null =>
   return `${API_BASE_URL}/public/uploads/${cleanPath}`;
 };
 
-// Sample recent chats data (in a real app, this would come from API)
-const RECENT_CHATS = [
-  {
-    id: '1',
-    user: 'Henry',
-    message: 'Please Take A Look At The Images.',
-    time: '18:31',
-    unreadCount: 5,
-    statusColor: '#FFD700',
-    avatar: require('../../assets/circle_profile.png'),
-    isUnread: true,
-  },
-  {
-    id: '2',
-    user: 'Juba tal',
-    message: 'Hello William We Have Discussed About...',
-    time: '16:04',
-    unreadCount: 0,
-    avatar: require('../../assets/circle_profile.png'),
-    isUnread: false,
-  },
-  {
-    id: '3',
-    user: 'Akari Edward',
-    message: "Yes, That's Gonna Work, Hopefully.",
-    time: '06:12',
-    unreadCount: 0,
-    statusColor: '#00FF00',
-    avatar: require('../../assets/circle_profile.png'),
-    isUnread: false,
-  },
-  {
-    id: '4',
-    user: 'Amelia',
-    message: 'Thanks Dude 😉',
-    time: 'Yesterday',
-    unreadCount: 0,
-    avatar: require('../../assets/circle_profile.png'),
-    isUnread: false,
-  },
-  {
-    id: '5',
-    user: 'Charles',
-    message: "I'm Happy This Lion Has Such Grea...",
-    time: 'Yesterday',
-    unreadCount: 0,
-    avatar: require('../../assets/circle_profile.png'),
-    isUnread: false,
-  },
-];
+// ✅ Define an interface matching your NestJS messageService.getInbox response structure
+interface RecentChat {
+  id: string;
+  user: {
+    id: number;
+    displayname: string;
+    profilePhoto?: string;
+  };
+  lastMessage: string;
+  messageType: 'text' | 'image' | 'file';
+  timestamp: string;
+  unreadCount: number;
+  isUnread: boolean;
+}
 
 type TabType = 'recent' | 'people' | 'groups';
 
 const MessageScreen = () => {
   const navigation = useNavigation<any>();
-  const { user } = useAppSelector((state) => state.auth);
+  const { user, token } = useAppSelector((state) => state.auth); // ✅ Grab token from auth slice
   const {
     friends,
     isLoading: friendsLoading,
@@ -102,6 +67,8 @@ const MessageScreen = () => {
     addMember,
   } = useGroups();
 
+  const [recentChats, setRecentChats] = useState<RecentChat[]>([]); // ✅ State managing actual API response
+  const [recentChatsLoading, setRecentChatsLoading] = useState(false); // ✅ Loader for inbox tab
   const [activeTab, setActiveTab] = useState<TabType>('recent');
   const [refreshing, setRefreshing] = useState(false);
   const [joiningGroupId, setJoiningGroupId] = useState<number | null>(null);
@@ -116,9 +83,35 @@ const MessageScreen = () => {
     }, [currentUserId, activeTab])
   );
 
+  const fetchRecentChatsFromApi = async () => {
+    if (!token) return;
+    try {
+      if (recentChats.length === 0) setRecentChatsLoading(true);
+      const response = await axios.get(`${API_BASE_URL}/inbox`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      // ✅ Crucial Fix: extract the embedded array from your envelope response structure
+      if (response.data && Array.isArray(response.data.data)) {
+        setRecentChats(response.data.data);
+      } else {
+        setRecentChats([]);
+      }
+    } catch (error) {
+      console.error('Error fetching inbox items from backend:', error);
+      setRecentChats([]); // Fallback to clear loading states
+    } finally {
+      setRecentChatsLoading(false);
+    }
+  };
+
   const loadData = async () => {
     try {
-      if (activeTab === 'people') {
+      if (activeTab === 'recent') {
+        await fetchRecentChatsFromApi(); // ✅ Fetch real history when on the recent tab
+      } else if (activeTab === 'people') {
         await getFriends(currentUserId!);
       } else if (activeTab === 'groups') {
         await getAllGroups();
@@ -139,8 +132,9 @@ const MessageScreen = () => {
     setShowSearch(false);
   };
 
-  const handleRecentChatPress = (chatId: string) => {
-    navigation.navigate('MessageDetail', { chatId });
+  const handleRecentChatPress = (userId: number, displayname: string) => {
+    // Navigates directly into details with active recipient parameters
+    navigation.navigate('MessageDetail', { userId, displayname });
   };
 
   const handleFriendPress = (userId: number, displayname: string) => {
@@ -195,12 +189,19 @@ const MessageScreen = () => {
     navigation.navigate('CreateGroup');
   };
 
-  // Filter recent chats based on search query
-  const filteredRecentChats = RECENT_CHATS.filter(chat => {
-    const searchLower = searchQuery.toLowerCase();
-    return chat.user.toLowerCase().includes(searchLower) ||
-           chat.message.toLowerCase().includes(searchLower);
-  });
+  // ✅ Maps custom queries across dynamic inbox users and messages
+  // ✅ Safe check to ensure recentChats is an array before filtering
+  const filteredRecentChats = Array.isArray(recentChats) 
+    ? recentChats.filter(chat => {
+        // Use optional chaining everywhere to prevent deep property crashes
+        const searchLower = searchQuery?.toLowerCase() || '';
+        const displayName = chat?.user?.displayname || '';
+        const msg = chat?.lastMessage || '';
+        
+        return displayName.toLowerCase().includes(searchLower) || 
+              msg.toLowerCase().includes(searchLower);
+      })
+    : []; // Fallback to an empty array if it's not ready or not an array
 
   // Filter friends based on search query
   const filteredFriends = friends.filter(friend => {
@@ -216,7 +217,31 @@ const MessageScreen = () => {
            (group.description || '').toLowerCase().includes(searchLower);
   });
 
+  // ✅ Helper method to structure date parameters safely in list rows
+  const formatChatTime = (timestampString: string) => {
+    try {
+      const date = new Date(timestampString);
+      if (isNaN(date.getTime())) return '';
+      
+      const today = new Date();
+      if (date.toDateString() === today.toDateString()) {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      }
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    } catch {
+      return '';
+    }
+  };
+
   const renderRecentChats = () => {
+    if (recentChatsLoading && recentChats.length === 0) {
+      return (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color="#0E713E" />
+        </View>
+      );
+    }
+
     if (filteredRecentChats.length === 0) {
       return (
         <View style={styles.emptyContainer}>
@@ -229,37 +254,49 @@ const MessageScreen = () => {
 
     return (
       <>
-        {filteredRecentChats.map((chat) => (
-          <TouchableOpacity 
-            key={chat.id} 
-            style={[styles.chatItem, chat.isUnread && styles.unreadChatBackground]}
-            onPress={() => handleRecentChatPress(chat.id)}
-          >
-            <View style={styles.avatarWrapper}>
-              <Image source={chat.avatar} style={styles.avatar} />
-              {chat.statusColor && (
-                <View style={[styles.statusDot, { backgroundColor: chat.statusColor }]} />
-              )}
-            </View>
-            
-            <View style={styles.textContainer}>
-              <View style={styles.nameRow}>
-                <Text style={styles.userName}>{chat.user}</Text>
-                <Text style={styles.timeText}>{chat.time}</Text>
+        {filteredRecentChats.map((chat, index) => {
+          const receiverName = chat.user?.displayname || 'Unknown User';
+          const profilePic = chat.user?.profilePhoto;
+          
+          // Safely extract the raw string or format structural attachments
+          const displayMessage = chat.messageType === 'text' ? (chat.lastMessage || '') : `📁 Attached ${chat.messageType || 'file'}`;
+          
+          // Generate a safe fallback key if list rows lack unique matching markers
+          const itemKey = chat.user?.id ? chat.user.id.toString() : `chat-${index}`;
+          const numericUserId = chat.user?.id ? parseInt(chat.user.id, 10) : 0;
+
+          return (
+            <TouchableOpacity 
+              key={itemKey} 
+              style={[styles.chatItem, chat.isUnread && styles.unreadChatBackground]}
+              onPress={() => handleRecentChatPress(numericUserId, receiverName)}
+            >
+              <View style={styles.avatarWrapper}>
+                <Image 
+                  source={profilePic ? { uri: getFullImageUrl(profilePic)! } : require('../../assets/circle_profile.png')} 
+                  style={styles.avatar} 
+                />
               </View>
-              <View style={styles.messageRow}>
-                <Text style={styles.messageText} numberOfLines={1}>
-                  {chat.message}
-                </Text>
-                {chat.unreadCount > 0 && (
-                  <View style={styles.unreadBadge}>
-                    <Text style={styles.unreadBadgeText}>{chat.unreadCount}</Text>
-                  </View>
-                )}
+              
+              <View style={styles.textContainer}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.userName}>{receiverName}</Text>
+                  <Text style={styles.timeText}>{formatChatTime(chat.timestamp)}</Text>
+                </View>
+                <View style={styles.messageRow}>
+                  <Text style={styles.messageText} numberOfLines={1}>
+                    {displayMessage}
+                  </Text>
+                  {chat.unreadCount > 0 && (
+                    <View style={styles.unreadBadge}>
+                      <Text style={styles.unreadBadgeText}>{chat.unreadCount}</Text>
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </TouchableOpacity>
+          );
+        })}
       </>
     );
   };
@@ -296,7 +333,7 @@ const MessageScreen = () => {
           >
             <View style={styles.avatarWrapper}>
               <Image 
-                source={friend.profilePhoto ? { uri: getFullImageUrl(friend.profilePhoto) } : require('../../assets/circle_profile.png')} 
+                source={friend.profilePhoto ? { uri: getFullImageUrl(friend.profilePhoto)! } : require('../../assets/circle_profile.png')} 
                 style={styles.avatar} 
               />
             </View>
@@ -360,7 +397,7 @@ const MessageScreen = () => {
               <View style={styles.groupHeader}>
                 <View style={styles.groupAvatarWrapper}>
                   <Image 
-                    source={group.logo ? { uri: getFullImageUrl(group.logo) } : require('../../assets/group_avatar.png')} 
+                    source={group.logo ? { uri: getFullImageUrl(group.logo)! } : require('../../assets/group_avatar.png')} 
                     style={[styles.groupAvatar, !isMember && styles.disabledAvatar]} 
                   />
                 </View>
@@ -559,6 +596,7 @@ const MessageScreen = () => {
   );
 };
 
+// Styles remain unchanged
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -568,7 +606,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#0E713E',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     paddingHorizontal: 25,
-    // paddingBottom: 15,
   },
   headerTop: {
     flexDirection: 'row',
