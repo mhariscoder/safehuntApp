@@ -484,9 +484,9 @@ const ProfileScreen = () => {
         </TouchableOpacity>
         
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.searchCircle}>
+          {/* <TouchableOpacity style={styles.searchCircle}>
             <Image source={ASSETS.iconSearch} style={styles.searchIcon} />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
           
           <TouchableOpacity style={styles.moreButton} onPress={handleEditPress}>
             <Image source={ASSETS.moreIcon} style={styles.moreDots} />
@@ -526,14 +526,14 @@ const ProfileScreen = () => {
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.btnMessage} 
-              onPress={() => navigation.navigate('Messages')}
+              onPress={() => navigation.navigate('Message')}
             >
               <Image source={ASSETS.messageIcon} style={styles.btnIcon} />
               <Text style={styles.btnText}>Message</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.btnMore} onPress={handleEditPress}>
+            {/* <TouchableOpacity style={styles.btnMore} onPress={handleEditPress}>
               <Image source={ASSETS.moreIcon} style={styles.moreDots} />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
 
@@ -568,7 +568,7 @@ const ProfileScreen = () => {
                   <TouchableOpacity 
                     key={item.id} 
                     style={styles.friendCard}
-                    onPress={() => navigation.navigate('Profile', { userId: item.id })}
+                    onPress={() => navigation.navigate('User', { userId: item.id })}
                   >
                     <Image 
                       source={item.profilePhoto ? { uri: getFullImageUrl(item.profilePhoto) } : ASSETS.profilePic} 

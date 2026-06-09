@@ -4,7 +4,6 @@ import {
   View,
   Text,
   Image,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Dimensions,
@@ -17,26 +16,34 @@ import {
 } from 'react-native';
 import { useFriends } from '../hooks/useFriends';
 import { useNavigation } from '@react-navigation/native';
+import { API_BASE_URL } from '../constants/config';
 
 const { width } = Dimensions.get('window');
 
 const ASSETS = {
   iconBack: require('../../assets/back_white.png'),
-  iconSearch: require('../../assets/search_icon.png'),
+  searchIcon: require('../../assets/search_icon.png'),
   profilePic: require('../../assets/friend.png'),
-  friendsIcon: require('../../assets/friends_icon_white.png'),
-  messageIcon: require('../../assets/message_icon_white.png'),
-  moreIcon: require('../../assets/more_dots_grey.png'),
+  closeIcon: require('../../assets/close_icon.png'),
   acceptIcon: require('../../assets/accept_icon.png'),
   declineIcon: require('../../assets/decline_icon.png'),
-  searchIcon: require('../../assets/search_icon.png'),
+};
+
+const getFullImageUrl = (imagePath: string | null | undefined): string | null => {
+  if (!imagePath) return null;
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  const cleanPath = imagePath.replace('./public/uploads/', '');
+  return `${API_BASE_URL}/public/uploads/${cleanPath}`;
 };
 
 const FriendsScreen = () => {
   const navigation = useNavigation<any>();
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('friends'); // 'friends' or 'requests'
+  const [activeTab, setActiveTab] = useState('friends');
+  const [showSearch, setShowSearch] = useState(false);
   
   const {
     friends,
@@ -58,12 +65,8 @@ const FriendsScreen = () => {
 
   const loadData = async () => {
     try {
-      console.log('Loading data for user:', currentUserId);
-      const friendsResult = await getFriends(currentUserId!);
-      console.log('Friends API Response:', JSON.stringify(friendsResult, null, 2));
-      
-      const requestsResult = await getPendingRequests();
-      console.log('Requests API Response:', JSON.stringify(requestsResult, null, 2));
+      await getFriends(currentUserId!);
+      await getPendingRequests();
     } catch (error) {
       console.error('Error loading data:', error);
     }
@@ -118,19 +121,37 @@ const FriendsScreen = () => {
     );
   };
 
-  const filteredFriends = friends.filter(friend => 
-    friend.displayname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    friend.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    friend.email?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setShowSearch(false);
+  };
 
-  const renderFriendCard = ({ item }: any) => (
+  const filteredFriends = friends.filter(friend => {
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      friend.displayname?.toLowerCase().includes(searchLower) ||
+      friend.username?.toLowerCase().includes(searchLower) ||
+      friend.email?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const filteredRequests = pendingRequests.filter(request => {
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      request.requester?.displayname?.toLowerCase().includes(searchLower) ||
+      request.requester?.username?.toLowerCase().includes(searchLower) ||
+      request.requester?.email?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const renderFriendCard = (item: any) => (
     <TouchableOpacity 
+      key={item.id}
       style={styles.friendCard}
-      onPress={() => navigation.navigate('Profile', { userId: item.id })}
+      onPress={() => navigation.navigate('User', { userId: item.id })}
     >
       <Image 
-        source={item.profilePhoto ? { uri: item.profilePhoto } : ASSETS.profilePic} 
+        source={item.profilePhoto ? { uri: getFullImageUrl(item.profilePhoto) } : ASSETS.profilePic} 
         style={styles.friendImage} 
       />
       <View style={styles.friendLabel}>
@@ -147,10 +168,10 @@ const FriendsScreen = () => {
     </TouchableOpacity>
   );
 
-  const renderRequestCard = ({ item }: any) => (
-    <View style={styles.requestCard}>
+  const renderRequestCard = (item: any) => (
+    <View key={item.id} style={styles.requestCard}>
       <Image 
-        source={item.requester?.profilePhoto ? { uri: item.requester.profilePhoto } : ASSETS.profilePic} 
+        source={item.requester?.profilePhoto ? { uri: getFullImageUrl(item.requester.profilePhoto) } : ASSETS.profilePic} 
         style={styles.requestImage} 
       />
       <View style={styles.requestInfo}>
@@ -188,26 +209,50 @@ const FriendsScreen = () => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#0E713E" />
+      
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Image source={ASSETS.iconBack} style={styles.headerIcon} />
-          <Text style={styles.headerTitle}>Friends</Text>
-        </TouchableOpacity>
-        
-        <View style={styles.searchContainer}>
-          <Image source={ASSETS.searchIcon} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search friends..."
-            placeholderTextColor="#999"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
+        <View style={styles.headerTop}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Image source={ASSETS.iconBack} style={styles.headerIcon} />
+            <Text style={styles.headerTitle}>Friends</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.searchToggleButton}
+            onPress={() => {
+              setShowSearch(!showSearch);
+              if (!showSearch) {
+                setSearchQuery('');
+              }
+            }}
+          >
+            <Image source={ASSETS.searchIcon} style={styles.headerSearchIcon} />
+          </TouchableOpacity>
         </View>
+        
+        {showSearch && (
+          <View style={styles.searchContainer}>
+            <Image source={ASSETS.searchIcon} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder={activeTab === 'friends' ? "Search friends..." : "Search requests..."}
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus={true}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={handleClearSearch}>
+                <Image source={ASSETS.closeIcon} style={styles.clearIcon} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       <ScrollView 
@@ -220,7 +265,10 @@ const FriendsScreen = () => {
         <View style={styles.tabBar}>
           <TouchableOpacity 
             style={[styles.tabItem, activeTab === 'friends' && styles.activeTab]}
-            onPress={() => setActiveTab('friends')}
+            onPress={() => {
+              setActiveTab('friends');
+              setSearchQuery('');
+            }}
           >
             <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>
               Friends ({friends.length})
@@ -228,7 +276,10 @@ const FriendsScreen = () => {
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.tabItem, activeTab === 'requests' && styles.activeTab]}
-            onPress={() => setActiveTab('requests')}
+            onPress={() => {
+              setActiveTab('requests');
+              setSearchQuery('');
+            }}
           >
             <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>
               Requests ({pendingRequests.length})
@@ -236,34 +287,41 @@ const FriendsScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Content */}
-        {activeTab === 'friends' ? (
-          <View style={styles.friendsGrid}>
+        {/* Friends Tab Content */}
+        {activeTab === 'friends' && (
+          <View style={styles.friendsContainer}>
             {filteredFriends.length > 0 ? (
-              filteredFriends.map((item) => (
-                <View key={item.id}>
-                  {renderFriendCard({ item })}
-                </View>
-              ))
+              <View style={styles.friendsGrid}>
+                {filteredFriends.map((item) => renderFriendCard(item))}
+              </View>
             ) : (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>
-                  {searchQuery ? 'No friends found' : 'No friends yet'}
+                  {searchQuery ? `No friends found matching "${searchQuery}"` : 'No friends yet'}
                 </Text>
+                {!searchQuery && (
+                  <TouchableOpacity 
+                    style={styles.findFriendsButton}
+                    onPress={() => navigation.navigate('FindFriends')}
+                  >
+                    <Text style={styles.findFriendsText}>Find Friends</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
-        ) : (
+        )}
+
+        {/* Requests Tab Content */}
+        {activeTab === 'requests' && (
           <View style={styles.requestsContainer}>
-            {pendingRequests.length > 0 ? (
-              pendingRequests.map((item) => (
-                <View key={item.id}>
-                  {renderRequestCard({ item })}
-                </View>
-              ))
+            {filteredRequests.length > 0 ? (
+              filteredRequests.map((item) => renderRequestCard(item))
             ) : (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No pending friend requests</Text>
+                <Text style={styles.emptyText}>
+                  {searchQuery ? `No requests found matching "${searchQuery}"` : 'No pending friend requests'}
+                </Text>
               </View>
             )}
           </View>
@@ -285,17 +343,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
   },
   header: {
-    // height: 120,
     backgroundColor: '#0E713E',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     paddingHorizontal: 25,
-    paddingBottom: 15,
+    // paddingBottom: 15,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 15,
+    marginBottom: 15,
   },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 15,
-    marginBottom: 15,
   },
   headerIcon: {
     width: 20,
@@ -309,6 +371,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
   },
+  searchToggleButton: {
+    padding: 8,
+  },
+  headerSearchIcon: {
+    width: 20,
+    height: 20,
+    tintColor: '#FFF',
+    resizeMode: 'contain',
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -316,6 +387,7 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     paddingHorizontal: 15,
     height: 50,
+    marginTop: 5,
   },
   searchIcon: {
     width: 18,
@@ -328,10 +400,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#000',
   },
+  clearIcon: {
+    width: 18,
+    height: 18,
+    tintColor: '#999',
+  },
   tabBar: {
     flexDirection: 'row',
     backgroundColor: '#0E713E',
-    paddingHorizontal: 25
+    paddingHorizontal: 25,
   },
   tabItem: {
     paddingVertical: 12,
@@ -349,6 +426,9 @@ const styles = StyleSheet.create({
   },
   activeTabText: {
     fontWeight: 'bold',
+  },
+  friendsContainer: {
+    flex: 1,
   },
   friendsGrid: {
     flexDirection: 'row',
@@ -403,7 +483,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
     borderRadius: 12,
     padding: 15,
-    marginBottom: 25,
+    marginBottom: 15,
   },
   requestImage: {
     width: 55,
@@ -458,6 +538,18 @@ const styles = StyleSheet.create({
     color: '#999',
     fontSize: 14,
     textAlign: 'center',
+    marginBottom: 15,
+  },
+  findFriendsButton: {
+    backgroundColor: '#0E713E',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+  },
+  findFriendsText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 12,
   },
 });
 

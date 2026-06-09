@@ -15,12 +15,19 @@ import {
   Platform,
   FlatList,
   Dimensions,
+  SafeAreaView,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { usePosts } from '../hooks/usePosts';
 import { useComments } from '../hooks/useComments';
-import { useAppSelector } from '../app/store/hooks';
+import { useAppSelector, useAppDispatch } from '../app/store/hooks';
 import { API_BASE_URL } from '../constants/config';
+import {
+  getGroupMembers,
+  updateMemberStatus,
+  removeMember,
+  addMember,
+} from '../features/groups/groupsActions';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const POST_IMAGE_HEIGHT = SCREEN_WIDTH * 0.8;
@@ -34,6 +41,7 @@ const ASSETS = {
   imageIcon: require('../../assets/image.png'),
   arrowDown: require('../../assets/arrow_down.png'),
   arrowUp: require('../../assets/arrow_up.png'),
+  groupAvatar: require('../../assets/group_avatar.png')
 };
 
 const getFullImageUrl = (imagePath: string | null | undefined): string | null => {
@@ -59,11 +67,245 @@ const formatTimeAgo = (dateString: string) => {
   return `${diffDays}d`;
 };
 
+// Group Members Modal Component
+const GroupMembersModal = ({ visible, onClose, groupId, groupName, currentUserId, isAdmin }: any) => {
+  const dispatch = useAppDispatch();
+  const { groupMembers, isLoading } = useAppSelector((state) => state.groups);
+  const [activeTab, setActiveTab] = useState<'members' | 'requests'>('members');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadMembers = async () => {
+    if (groupId) {
+      await dispatch(getGroupMembers(groupId));
+    }
+  };
+
+  useEffect(() => {
+    if (visible && groupId) {
+      loadMembers();
+    }
+  }, [visible, groupId]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadMembers();
+    setRefreshing(false);
+  };
+
+  const handleAcceptRequest = async (memberId: number) => {
+    try {
+      await dispatch(updateMemberStatus({
+        groupId,
+        memberId,
+        status: 'approved'
+      })).unwrap();
+      Alert.alert('Success', 'Member request accepted');
+      loadMembers();
+    } catch (error: any) {
+      Alert.alert('Error', error || 'Failed to accept request');
+    }
+  };
+
+  const handleRejectRequest = async (memberId: number) => {
+    Alert.alert(
+      'Reject Request',
+      'Are you sure you want to reject this join request?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(updateMemberStatus({
+                groupId,
+                memberId,
+                status: 'rejected'
+              })).unwrap();
+              Alert.alert('Success', 'Member request rejected');
+              loadMembers();
+            } catch (error: any) {
+              Alert.alert('Error', error || 'Failed to reject request');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleRemoveMember = async (memberId: number, memberName: string) => {
+    Alert.alert(
+      'Remove Member',
+      `Are you sure you want to remove ${memberName} from this group?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(removeMember({ groupId, memberId })).unwrap();
+              Alert.alert('Success', 'Member removed successfully');
+              loadMembers();
+            } catch (error: any) {
+              Alert.alert('Error', error || 'Failed to remove member');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const members = groupMembers?.filter(m => m.status === 'approved') || [];
+  const pendingRequests = groupMembers?.filter(m => m.status === 'pending') || [];
+
+  const renderMemberItem = ({ item }: { item: any }) => {
+    // Handle both possible data structures
+    const member = item.member || item;
+    const memberId = item.memberId || member?.id;
+    const isCurrentUser = memberId === currentUserId;
+    const avatarUrl = member?.profilePhoto ? getFullImageUrl(member.profilePhoto) : null;
+
+    return (
+      <View style={styles.memberItem}>
+        <Image
+          source={avatarUrl ? { uri: avatarUrl } : ASSETS.userAvatar}
+          style={styles.memberAvatar}
+        />
+        <View style={styles.memberInfo}>
+          <Text style={styles.memberName}>{member?.displayname || member?.username || 'User'}</Text>
+          <Text style={styles.memberType}>{item.type === 'Admin' ? 'Admin' : 'Member'}</Text>
+        </View>
+        {isAdmin && !isCurrentUser && item.type !== 'Admin' && (
+          <TouchableOpacity
+            style={styles.removeButton}
+            onPress={() => handleRemoveMember(memberId, member?.displayname || 'this member')}
+          >
+            <Text style={styles.removeButtonText}>Remove</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  const renderRequestItem = ({ item }: { item: any }) => {
+    // Handle both possible data structures
+    const member = item.member || item;
+    const avatarUrl = member?.profilePhoto ? getFullImageUrl(member.profilePhoto) : null;
+    const memberId = item.memberId || member?.id;
+
+    return (
+      <View style={styles.requestItem}>
+        <Image
+          source={avatarUrl ? { uri: avatarUrl } : ASSETS.userAvatar}
+          style={styles.memberAvatar}
+        />
+        <View style={styles.memberInfo}>
+          <Text style={styles.memberName}>{member?.displayname || member?.username || 'User'}</Text>
+          <Text style={styles.requestDate}>Requested to join</Text>
+        </View>
+        <View style={styles.requestActions}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.acceptButton]}
+            onPress={() => handleAcceptRequest(memberId)}
+          >
+            <Text style={styles.acceptButtonText}>Accept</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.rejectButton]}
+            onPress={() => handleRejectRequest(memberId)}
+          >
+            <Text style={styles.rejectButtonText}>Reject</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>
+        {activeTab === 'members' 
+          ? 'No members found' 
+          : 'No pending join requests'}
+      </Text>
+      {activeTab === 'requests' && (
+        <Text style={styles.emptySubtext}>
+          When someone requests to join, you'll see them here
+        </Text>
+      )}
+    </View>
+  );
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={onClose}
+    >
+      <SafeAreaView style={styles.modalContainerFull}>
+        <View style={styles.modalHeaderFull}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.modalTitleFull}>Group Members</Text>
+          <View style={styles.placeholder} />
+        </View>
+
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'members' && styles.activeTab]}
+            onPress={() => setActiveTab('members')}
+          >
+            <Text style={[styles.tabText, activeTab === 'members' && styles.activeTabText]}>
+              Members ({members.length})
+            </Text>
+          </TouchableOpacity>
+          {isAdmin && (
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'requests' && styles.activeTab]}
+              onPress={() => setActiveTab('requests')}
+            >
+              <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>
+                Requests ({pendingRequests.length})
+              </Text>
+              {pendingRequests.length > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{pendingRequests.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {isLoading && !refreshing ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="large" color="#0E713E" />
+          </View>
+        ) : (
+          <FlatList
+            data={activeTab === 'members' ? members : pendingRequests}
+            renderItem={activeTab === 'members' ? renderMemberItem : renderRequestItem}
+            keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0E713E"]} />
+            }
+            ListEmptyComponent={renderEmptyState}
+            contentContainerStyle={styles.listContentFull}
+          />
+        )}
+      </SafeAreaView>
+    </Modal>
+  );
+};
+
 const GroupPostsScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const { groupId, groupName, groupLogo, groupCover, groupDescription } = route.params as any;
   const { user } = useAppSelector((state) => state.auth);
+  const dispatch = useAppDispatch();
   
   const {
     posts,
@@ -94,12 +336,13 @@ const GroupPostsScreen = () => {
   const [isCommentModalVisible, setIsCommentModalVisible] = useState(false);
   const [modalComments, setModalComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadGroupPosts();
-    }, [groupId])
-  );
+  
+  // Member management states
+  const [isMembersModalVisible, setIsMembersModalVisible] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isMember, setIsMember] = useState(false);
+  const [joinStatus, setJoinStatus] = useState<'none' | 'pending' | 'approved'>('none');
+  const [groupMembersList, setGroupMembersList] = useState<any[]>([]);
 
   const loadGroupPosts = async () => {
     try {
@@ -109,9 +352,71 @@ const GroupPostsScreen = () => {
     }
   };
 
+  const loadGroupMembers = async () => {
+    try {
+      const result = await dispatch(getGroupMembers(groupId)).unwrap();
+      console.log('Raw group members result:', JSON.stringify(result));
+      
+      // The result might be an array directly or have a members property
+      let membersArray = result;
+      if (result && result.members) {
+        membersArray = result.members;
+      }
+      
+      setGroupMembersList(membersArray || []);
+    } catch (error) {
+      console.error('Error loading group members:', error);
+    }
+  };
+
+  const checkUserRole = useCallback(() => {
+    console.log('Debug Info', `User ID: ${user?.id}`);
+    console.log('Group Members List:', JSON.stringify(groupMembersList));
+    
+    if (!user?.id || !groupMembersList.length) {
+      console.log('No user ID or no group members');
+      return;
+    }
+    
+    // Fix: memberId is inside the member object
+    const currentMember = groupMembersList.find((m: any) => {
+      // Check both possible structures
+      const memberId = m.memberId || m.member?.id;
+      console.log('Checking member:', memberId, 'against user:', user.id);
+      return memberId === user.id;
+    });
+    
+    console.log('Found currentMember:', currentMember);
+    
+    if (currentMember) {
+      setIsMember(true);
+      setJoinStatus(currentMember.status);
+      // Check if user is admin
+      const isUserAdmin = currentMember.type === 'Admin';
+      setIsAdmin(isUserAdmin);
+      console.log('User is admin:', isUserAdmin);
+    } else {
+      setIsMember(false);
+      setJoinStatus('none');
+      setIsAdmin(false);
+      console.log('User is not a member');
+    }
+  }, [user?.id, groupMembersList]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadGroupPosts();
+      loadGroupMembers();
+    }, [groupId])
+  );
+
+  useEffect(() => {
+    checkUserRole();
+  }, [groupMembersList, checkUserRole]);
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadGroupPosts();
+    await Promise.all([loadGroupPosts(), loadGroupMembers()]);
     setRefreshing(false);
   };
 
@@ -125,6 +430,10 @@ const GroupPostsScreen = () => {
   };
 
   const handleCreatePost = () => {
+    if (!isMember && !isAdmin) {
+      Alert.alert('Access Denied', 'You must be a member to create posts');
+      return;
+    }
     navigation.navigate('CreateGroupPost', { groupId, groupName });
   };
 
@@ -158,7 +467,6 @@ const GroupPostsScreen = () => {
       const commentsData = await getCommentsByPost(selectedPost.id);
       setModalComments(commentsData.comments || []);
       await loadGroupPosts();
-      Alert.alert('Success', 'Comment added successfully');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to add comment');
     }
@@ -179,6 +487,7 @@ const GroupPostsScreen = () => {
   const handleReplyPress = (commentId: number) => {
     setSelectedCommentId(commentId);
     setShowReplyInput(prev => ({ ...prev, [commentId]: !prev[commentId] }));
+    setReplyText('');
   };
 
   const handleAddReply = async () => {
@@ -198,7 +507,6 @@ const GroupPostsScreen = () => {
         const commentsData = await getCommentsByPost(selectedPost.id);
         setModalComments(commentsData.comments || []);
       }
-      Alert.alert('Success', 'Reply added successfully');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to add reply');
     }
@@ -221,7 +529,6 @@ const GroupPostsScreen = () => {
                 setModalComments(commentsData.comments || []);
                 await loadGroupPosts();
               }
-              Alert.alert('Success', 'Comment deleted successfully');
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete comment');
             }
@@ -247,7 +554,6 @@ const GroupPostsScreen = () => {
                 const commentsData = await getCommentsByPost(selectedPost.id);
                 setModalComments(commentsData.comments || []);
               }
-              Alert.alert('Success', 'Reply deleted successfully');
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete reply');
             }
@@ -273,8 +579,44 @@ const GroupPostsScreen = () => {
     setShowAllComments(prev => ({ ...prev, [postId]: !prev[postId] }));
   };
 
+  const handleJoinGroup = async () => {
+    try {
+      await dispatch(addMember({
+        groupId,
+        memberId: user?.id,
+        type: 'Member'
+      })).unwrap();
+      Alert.alert('Success', 'Join request sent to admin');
+      await loadGroupMembers();
+    } catch (error: any) {
+      Alert.alert('Error', error || 'Failed to send join request');
+    }
+  };
+
+  const handleLeaveGroup = async () => {
+    Alert.alert(
+      'Leave Group',
+      'Are you sure you want to leave this group?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(removeMember({ groupId, memberId: user?.id })).unwrap();
+              Alert.alert('Success', 'You have left the group');
+              navigation.goBack();
+            } catch (error: any) {
+              Alert.alert('Error', error || 'Failed to leave group');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderPost = ({ item: post }: { item: any }) => {
-    // ✅ Add safety check for post
     if (!post) return null;
     
     const postDate = post.created_at || post.createdAt;
@@ -344,7 +686,6 @@ const GroupPostsScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Comments Section */}
         {post.comments && post.comments.length > 0 && (
           <View style={styles.commentsSection}>
             <TouchableOpacity 
@@ -394,24 +735,22 @@ const GroupPostsScreen = () => {
                       )}
                     </View>
 
-                    {/* Reply Input */}
                     {isReplyInputVisible && (
                       <View style={styles.replyInputContainer}>
                         <TextInput
                           style={styles.replyInput}
                           placeholder="Write a reply..."
                           placeholderTextColor="#999"
-                          value={replyText || ''}
+                          value={replyText}
                           onChangeText={setReplyText}
                           multiline
                         />
-                        <TouchableOpacity style={styles.replyButton} onPress={() => handleAddReply(comment.id)}>
+                        <TouchableOpacity style={styles.replyButton} onPress={handleAddReply}>
                           <Text style={styles.replyButtonText}>Post</Text>
                         </TouchableOpacity>
                       </View>
                     )}
 
-                    {/* Replies */}
                     {comment.replies && comment.replies.length > 0 && (
                       <View style={styles.repliesContainer}>
                         {comment.replies.map((reply: any) => {
@@ -458,7 +797,6 @@ const GroupPostsScreen = () => {
     );
   };
 
-  // ✅ Safe key extractor with fallback
   const getKeyExtractor = (item: any, index: number) => {
     if (item && item.id) {
       return item.id.toString();
@@ -484,7 +822,12 @@ const GroupPostsScreen = () => {
           <Image source={ASSETS.backIcon} style={styles.backIcon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{groupName}</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity 
+          onPress={() => setIsMembersModalVisible(true)} 
+          style={styles.membersButton}
+        >
+          <Image source={ASSETS.groupAvatar} style={styles.membersButtonText} />
+        </TouchableOpacity>
       </View>
 
       {/* Group Info Banner */}
@@ -504,30 +847,63 @@ const GroupPostsScreen = () => {
         </View>
       </View>
 
-      {/* Create Post Input */}
-      <View style={styles.createPostSection}>
+      {/* Join/Leave Group Buttons */}
+      {!isMember && joinStatus !== 'pending' && (
         <TouchableOpacity 
-          activeOpacity={0.9} 
-          onPress={handleCreatePost}
+          style={styles.joinButton}
+          onPress={handleJoinGroup}
         >
-          <View style={styles.inputContainer}>
-            <View style={styles.profileCircleSmall}>
-              <Text style={styles.profileInitial}>
-                {user?.displayname?.charAt(0) || user?.username?.charAt(0) || 'U'}
-              </Text>
-            </View>
-            <TextInput 
-              placeholder="What Are You Thinking About?" 
-              placeholderTextColor="#666"
-              style={styles.textInput}
-              editable={false}
-            />
-            <TouchableOpacity>
-              <Image source={ASSETS.imageIcon} style={styles.imagePickerIcon} />
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.joinButtonText}>Join Group</Text>
         </TouchableOpacity>
-      </View>
+      )}
+
+      {joinStatus === 'pending' && (
+        <View style={styles.pendingContainer}>
+          <Text style={styles.pendingText}>⏳ Join request pending admin approval</Text>
+        </View>
+      )}
+
+      {isMember && !isAdmin && (
+        <TouchableOpacity 
+          style={styles.leaveButton}
+          onPress={handleLeaveGroup}
+        >
+          <Text style={styles.leaveButtonText}>Leave Group</Text>
+        </TouchableOpacity>
+      )}
+
+      {isAdmin && (
+        <View style={styles.adminBadge}>
+          <Text style={styles.adminBadgeText}>👑 You are an admin</Text>
+        </View>
+      )}
+
+      {/* Create Post Input - Only for members */}
+      {(isMember || isAdmin) && (
+        <View style={styles.createPostSection}>
+          <TouchableOpacity 
+            activeOpacity={0.9} 
+            onPress={handleCreatePost}
+          >
+            <View style={styles.inputContainer}>
+              <View style={styles.profileCircleSmall}>
+                <Text style={styles.profileInitial}>
+                  {user?.displayname?.charAt(0) || user?.username?.charAt(0) || 'U'}
+                </Text>
+              </View>
+              <TextInput 
+                placeholder="What Are You Thinking About?" 
+                placeholderTextColor="#666"
+                style={styles.textInput}
+                editable={false}
+              />
+              <TouchableOpacity>
+                <Image source={ASSETS.imageIcon} style={styles.imagePickerIcon} />
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Posts List */}
       <FlatList
@@ -541,7 +917,11 @@ const GroupPostsScreen = () => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No posts yet</Text>
-            <Text style={styles.emptySubtext}>Be the first to post in this group!</Text>
+            <Text style={styles.emptySubtext}>
+              {(isMember || isAdmin) 
+                ? 'Be the first to post in this group!' 
+                : 'Join the group to see and create posts'}
+            </Text>
           </View>
         }
         contentContainerStyle={styles.listContent}
@@ -556,6 +936,8 @@ const GroupPostsScreen = () => {
           setIsCommentModalVisible(false);
           setModalComments([]);
           setCommentText('');
+          setReplyText('');
+          setSelectedCommentId(null);
         }}
       >
         <KeyboardAvoidingView 
@@ -569,6 +951,8 @@ const GroupPostsScreen = () => {
                 setIsCommentModalVisible(false);
                 setModalComments([]);
                 setCommentText('');
+                setReplyText('');
+                setSelectedCommentId(null);
               }}>
                 <Text style={styles.modalClose}>✕</Text>
               </TouchableOpacity>
@@ -685,6 +1069,16 @@ const GroupPostsScreen = () => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Members Modal */}
+      <GroupMembersModal
+        visible={isMembersModalVisible}
+        onClose={() => setIsMembersModalVisible(false)}
+        groupId={groupId}
+        groupName={groupName}
+        currentUserId={user?.id}
+        isAdmin={isAdmin}
+      />
     </View>
   );
 };
@@ -704,6 +1098,8 @@ const styles = StyleSheet.create({
   backButton: { padding: 5 },
   backIcon: { width: 20, height: 20, tintColor: '#FFF', resizeMode: 'contain' },
   headerTitle: { color: '#FFF', fontSize: 16, fontWeight: '900' },
+  membersButton: { padding: 5 },
+  membersButtonText: { height: 24, width: 24, tintColor: '#FFF', resizeMode: 'contain' },
   coverImage: { width: '100%', height: 150, resizeMode: 'cover' },
   groupInfoRow: {
     flexDirection: 'row',
@@ -791,6 +1187,53 @@ const styles = StyleSheet.create({
   loaderContainer: { padding: 40, alignItems: 'center' },
   noCommentsContainer: { alignItems: 'center', paddingVertical: 40 },
   noCommentsText: { color: '#666', fontSize: 14, textAlign: 'center' },
+  
+  // Member Modal Styles
+  modalContainerFull: { flex: 1, backgroundColor: '#FFF' },
+  modalHeaderFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+  },
+  closeButton: { padding: 5 },
+  closeButtonText: { fontSize: 24, color: '#0E713E' },
+  modalTitleFull: { fontSize: 18, fontWeight: 'bold', color: '#000' },
+  placeholder: { width: 30 },
+  tabContainer: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#EEE' },
+  tab: { flex: 1, paddingVertical: 15, alignItems: 'center', position: 'relative' },
+  activeTab: { borderBottomWidth: 2, borderBottomColor: '#0E713E' },
+  tabText: { fontSize: 14, color: '#666' },
+  activeTabText: { color: '#0E713E', fontWeight: '600' },
+  badge: { position: 'absolute', top: 8, right: 20, backgroundColor: '#FF6B6B', borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 5 },
+  badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
+  memberItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  requestItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  memberAvatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15 },
+  memberInfo: { flex: 1 },
+  memberName: { fontSize: 16, fontWeight: '600', color: '#000', marginBottom: 4 },
+  memberType: { fontSize: 12, color: '#0E713E' },
+  requestDate: { fontSize: 12, color: '#666' },
+  requestActions: { flexDirection: 'row', gap: 10 },
+  actionButton: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20 },
+  acceptButton: { backgroundColor: '#0E713E' },
+  acceptButtonText: { color: '#FFF', fontSize: 12, fontWeight: '600' },
+  rejectButton: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#FF6B6B' },
+  rejectButtonText: { color: '#FF6B6B', fontSize: 12, fontWeight: '600' },
+  removeButton: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#FF6B6B', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 15 },
+  removeButtonText: { color: '#FF6B6B', fontSize: 12 },
+  listContentFull: { flexGrow: 1 },
+  joinButton: { backgroundColor: '#0E713E', marginHorizontal: 20, marginVertical: 10, padding: 12, borderRadius: 25, alignItems: 'center' },
+  joinButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
+  leaveButton: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#FF6B6B', marginHorizontal: 20, marginVertical: 10, padding: 12, borderRadius: 25, alignItems: 'center' },
+  leaveButtonText: { color: '#FF6B6B', fontSize: 16, fontWeight: '600' },
+  pendingContainer: { backgroundColor: '#FFF3E0', marginHorizontal: 20, marginVertical: 10, padding: 12, borderRadius: 25, alignItems: 'center', borderWidth: 1, borderColor: '#FF9800' },
+  pendingText: { color: '#FF9800', fontSize: 14, fontWeight: '500' },
+  adminBadge: { backgroundColor: '#E8F5E9', marginHorizontal: 20, marginVertical: 5, padding: 8, borderRadius: 20, alignItems: 'center' },
+  adminBadgeText: { color: '#0E713E', fontSize: 12, fontWeight: '500' },
 });
 
 export default GroupPostsScreen;

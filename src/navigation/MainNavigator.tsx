@@ -24,10 +24,15 @@ import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen.tsx';
 import BlockedUsersScreen from '../screens/BlockedUsersScreen.tsx';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen.tsx';
 import PostDetailScreen from '../screens/PostDetailScreen';
+import UserScreen from '../screens/UserScreen';
+import { useAppSelector } from '../app/store/hooks.ts';
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
 export const MainNavigator = () => {
+  const { isAuthenticated, isLoading, user } = useAppSelector((state) => state.auth);
+  console.log('user', user)
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -36,6 +41,7 @@ export const MainNavigator = () => {
         gestureEnabled: true,
       }}
     >
+      <Stack.Screen name="Subscription" component={SubscriptionScreen} />
       {/* Main Tab Screens - now directly in stack */}
       <Stack.Screen name="Home" component={HomeScreen} />
       <Stack.Screen name="Feed" component={FeedScreen} />
@@ -49,7 +55,7 @@ export const MainNavigator = () => {
       <Stack.Screen name="MessageDetail" component={MessageDetailScreen} />
       <Stack.Screen name="HuntingJournal" component={HuntingJournalScreen} />
       <Stack.Screen name="NewNote" component={NewNoteScreen} />
-      <Stack.Screen name="Subscription" component={SubscriptionScreen} />
+      
       <Stack.Screen name="CardDetail" component={CardDetailScreen} />
       <Stack.Screen name="Friends" component={FriendsScreen} />
       <Stack.Screen name="GroupPosts" component={GroupPostsScreen} />
@@ -61,6 +67,7 @@ export const MainNavigator = () => {
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="MapTest" component={MapTestScreen} />
       <Stack.Screen name="PostDetail" component={PostDetailScreen} />
+      <Stack.Screen name="User" component={UserScreen} />
     </Stack.Navigator>
   );
 };

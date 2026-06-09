@@ -10,11 +10,15 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
+  TextInput,
+  Dimensions,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native'; // 1. Added Navigation Hook import
+import { useNavigation } from '@react-navigation/native';
 import { useNotifications } from '../hooks/useNotifications';
 import BottomTabNav from '../components/BottomTabNav';
 import { API_BASE_URL } from '../constants/config';
+
+const { width } = Dimensions.get('window');
 
 // Helper function to get full image URL
 const getFullImageUrl = (imagePath: string | null | undefined): string | null => {
@@ -111,8 +115,11 @@ const getNotificationText = (notification: any) => {
 };
 
 const NotificationScreen = () => {
-  const navigation = useNavigation<any>(); // 2. Initialized Navigation
+  const navigation = useNavigation<any>();
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  
   const {
     notifications,
     unreadCount,
@@ -134,17 +141,36 @@ const NotificationScreen = () => {
     setRefreshing(false);
   };
 
-  // 3. FIXED REDIRECTION LOGIC
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setShowSearch(false);
+  };
+
   const handleNotificationPress = async (notification: any) => {
     if (!notification.isRead) {
       await markNotificationAsRead(notification.id);
     }
     
-    // Check if postId exists and explicitly filter out stringified 'null' configurations
     if (notification.postId && notification.postId !== 'null') {
       navigation.navigate('PostDetail', { postId: notification.postId });
     }
+
+    if (notification.type === 'friendRequest') {
+      navigation.navigate('Friends');
+    }
   };
+
+  // Filter notifications based on search query
+  const filteredNotifications = notifications.filter(notification => {
+    const searchLower = searchQuery.toLowerCase();
+    const notificationText = getNotificationText(notification);
+    return (
+      notificationText.user.toLowerCase().includes(searchLower) ||
+      notificationText.action.toLowerCase().includes(searchLower) ||
+      notificationText.fullText.toLowerCase().includes(searchLower) ||
+      notification.type?.toLowerCase().includes(searchLower)
+    );
+  });
 
   const renderNotification = (item: any) => {
     const notificationText = getNotificationText(item);
@@ -189,12 +215,19 @@ const NotificationScreen = () => {
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#0E713E" />
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Notifications</Text>
-          <TouchableOpacity style={styles.searchCircle}>
-            <Image 
-              source={require('../../assets/search_icon.png')} 
-              style={styles.searchIcon} 
-            />
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Image source={require('../../assets/back_white.png')} style={styles.headerIcon} />
+            <Text style={styles.headerTitle}>Notifications</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.searchToggleButton}
+            onPress={() => setShowSearch(!showSearch)}
+          >
+            <Image source={require('../../assets/search_icon.png')} style={styles.headerSearchIcon} />
           </TouchableOpacity>
         </View>
         <View style={styles.centerContainer}>
@@ -210,20 +243,47 @@ const NotificationScreen = () => {
       
       {/* --- HEADER --- */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <View style={styles.headerRight}>
-          {unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
-            </View>
-          )}
-          <TouchableOpacity style={styles.searchCircle}>
-            <Image 
-              source={require('../../assets/search_icon.png')} 
-              style={styles.searchIcon} 
-            />
+        <View style={styles.headerTop}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Image source={require('../../assets/back_white.png')} style={styles.headerIcon} />
+            <Text style={styles.headerTitle}>Notifications</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.searchToggleButton}
+            onPress={() => {
+              setShowSearch(!showSearch);
+              if (!showSearch) {
+                setSearchQuery('');
+              }
+            }}
+          >
+            <Image source={require('../../assets/search_icon.png')} style={styles.headerSearchIcon} />
           </TouchableOpacity>
         </View>
+        
+        {/* --- SEARCH INPUT --- */}
+        {showSearch && (
+          <View style={styles.searchContainer}>
+            <Image source={require('../../assets/search_icon.png')} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search notifications..."
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus={true}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={handleClearSearch}>
+                <Image source={require('../../assets/close_icon.png')} style={styles.clearIcon} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       {/* --- NOTIFICATION LIST --- */}
@@ -234,17 +294,33 @@ const NotificationScreen = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0E713E"]} />
         }
       >
-        {notifications.length > 0 ? (
-          notifications.map(renderNotification)
+        {/* Count Display */}
+        <View style={styles.countContainer}>
+          <Text style={styles.countText}>
+            {filteredNotifications.length} {filteredNotifications.length === 1 ? 'Notification' : 'Notifications'}
+          </Text>
+          {unreadCount > 0 && !showSearch && (
+            <View style={styles.unreadCountBadge}>
+              <Text style={styles.unreadCountText}>{unreadCount} unread</Text>
+            </View>
+          )}
+        </View>
+
+        {filteredNotifications.length > 0 ? (
+          filteredNotifications.map(renderNotification)
         ) : (
           <View style={styles.emptyContainer}>
             <Image 
               source={require('../../assets/bell_icon.png')} 
               style={styles.emptyIcon} 
             />
-            <Text style={styles.emptyTitle}>No notifications yet</Text>
+            <Text style={styles.emptyTitle}>
+              {searchQuery ? 'No notifications found' : 'No notifications yet'}
+            </Text>
             <Text style={styles.emptyText}>
-              When you receive notifications, they will appear here
+              {searchQuery 
+                ? `No results matching "${searchQuery}"` 
+                : 'When you receive notifications, they will appear here'}
             </Text>
           </View>
         )}
@@ -267,52 +343,94 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#FFF',
   },
   header: {
-    height: 60,
-    backgroundColor: '#0E713E', 
+    backgroundColor: '#0E713E',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingHorizontal: 25,
+    // paddingBottom: 15,
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 25,
-    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    marginTop: 15,
+    marginBottom: 15,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 10,
+    resizeMode: 'contain',
+    tintColor: '#FFF',
   },
   headerTitle: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '900',
   },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  searchToggleButton: {
+    padding: 8,
   },
-  searchCircle: {
-    paddingHorizontal: 25,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchIcon: {
+  headerSearchIcon: {
     width: 20,
     height: 20,
-    tintColor: '#4D3626',
+    tintColor: '#FFF',
+    resizeMode: 'contain',
   },
-  unreadBadge: {
-    backgroundColor: '#FF6B6B',
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    justifyContent: 'center',
+  searchContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
+    backgroundColor: '#FFF',
+    borderRadius: 25,
+    paddingHorizontal: 15,
+    height: 50,
+    marginTop: 5,
   },
-  unreadBadgeText: {
+  searchIcon: {
+    width: 18,
+    height: 18,
+    tintColor: '#999',
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#000',
+  },
+  clearIcon: {
+    width: 18,
+    height: 18,
+    tintColor: '#999',
+  },
+  countContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 25,
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
+  countText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  unreadCountBadge: {
+    backgroundColor: '#FF6B6B',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  unreadCountText: {
     color: '#FFF',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 11,
+    fontWeight: '600',
   },
   scrollContent: {
     paddingBottom: 100,

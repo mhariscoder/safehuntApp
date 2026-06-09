@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  TextInput,
+  Dimensions,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useFriends } from '../hooks/useFriends';
@@ -18,6 +20,8 @@ import { useGroups } from '../hooks/useGroups';
 import { useAppSelector } from '../app/store/hooks';
 import BottomTabNav from '../components/BottomTabNav';
 import { API_BASE_URL } from '../constants/config';
+
+const { width } = Dimensions.get('window');
 
 const getFullImageUrl = (imagePath: string | null | undefined): string | null => {
   if (!imagePath) return null;
@@ -28,6 +32,7 @@ const getFullImageUrl = (imagePath: string | null | undefined): string | null =>
   return `${API_BASE_URL}/public/uploads/${cleanPath}`;
 };
 
+// Sample recent chats data (in a real app, this would come from API)
 const RECENT_CHATS = [
   {
     id: '1',
@@ -100,6 +105,8 @@ const MessageScreen = () => {
   const [activeTab, setActiveTab] = useState<TabType>('recent');
   const [refreshing, setRefreshing] = useState(false);
   const [joiningGroupId, setJoiningGroupId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -127,6 +134,11 @@ const MessageScreen = () => {
     setRefreshing(false);
   };
 
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setShowSearch(false);
+  };
+
   const handleRecentChatPress = (chatId: string) => {
     navigation.navigate('MessageDetail', { chatId });
   };
@@ -135,7 +147,6 @@ const MessageScreen = () => {
     navigation.navigate('MessageDetail', { userId, displayname });
   };
 
-  // Navigate to Group Posts Screen
   const handleGroupPress = (groupId: number, groupName: string, groupLogo?: string, groupCover?: string, groupDescription?: string) => {
     navigation.navigate('GroupPosts', { 
       groupId, 
@@ -184,10 +195,41 @@ const MessageScreen = () => {
     navigation.navigate('CreateGroup');
   };
 
+  // Filter recent chats based on search query
+  const filteredRecentChats = RECENT_CHATS.filter(chat => {
+    const searchLower = searchQuery.toLowerCase();
+    return chat.user.toLowerCase().includes(searchLower) ||
+           chat.message.toLowerCase().includes(searchLower);
+  });
+
+  // Filter friends based on search query
+  const filteredFriends = friends.filter(friend => {
+    const searchLower = searchQuery.toLowerCase();
+    return (friend.displayname || friend.username || '').toLowerCase().includes(searchLower) ||
+           (friend.email || '').toLowerCase().includes(searchLower);
+  });
+
+  // Filter groups based on search query
+  const filteredGroups = groups.filter(group => {
+    const searchLower = searchQuery.toLowerCase();
+    return (group.name || '').toLowerCase().includes(searchLower) ||
+           (group.description || '').toLowerCase().includes(searchLower);
+  });
+
   const renderRecentChats = () => {
+    if (filteredRecentChats.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>
+            {searchQuery ? `No recent chats matching "${searchQuery}"` : 'No recent chats'}
+          </Text>
+        </View>
+      );
+    }
+
     return (
       <>
-        {RECENT_CHATS.map((chat) => (
+        {filteredRecentChats.map((chat) => (
           <TouchableOpacity 
             key={chat.id} 
             style={[styles.chatItem, chat.isUnread && styles.unreadChatBackground]}
@@ -231,18 +273,22 @@ const MessageScreen = () => {
       );
     }
 
-    if (friends.length === 0) {
+    if (filteredFriends.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No friends yet</Text>
-          <Text style={styles.emptySubtext}>Add friends to start chatting</Text>
+          <Text style={styles.emptyText}>
+            {searchQuery ? `No people found matching "${searchQuery}"` : 'No friends yet'}
+          </Text>
+          {!searchQuery && (
+            <Text style={styles.emptySubtext}>Add friends to start chatting</Text>
+          )}
         </View>
       );
     }
 
     return (
       <>
-        {friends.map((friend: any) => (
+        {filteredFriends.map((friend: any) => (
           <TouchableOpacity 
             key={friend.id} 
             style={styles.chatItem}
@@ -280,18 +326,22 @@ const MessageScreen = () => {
       );
     }
 
-    if (groups.length === 0) {
+    if (filteredGroups.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No groups yet</Text>
-          <Text style={styles.emptySubtext}>Join or create groups to start group chats</Text>
+          <Text style={styles.emptyText}>
+            {searchQuery ? `No groups found matching "${searchQuery}"` : 'No groups yet'}
+          </Text>
+          {!searchQuery && (
+            <Text style={styles.emptySubtext}>Join or create groups to start group chats</Text>
+          )}
         </View>
       );
     }
 
     return (
       <>
-        {groups.map((group: any) => {
+        {filteredGroups.map((group: any) => {
           const isMember = group.status === 'Joined';
           const isPending = group.status === 'Pending';
           const isNotMember = group.status === 'Not a Member';
@@ -335,7 +385,6 @@ const MessageScreen = () => {
                 {group.description || 'No description available'}
               </Text>
               
-              {/* Join Button for non-members */}
               {isNotMember && (
                 <TouchableOpacity 
                   style={styles.joinButton}
@@ -350,7 +399,6 @@ const MessageScreen = () => {
                 </TouchableOpacity>
               )}
               
-              {/* Pending status text for pending members */}
               {isPending && (
                 <View style={styles.pendingContainer}>
                   <Text style={styles.pendingText}>Request sent to admin</Text>
@@ -361,6 +409,19 @@ const MessageScreen = () => {
         })}
       </>
     );
+  };
+
+  const getTabCount = () => {
+    switch (activeTab) {
+      case 'recent':
+        return filteredRecentChats.length;
+      case 'people':
+        return filteredFriends.length;
+      case 'groups':
+        return filteredGroups.length;
+      default:
+        return 0;
+    }
   };
 
   const renderContent = () => {
@@ -382,31 +443,63 @@ const MessageScreen = () => {
       
       {/* --- HEADER --- */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Message</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.searchCircle}>
-            <Image 
-              source={require('../../assets/search_icon.png')} 
-              style={styles.searchIcon} 
-            />
-          </TouchableOpacity>
-          {/* Show plus icon only when Groups tab is active */}
-          {activeTab === 'groups' && (
-            <TouchableOpacity style={styles.addButton} onPress={handleCreateGroup}>
+        <View style={styles.headerTop}>
+          <Text style={styles.headerTitle}>Message</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity 
+              style={styles.searchToggleButton}
+              onPress={() => {
+                setShowSearch(!showSearch);
+                if (!showSearch) {
+                  setSearchQuery('');
+                }
+              }}
+            >
               <Image 
-                source={require('../../assets/plus_icon.png')} 
-                style={styles.addIcon} 
+                source={require('../../assets/search_icon.png')} 
+                style={styles.headerSearchIcon} 
               />
             </TouchableOpacity>
-          )}
+            {activeTab === 'groups' && (
+              <TouchableOpacity style={styles.addButton} onPress={handleCreateGroup}>
+                <Image 
+                  source={require('../../assets/plus_icon.png')} 
+                  style={styles.addIcon} 
+                />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
+        
+        {/* --- SEARCH INPUT --- */}
+        {showSearch && (
+          <View style={styles.searchContainer}>
+            <Image source={require('../../assets/search_icon.png')} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder={`Search ${activeTab === 'recent' ? 'chats' : activeTab === 'people' ? 'people' : 'groups'}...`}
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus={true}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={handleClearSearch}>
+                <Image source={require('../../assets/close_icon.png')} style={styles.clearIcon} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       {/* --- CHAT FILTER TABS --- */}
       <View style={styles.tabContainer}>
         <TouchableOpacity 
           style={[styles.tabButton, activeTab === 'recent' ? styles.activeTab : styles.inactiveTab]}
-          onPress={() => setActiveTab('recent')}
+          onPress={() => {
+            setActiveTab('recent');
+            setSearchQuery('');
+          }}
         >
           <Text style={activeTab === 'recent' ? styles.activeTabText : styles.inactiveTabText}>
             Recent Chats
@@ -415,7 +508,10 @@ const MessageScreen = () => {
         
         <TouchableOpacity 
           style={[styles.tabButton, activeTab === 'people' ? styles.activeTab : styles.inactiveTab]}
-          onPress={() => setActiveTab('people')}
+          onPress={() => {
+            setActiveTab('people');
+            setSearchQuery('');
+          }}
         >
           <Text style={activeTab === 'people' ? styles.activeTabText : styles.inactiveTabText}>
             People
@@ -424,13 +520,25 @@ const MessageScreen = () => {
         
         <TouchableOpacity 
           style={[styles.tabButton, activeTab === 'groups' ? styles.activeTab : styles.inactiveTab]}
-          onPress={() => setActiveTab('groups')}
+          onPress={() => {
+            setActiveTab('groups');
+            setSearchQuery('');
+          }}
         >
           <Text style={activeTab === 'groups' ? styles.activeTabText : styles.inactiveTabText}>
             Groups
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* --- RESULTS COUNT --- */}
+      {showSearch && searchQuery.length > 0 && (
+        <View style={styles.countContainer}>
+          <Text style={styles.countText}>
+            Found {getTabCount()} {getTabCount() === 1 ? 'result' : 'results'} for "{searchQuery}"
+          </Text>
+        </View>
+      )}
 
       {/* --- MESSAGE LIST --- */}
       <ScrollView 
@@ -457,17 +565,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   header: {
-    height: 60,
-    backgroundColor: '#0E713E', 
+    backgroundColor: '#0E713E',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingHorizontal: 25,
+    // paddingBottom: 15,
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 25,
-    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    marginTop: 15,
+    marginBottom: 15,
   },
   headerTitle: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '900',
   },
   headerRight: {
@@ -475,18 +587,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  searchCircle: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+  searchToggleButton: {
+    padding: 8,
   },
-  searchIcon: {
-    width: 18,
-    height: 18,
-    tintColor: '#4D3626',
+  headerSearchIcon: {
+    width: 20,
+    height: 20,
+    tintColor: '#FFF',
+    resizeMode: 'contain',
   },
   addButton: {
     paddingHorizontal: 12,
@@ -501,9 +609,45 @@ const styles = StyleSheet.create({
     height: 18,
     tintColor: '#4D3626',
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 25,
+    paddingHorizontal: 15,
+    height: 50,
+    marginTop: 5,
+    marginBottom: 15,
+  },
+  searchIcon: {
+    width: 18,
+    height: 18,
+    tintColor: '#999',
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#000',
+  },
+  clearIcon: {
+    width: 18,
+    height: 18,
+    tintColor: '#999',
+  },
+  countContainer: {
+    paddingHorizontal: 25,
+    paddingTop: 15,
+    paddingBottom: 5,
+  },
+  countText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
   tabContainer: {
     flexDirection: 'row',
-    paddingVertical: 20,
+    paddingVertical: 15,
     paddingHorizontal: 25,
     justifyContent: 'space-between',
     gap: 10,
@@ -708,6 +852,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     marginBottom: 8,
+    textAlign: 'center',
   },
   emptySubtext: {
     fontSize: 12,

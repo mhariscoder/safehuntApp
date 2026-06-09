@@ -37,6 +37,7 @@ export type MainStackParamList = {
   PrivacyPolicy: undefined;
   BlockedUsers: undefined;
   ChangePassword: undefined;
+  User: { userId: string };
   MapTest: undefined;
 };
 
