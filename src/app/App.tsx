@@ -15,6 +15,10 @@ import BootSplash from 'react-native-bootsplash';
 
 import './../config/googleAuth';
 
+import { LogBox } from 'react-native';
+LogBox.ignoreLogs(['Warning: ...']); // Ignore log notification by message
+LogBox.ignoreAllLogs();//Ignore all log notifications
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

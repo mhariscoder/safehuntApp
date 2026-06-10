@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,14 +9,142 @@ import {
   StatusBar,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
+  Alert,
+  Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useIAP, ErrorCode } from 'react-native-iap';
 
 const { width } = Dimensions.get('window');
 
+const SUBSCRIPTION_IDS =
+  Platform.OS === 'ios'
+    ? ['SafeHuntSubscription']
+    : ['safe_hunt_subscription_pro'];
+
 const SubscriptionScreen = ({ navigation }: any) => {
-  // Defaulting to annual selection as per your reference image
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('annual');
+  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+
+  const {
+    connected,
+    subscriptions,
+    activeSubscriptions,
+    fetchProducts,
+    requestPurchase,
+    getActiveSubscriptions,
+    finishTransaction: finishTransactionHook,
+  } = useIAP({
+    onPurchaseSuccess: async purchase => {
+      try {
+        await finishTransactionHook({
+          purchase,
+          isConsumable: false,
+        });
+
+        await getActiveSubscriptions(SUBSCRIPTION_IDS);
+        
+        Alert.alert(
+          'Success',
+          'Subscription activated successfully!',
+          [{ text: 'OK', onPress: () => navigation.navigate('Home') }]
+        );
+      } catch (error) {
+        console.log('Finish Transaction Error:', error);
+        Alert.alert('Error', 'Failed to complete transaction');
+      }
+    },
+
+    onPurchaseError: error => {
+      if (error.code === ErrorCode.UserCancelled) {
+        return;
+      }
+      Alert.alert(
+        'Purchase Failed',
+        error.message || 'Something went wrong. Please try again.',
+      );
+    },
+    
+    onError: error => {
+      console.error('IAP Error:', error);
+      Alert.alert('Error', error.message);
+    },
+  });
+
+  // Load subscriptions when connected status turns true
+  useEffect(() => {
+    if (connected) {
+      loadSubscriptions();
+    }
+  }, [connected]);
+
+  // FIXED: Accessing item.id to match your Google Play response object structure
+  useEffect(() => {
+    if (subscriptions && subscriptions.length > 0) {
+      const firstProductId = subscriptions[0].id || subscriptions[0].productId;
+      if (firstProductId) {
+        setSelectedPlanId(firstProductId);
+      }
+    } else if (connected) {
+      setSelectedPlanId(SUBSCRIPTION_IDS[0]);
+    }
+  }, [subscriptions, connected]);
+
+  const loadSubscriptions = async () => {
+    try {
+      await fetchProducts({
+        skus: SUBSCRIPTION_IDS,
+        type: 'subs',
+      });
+      await getActiveSubscriptions(SUBSCRIPTION_IDS);
+    } catch (error) {
+      console.error('Error loading subscriptions:', error);
+      Alert.alert('Error', 'Failed to load subscription options from store');
+    }
+  };
+
+  const handlePurchase = async () => {
+    if (!selectedPlanId) {
+      Alert.alert('Select Subscription', 'Please select a plan first');
+      return;
+    }
+
+    if (!connected) {
+      Alert.alert('Not Connected', 'Billing service is not available');
+      return;
+    }
+
+    try {
+      await requestPurchase({
+        request: {
+          ios: { sku: selectedPlanId },
+          android: { skus: [selectedPlanId] },
+        },
+        type: 'subs',
+      });
+    } catch (error: any) {
+      console.error('Purchase error:', error);
+      Alert.alert(
+        'Purchase Error',
+        error.message || 'Failed to start purchase process'
+      );
+    }
+  };
+
+  // Loading Screen while connecting to Store Billing System
+  if (!connected) {
+    return (
+      <View style={styles.loaderContainer}>
+        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+        <LinearGradient
+          colors={['#1D4D2F', '#183B24', '#0F1A13']}
+          style={StyleSheet.absoluteFill}
+        />
+        <ActivityIndicator size="large" color="#0E713E" />
+        <Text style={styles.loaderText}>Connecting to billing service...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -29,84 +157,96 @@ const SubscriptionScreen = ({ navigation }: any) => {
       />
 
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView style={styles.content}>
-            {/* Header Section */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Image source={require('../../assets/back_arrow.png')} style={styles.backArrow} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Safe Hunt Subscription</Text>
-                <View style={{ width: 40 }} /> 
-            </View>
+        <View style={styles.content}>
+          {/* Header Section */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Image source={require('../../assets/back_arrow.png')} style={styles.backArrow} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Safe Hunt Subscription</Text>
+            <View style={{ width: 40 }} /> 
+          </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          
             {/* Hero Image */}
             <View style={styles.heroWrapper}>
-                <Image
-                    source={require('../../assets/hunter_hero.png')} 
-                    style={styles.heroImage}
-                    resizeMode="cover"
-                />
+              <Image
+                source={require('../../assets/hunter_hero.png')} 
+                style={styles.heroImage}
+                resizeMode="cover"
+              />
             </View>
 
             {/* White Card Content */}
             <View style={styles.whiteCard}>
-                <Text style={styles.mainTitle}>
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore 
-                </Text>
+              <Text style={styles.mainTitle}>
+                Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore 
+              </Text>
 
-                {/* Feature List */}
-                <View style={styles.featureContainer}>
+              {/* Feature List */}
+              <View style={styles.featureContainer}>
                 <FeatureRow text="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua." />
                 <FeatureRow text="Lorem ipsum dolor sit amet, consectetur adipiscing elit," />
                 <FeatureRow text="Lorem ipsum dolor sit amet" />
-                </View>
+              </View>
 
-                {/* $500 Plan - Now with Checkmark */}
-                <TouchableOpacity 
-                activeOpacity={0.9}
-                style={[styles.planBox, selectedPlan === 'monthly' && styles.selectedPlanBorder]} 
-                onPress={() => setSelectedPlan('monthly')}
-                >
-                <View style={styles.radioCircle}>
-                    {selectedPlan === 'monthly' && (
-                    <Text style={styles.checkIconText}>✓</Text>
-                    )}
+              {/* Dynamic Subscriptions mapping */}
+              {subscriptions.length === 0 ? (
+                <View style={styles.loadingPlansCard}>
+                  <ActivityIndicator size="small" color="#0E713E" />
+                  <Text style={styles.loadingPlansText}>Loading subscription options...</Text>
                 </View>
-                <View>
-                    <Text style={styles.priceText}>$500</Text>
-                    <Text style={styles.subText}>1 Month</Text>
-                </View>
-                </TouchableOpacity>
+              ) : (
+                subscriptions.map(item => {
+                  // FIXED: Fallback checklist to catch .id instead of missing .productId field
+                  const currentId = item.id || item.productId;
+                  const isSelected = selectedPlanId === currentId;
 
-                {/* $1000 Plan - With Checkmark */}
-                <TouchableOpacity 
-                activeOpacity={0.9}
-                style={[styles.planBox, selectedPlan === 'annual' && styles.selectedPlanBorder]} 
-                onPress={() => setSelectedPlan('annual')}
-                >
-                <View style={styles.radioCircle}>
-                    {selectedPlan === 'annual' && (
-                    <Text style={styles.checkIconText}>✓</Text>
-                    )}
-                </View>
-                <View>
-                    <Text style={styles.priceText}>$1000</Text>
-                    <Text style={styles.subText}>12 Month</Text>
-                </View>
-                </TouchableOpacity>
+                  return (
+                    <TouchableOpacity 
+                      key={currentId}
+                      activeOpacity={0.9}
+                      style={[styles.planBox, isSelected && styles.selectedPlanBorder]} 
+                      onPress={() => setSelectedPlanId(currentId)}
+                    >
+                      <View style={styles.radioCircle}>
+                        {isSelected && (
+                          <Text style={styles.checkIconText}>✓</Text>
+                        )}
+                      </View>
+                      <View style={styles.planInfo}>
+                        <Text style={styles.priceText}>
+                          {item.displayPrice || item.localizedPrice || item.price}
+                        </Text>
+                        <Text style={styles.subText}>
+                          {item.title || 'Premium Access'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
 
-                {/* Proceed Button */}
-                <TouchableOpacity 
-                style={styles.proceedButton}
-                onPress={() => navigation.navigate('Home')}
-                >
+              {/* DEBUGGER ELEMENT */}
+              <Text style={styles.debugText}>
+                [DEBUG] Count: {subscriptions.length} | ID Selected: {selectedPlanId || 'None'}
+              </Text>
+
+              {/* Proceed Button */}
+              <TouchableOpacity 
+                style={[
+                  styles.proceedButton,
+                  (!selectedPlanId || subscriptions.length === 0) && styles.buttonDisabled
+                ]}
+                onPress={handlePurchase}
+                disabled={!selectedPlanId || subscriptions.length === 0}
+              >
                 <Text style={styles.proceedText}>Proceed</Text>
-                </TouchableOpacity>
+              </TouchableOpacity>
             </View>
-            </ScrollView>
-        </ScrollView>
+          </ScrollView>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -126,7 +266,17 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 25
   },
-
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loaderText: {
+    marginTop: 15,
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -169,7 +319,7 @@ const styles = StyleSheet.create({
     color: '#000000',
     marginBottom: 20,
   },
-  featureContainer: { marginBottom: 0 },
+  featureContainer: { marginBottom: 20 },
   featureRow: { flexDirection: 'row', marginBottom: 15 },
   checkMark: { color: '#1D4D2F', marginRight: 10, fontSize: 18, fontWeight: 'bold' },
   featureText: {
@@ -179,6 +329,18 @@ const styles = StyleSheet.create({
     lineHeight: 14.4,               
     letterSpacing: 0,
     color: '#4E2D18',
+    flex: 1,
+  },
+  loadingPlansCard: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 15,
+  },
+  loadingPlansText: {
+    color: '#1D4D2F',
+    marginTop: 8,
+    fontSize: 14,
   },
   planBox: {
     flexDirection: 'row',
@@ -193,6 +355,7 @@ const styles = StyleSheet.create({
   },
   selectedPlanBorder: {
     borderColor: '#1D4D2F',
+    backgroundColor: '#EAF2EC'
   },
   radioCircle: {
     width: 32,
@@ -212,15 +375,30 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     textAlign: 'center',
   },
+  planInfo: {
+    flex: 1,
+  },
   priceText: { fontSize: 24, fontWeight: '900', color: '#1D4D2F' },
-  subText: { fontSize: 12, color: '#999' },
+  subText: { fontSize: 12, color: '#555', marginTop: 2 },
   proceedButton: {
     backgroundColor: '#0E713E',
     borderRadius: 35,
     paddingVertical: 13,
-    alignItems: 'center'
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  buttonDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
   },
   proceedText: { color: '#FFF', fontSize: 14, fontWeight: 'bold' },
+  debugText: {
+    color: 'red',
+    fontSize: 11,
+    textAlign: 'center',
+    marginVertical: 8,
+    fontWeight: '600'
+  }
 });
 
 export default SubscriptionScreen;
