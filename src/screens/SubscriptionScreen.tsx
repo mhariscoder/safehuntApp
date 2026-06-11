@@ -156,7 +156,7 @@ const SubscriptionScreen = ({ navigation }: any) => {
         style={StyleSheet.absoluteFill}
       />
 
-      <SafeAreaView style={styles.safeArea}>
+      <View style={styles.safeArea}>
         <View style={styles.content}>
           {/* Header Section */}
           <View style={styles.header}>
@@ -229,9 +229,9 @@ const SubscriptionScreen = ({ navigation }: any) => {
               )}
 
               {/* DEBUGGER ELEMENT */}
-              <Text style={styles.debugText}>
+              {/* <Text style={styles.debugText}>
                 [DEBUG] Count: {subscriptions.length} | ID Selected: {selectedPlanId || 'None'}
-              </Text>
+              </Text> */}
 
               {/* Proceed Button */}
               <TouchableOpacity 
@@ -244,10 +244,20 @@ const SubscriptionScreen = ({ navigation }: any) => {
               >
                 <Text style={styles.proceedText}>Proceed</Text>
               </TouchableOpacity>
+
+              {/* Continue to Trial Link */}
+              <TouchableOpacity
+                style={styles.trialLinkContainer}
+                onPress={() => navigation.navigate('Home')}
+              >
+                <Text style={styles.trialLinkText}>
+                  Continue to Trial
+                </Text>
+              </TouchableOpacity>
             </View>
           </ScrollView>
         </View>
-      </SafeAreaView>
+      </View>
     </View>
   );
 };
@@ -398,7 +408,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginVertical: 8,
     fontWeight: '600'
-  }
+  },
+  trialLinkContainer: {
+    alignItems: 'center',
+    marginTop: 16,
+  },
+
+  trialLinkText: {
+    fontSize: 14,
+    color: '#0E713E',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
 });
 
 export default SubscriptionScreen;

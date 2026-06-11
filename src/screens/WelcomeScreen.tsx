@@ -20,8 +20,9 @@ import { useDispatch, useSelector } from 'react-redux';
 import { loginViaSocialToken } from '../features/auth/authActions';
 import { AppDispatch, RootState } from '../app/store';
 
-// Native SDK SSO integration module
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+// Native SDK SSO integration modules
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { LoginManager, AccessToken, Profile } from 'react-native-fbsdk-next';
 
 const { width } = Dimensions.get('window');
 
@@ -41,6 +42,7 @@ const WelcomeScreen = ({ navigation }: any) => {
   // Combine both loading sources to prevent button interactions while processing
   const isAuthenticating = localLoading || reduxLoading;
 
+  // --- GOOGLE SIGN IN ---
   const handleGoogleSignIn = async () => {
     try {
       setLocalLoading(true);
@@ -49,7 +51,10 @@ const WelcomeScreen = ({ navigation }: any) => {
       // 1. Fire up native Google Single Sign-On window interface
       const signInResponse = await GoogleSignin.signIn();
       console.log('Google Sign-In Response:', signInResponse);
-      const { idToken, user } = signInResponse.data;
+
+      // Defensively target data across newer/older Google SDK return structures
+      const data = signInResponse.data || signInResponse;
+      const { idToken, user } = data;
 
       if (!idToken) {
         throw new Error('Failed to retrieve ID token from Google initialization.');
@@ -62,26 +67,76 @@ const WelcomeScreen = ({ navigation }: any) => {
           socialToken: idToken,
           email: user.email,
           name: user.name ?? '',
-          deviceToken: '', // Pass real system identifier token if available
-          deviceType: Platform.OS, // Automatically flags system as 'ios' or 'android'
+          deviceToken: '', 
+          deviceType: Platform.OS, 
         })
       );
 
       // 3. Evaluate store response result status matching criteria rules
       if (loginViaSocialToken.fulfilled.match(resultAction)) {
-        Alert.alert('Success', 'Logged in successfully!');
-        // Note: If your App component shifts layout flows reactively based on 
-        // state.auth.isAuthenticated, navigation transitions happen automatically.
-        // Otherwise, manually switch stacks here:
-        // navigation.replace('MainTabs'); 
+        Alert.alert('Success', 'Logged in successfully with Google!');
       } else {
-        // Fallback catch showing validation error messages received from NestJS
         const errorMessage = resultAction.payload as string;
         throw new Error(errorMessage || 'Server rejected authorization context.');
       }
 
     } catch (error: any) {
-      console.error(error);
+      console.error('Google Sign-In Error:', error);
+      Alert.alert('Google Sign-In Error', error.message || 'An error occurred.');
+    } finally {
+      setLocalLoading(false);
+    }
+  };
+
+  // --- FACEBOOK SIGN IN ---
+  const handleFacebookSignIn = async () => {
+    try {
+      setLocalLoading(true);
+
+      // 1. Prompt the user to log in via native Facebook UI/Browser
+      const result = await LoginManager.logInWithPermissions(['public_profile', 'email']);
+
+      if (result.isCancelled) {
+        throw new Error('User cancelled the Facebook login process.');
+      }
+
+      // 2. Grab the access token from the successful SDK session
+      const data = await AccessToken.getCurrentAccessToken();
+      if (!data) {
+        throw new Error('Something went wrong obtaining the Facebook access token.');
+      }
+      const facebookAccessToken = data.accessToken.toString();
+
+      // 3. Request Profile data to harvest name and email values natively
+      const currentProfile = await Profile.getCurrentProfile();
+      
+      // Note: If currentProfile email field comes back empty (user signed up with a phone number on FB),
+      // fallback to an empty string or build a custom fallback string.
+      const userEmail = currentProfile?.email ?? '';
+      const userName = currentProfile?.name ?? '';
+
+      // 4. Dispatch identical layout directly into your NestJS/Firebase API gateway payload
+      const resultAction = await dispatch(
+        loginViaSocialToken({
+          socialType: 'facebook',
+          socialToken: facebookAccessToken,
+          email: userEmail,
+          name: userName,
+          deviceToken: '', 
+          deviceType: Platform.OS,
+        })
+      );
+
+      if (loginViaSocialToken.fulfilled.match(resultAction)) {
+        Alert.alert('Success', 'Logged in successfully with Facebook!');
+      } else {
+        const errorMessage = resultAction.payload as string;
+        throw new Error(errorMessage || 'Server rejected Facebook credentials token.');
+      }
+
+    } catch (error: any) {
+      console.error('Facebook Sign-In Error:', error);
+      Alert.alert('Facebook Sign-In Error', error.message || 'An error occurred.');
     } finally {
       setLocalLoading(false);
     }
@@ -120,7 +175,7 @@ const WelcomeScreen = ({ navigation }: any) => {
             <Text style={styles.logInText}>Log In</Text>
           </TouchableOpacity>
 
-          {/* Social Sign Up - Connected via Redux Dispatcher Action */}
+          {/* Google Sign In */}
           <TouchableOpacity 
             style={styles.socialLink}
             onPress={handleGoogleSignIn}
@@ -140,12 +195,24 @@ const WelcomeScreen = ({ navigation }: any) => {
             )}
           </TouchableOpacity>
 
+          {/* Facebook Sign In */}
           <TouchableOpacity 
-            style={styles.phoneLink}
-            onPress={() => navigation.navigate('Subscription')}
+            style={styles.socialLink}
+            onPress={handleFacebookSignIn}
             disabled={isAuthenticating}
           >
-            <Text style={styles.phoneText}>Sign Up With Phone Number</Text>
+            {isAuthenticating ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.socialText}>Sign Up With </Text>
+                <Image
+                  source={require('../../assets/fb-logo.png')}
+                  style={{ marginLeft: 5, width: 20, height: 20 }}
+                  resizeMode="contain"
+                />
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -200,21 +267,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 60,
-    height: 30, // Keeps layout dimension sizing strict and static while UI activity spinners toggle
+    height: 30,
+    marginVertical: 10
   },
   socialText: {
     color: '#FFFFFF',
     fontSize: 14,
-  },
-  phoneLink: {
-    marginBottom: 20,
-  },
-  phoneText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    opacity: 0.8,
-    textDecorationLine: 'underline',
   },
 });
 

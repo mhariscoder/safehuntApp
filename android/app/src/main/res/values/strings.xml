@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">safehuntApp</string>
+    
+    <string name="facebook_app_id">1177510584104443</string>
+    <string name="fb_login_protocol_scheme">fb1177510584104443</string>
+    <string name="facebook_client_token">YOUR_FACEBOOK_CLIENT_TOKEN_HERE</string>
 </resources>
