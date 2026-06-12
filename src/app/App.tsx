@@ -7,7 +7,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { check, request, openSettings, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import Geolocation from '@react-native-community/geolocation';
-import * as RNAndroidLocationEnabler from 'react-native-android-location-enabler';
+
+// ❌ REMOVED the top-level import that was causing the iOS crash
 
 import { store, persistor } from './store';
 import { RootNavigator } from '../navigation/RootNavigator';
@@ -16,8 +17,8 @@ import BootSplash from 'react-native-bootsplash';
 import './../config/googleAuth';
 
 import { LogBox } from 'react-native';
-LogBox.ignoreLogs(['Warning: ...']); // Ignore log notification by message
-LogBox.ignoreAllLogs();//Ignore all log notifications
+LogBox.ignoreLogs(['Warning: ...']); 
+LogBox.ignoreAllLogs();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,11 +34,7 @@ const App = () => {
 
   useEffect(() => {
     const initApp = async () => {
-      // CRITICAL FIX 1: Clear the splash screen FIRST. 
-      // Native window alerts can get buried underneath the splash layer layout.
       await BootSplash.hide({ fade: true });
-      
-      // Run checks right after splash fades out
       await handleLocationChecks();
     };
     initApp();
@@ -64,10 +61,9 @@ const App = () => {
 
     try {
       const status = await check(locationPermission);
-      console.log("Current permission status status:", status); // Debug log
+      console.log("Current permission status status:", status);
 
       if (status === RESULTS.GRANTED) {
-        // CRITICAL FIX 2: Check hardware switch directly on Android instead of waiting for geolocation to fail
         verifyDeviceLocationService();
       } else if (status === RESULTS.DENIED || status === RESULTS.LIMITED) {
         const requestResult = await request(locationPermission);
@@ -87,6 +83,9 @@ const App = () => {
   const verifyDeviceLocationService = async () => {
     if (Platform.OS === 'android') {
       try {
+        //  FIX: Safely require the module locally so iOS never evaluates it
+        const RNAndroidLocationEnabler = require('react-native-android-location-enabler');
+        
         // Trigger the Google Play Services Popup Directly inside your app frame
         const result = await RNAndroidLocationEnabler.promptForEnableLocationIfNeeded({
           interval: 10000
@@ -94,7 +93,6 @@ const App = () => {
         
         console.log("Enabler result status:", result);
         if (result === 'already-enabled' || result === 'enabled') {
-          // Success! Clear check by fetching real location stream
           triggerLocationFetch();
         }
       } catch (err) {
@@ -103,7 +101,7 @@ const App = () => {
         verifyDeviceLocationService();
       }
     } else {
-      // iOS handling
+      // iOS handling bypassed smoothly!
       triggerLocationFetch();
     }
   };
@@ -115,12 +113,11 @@ const App = () => {
       },
       (error) => {
         console.log("Geolocation read error context:", error.code, error.message);
-        // If it timed out (code 3) but location switch is on, try again without rigid constraints
         if (error.code === 3) {
            triggerLocationFetch();
         }
       },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 10000 } // Loosened restrictions for faster cold-boots
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 10000 }
     );
   };
 
