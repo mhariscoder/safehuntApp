@@ -8,8 +8,6 @@ import Toast from 'react-native-toast-message';
 import { check, request, openSettings, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import Geolocation from '@react-native-community/geolocation';
 
-// ❌ REMOVED the top-level import that was causing the iOS crash
-
 import { store, persistor } from './store';
 import { RootNavigator } from '../navigation/RootNavigator';
 import BootSplash from 'react-native-bootsplash';
@@ -34,6 +32,7 @@ const App = () => {
 
   useEffect(() => {
     const initApp = async () => {
+      // Clear the splash screen first so alerts don't get blocked visually
       await BootSplash.hide({ fade: true });
       await handleLocationChecks();
     };
@@ -61,7 +60,7 @@ const App = () => {
 
     try {
       const status = await check(locationPermission);
-      console.log("Current permission status status:", status);
+      console.log("Current permission status:", status);
 
       if (status === RESULTS.GRANTED) {
         verifyDeviceLocationService();
@@ -83,10 +82,10 @@ const App = () => {
   const verifyDeviceLocationService = async () => {
     if (Platform.OS === 'android') {
       try {
-        //  FIX: Safely require the module locally so iOS never evaluates it
+        // Safe inline require wrapper to insulate iOS from evaluating Android-only modules
         const RNAndroidLocationEnabler = require('react-native-android-location-enabler');
         
-        // Trigger the Google Play Services Popup Directly inside your app frame
+        // Trigger the Google Play Services Popup on Android
         const result = await RNAndroidLocationEnabler.promptForEnableLocationIfNeeded({
           interval: 10000
         });
@@ -97,11 +96,12 @@ const App = () => {
         }
       } catch (err) {
         console.log("User rejected location prompt:", err);
-        // User clicked "No thanks", loop them back to enforce app operational rule
+        // Loop back to enforce application operational requirement
         verifyDeviceLocationService();
       }
     } else {
-      // iOS handling bypassed smoothly!
+      // iOS doesn't need an external enabler; the system handles global location switches
+      // automatically when calling standard geolocation methods.
       triggerLocationFetch();
     }
   };
@@ -113,6 +113,7 @@ const App = () => {
       },
       (error) => {
         console.log("Geolocation read error context:", error.code, error.message);
+        // Retry logic on timeout
         if (error.code === 3) {
            triggerLocationFetch();
         }

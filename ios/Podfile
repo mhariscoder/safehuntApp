@@ -48,6 +48,10 @@ target 'safehuntApp' do
 
   # React Native Vector Icons explicitly defined path
   pod 'RNVectorIcons', :path => '../node_modules/react-native-vector-icons'
+  
+  # React Native Maps dependencies
+  rn_maps_path = '../node_modules/react-native-maps'
+  pod 'react-native-maps/Google', :path => rn_maps_path
 
   post_install do |installer|
     react_native_post_install(
