@@ -334,7 +334,7 @@ const FriendsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF',
+    backgroundColor: '#FCFAF0',
   },
   centerContainer: {
     flex: 1,
@@ -342,11 +342,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFF',
   },
+  headerContainer: { height: 260, position: 'relative' },
+  coverImage: { width: '100%', height: 215, resizeMode: 'cover' },
   header: {
     backgroundColor: '#0E713E',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     paddingHorizontal: 25,
-    // paddingBottom: 15,
+    paddingTop: Platform.OS === 'android' ? 0 : 50,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between'
   },
   headerTop: {
     flexDirection: 'row',

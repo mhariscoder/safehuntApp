@@ -57,11 +57,11 @@ interface LocationMarker {
 }
 
 const ZOOM_OPTIONS = [
-  { label: '0.1km', value: 0.1, altitude: 300, zoom: 18.5 },
-  { label: '0.2km', value: 0.2, altitude: 600, zoom: 17.5 },
-  { label: '0.3km', value: 0.3, altitude: 1000, zoom: 16.5 },
-  { label: '0.4km', value: 0.4, altitude: 1500, zoom: 15.5 },
-  { label: '0.5km', value: 0.5, altitude: 2200, zoom: 14.5 },
+  { label: '0.1m', value: 0.1, altitude: 300, zoom: 18.5 },
+  { label: '0.2m', value: 0.2, altitude: 600, zoom: 17.5 },
+  { label: '0.3m', value: 0.3, altitude: 1000, zoom: 16.5 },
+  { label: '0.4m', value: 0.4, altitude: 1500, zoom: 15.5 },
+  { label: '0.5m', value: 0.5, altitude: 2200, zoom: 14.5 },
 ];
 
 const HomeScreen = () => {
@@ -638,9 +638,11 @@ const styles = StyleSheet.create({
   },
   zoomLabel: { color: '#FFF', fontSize: 12, marginBottom: 4, fontWeight: '600' },
   zoomPresets: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 0, gap: 8 },
-  zoomPresetButton: { flex: 1, backgroundColor: '#4D3626', paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
-  zoomPresetButtonActive: { backgroundColor: '#0E713E' },
-  zoomPresetText: { color: '#FFF', fontSize: 10 },
+  zoomPresetButton: { flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
+  zoomPresetButtonActive: { 
+    // backgroundColor: '#0E713E' 
+  },
+  zoomPresetText: { color: '#4D3626', fontSize: 18 },
   zoomPresetTextActive: { fontWeight: 'bold' },
   locationInfoCard: {
     backgroundColor: 'rgba(15, 15, 15, 0.98)',

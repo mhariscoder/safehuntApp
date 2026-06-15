@@ -492,14 +492,51 @@ const MessageDetailScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
+  container: {
+    flex: 1,
+    backgroundColor: '#FCFAF0',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+  },
+  header: {
+    backgroundColor: '#0E713E',
+    paddingHorizontal: 25,
+    paddingTop: Platform.OS === 'android' ? 0 : 35,
+    paddingBottom: 15,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between'
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 15,
+    marginBottom: 15,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 10,
+    resizeMode: 'contain',
+    tintColor: '#FFF',
+  },
+  headerTitle: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
   debugBar: { backgroundColor: '#333', paddingVertical: 4, paddingHorizontal: 10, marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
   debugText: { color: '#0E713E', fontSize: 10, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  header: { height: 60, backgroundColor: '#0E713E', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 25 },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
-  backButton: { flexDirection: 'row', alignItems: 'center' },
-  headerIcon: { width: 20, height: 20, marginRight: 10, resizeMode: 'contain', tintColor: '#FFF' },
   headerProfile: { position: 'relative', marginRight: 12 },
   avatar: { width: 45, height: 45, borderRadius: 22.5, borderWidth: 1, borderColor: '#FFF' },
   onlineDot: { position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: '#999', borderWidth: 2, borderColor: '#0E713E' },
@@ -527,7 +564,7 @@ const styles = StyleSheet.create({
   imagePreview: { width: '100%', height: 200, resizeMode: 'cover' },
   removeImageButton: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.5)', width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
   removeImageText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
-  inputContainer: { backgroundColor: '#0E713E', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12 },
+  inputContainer: { backgroundColor: '#0E713E', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 25 },
   textInput: { flex: 1, color: '#FFF', fontSize: 14, marginHorizontal: 10, maxHeight: 80 },
   inputIcon: { width: 22, height: 22, tintColor: '#FFF', resizeMode: 'contain' },
   iconButton: { padding: 5 },

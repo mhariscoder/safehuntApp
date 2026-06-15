@@ -89,11 +89,13 @@ const LoginScreen = ({ navigation }: any) => {
       {/* Established Background Gradient */}
       <LinearGradient
         colors={['#0B733F', '#4E2D18', '#121212']}
-        locations={[0.3, 1, 0.5]}
+        locations={[0, 0.55, 1]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
 
-      <View style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea}>
         <ScrollView 
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -181,7 +183,7 @@ const LoginScreen = ({ navigation }: any) => {
           </TouchableOpacity>
 
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 };

@@ -195,23 +195,46 @@ const CreateGroupPostScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FCFAF0',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
   },
   header: {
-    height: 60,
-    backgroundColor: '#0E713E', 
+    backgroundColor: '#0E713E',
+    paddingHorizontal: 25,
+    paddingTop: Platform.OS === 'android' ? 0 : 50
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    marginTop: 15,
+    marginBottom: 15,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 10,
+    resizeMode: 'contain',
+    tintColor: '#FFF',
   },
   headerTitle: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    fontSize: 14,
-    flex: 1,
-    textAlign: 'center',
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   headerButton: {
     padding: 5,

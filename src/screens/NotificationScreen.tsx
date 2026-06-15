@@ -347,9 +347,8 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#0E713E',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     paddingHorizontal: 25,
-    // paddingBottom: 15,
+    paddingTop: Platform.OS === 'android' ? 0 : 50
   },
   headerTop: {
     flexDirection: 'row',
@@ -391,6 +390,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     height: 50,
     marginTop: 5,
+    marginBottom: 25
   },
   searchIcon: {
     width: 18,

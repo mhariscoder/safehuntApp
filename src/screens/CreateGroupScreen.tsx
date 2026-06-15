@@ -268,23 +268,21 @@ const CreateGroupScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FCFAF0',
   },
   header: {
-    height: 60,
-    backgroundColor: '#0E713E', 
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    backgroundColor: '#0E713E',
+    paddingHorizontal: 25,
+    paddingTop: Platform.OS === 'android' ? 0 : 75,
+    paddingBottom: 15,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between'
   },
   headerTitle: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    fontSize: 16,
-    flex: 1,
-    textAlign: 'center',
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '900',
   },
   headerButton: {
     padding: 5,

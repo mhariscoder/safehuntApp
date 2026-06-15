@@ -18,7 +18,7 @@ import { useHuntingJournal } from '../hooks/useHuntingJournal';
 import Geolocation from '@react-native-community/geolocation';
 
 const ASSETS = {
-  backIcon: require('../../assets/back_black.png'),
+  backIcon: require('../../assets/back_white.png'),
   moreIcon: require('../../assets/more_vert_black.png'),
   locationIcon: require('../../assets/location_green.png'),
   weatherIcon: require('../../assets/weather_icon.png'),
@@ -308,16 +308,24 @@ const NewNoteScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: {
-    height: 60, 
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 25,
-    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  container: {
+    flex: 1,
+    backgroundColor: '#FCFAF0',
   },
-  headerTitle: { color: '#000000', fontSize: 16, fontWeight: '900' },
+  header: {
+    backgroundColor: '#0E713E',
+    paddingHorizontal: 25,
+    paddingTop: Platform.OS === 'android' ? 0 : 75,
+    paddingBottom: 25,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between'
+  },
+  headerTitle: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
   iconBack: { width: 22, height: 22, marginRight: 15, resizeMode: 'contain' },
   iconMore: { width: 20, height: 20, resizeMode: 'contain' },

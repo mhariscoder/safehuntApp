@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { useHuntingJournal } from '../hooks/useHuntingJournal';
 import { useAppSelector } from '../app/store/hooks';
@@ -23,6 +24,7 @@ const ASSETS = {
   weatherIcon: require('../../assets/weather_sun.png'),
   moreIcon: require('../../assets/more_vert.png'),
   addNoteIcon: require('../../assets/add_note_icon.png'),
+  closeIcon: require('../../assets/close_icon.png'), // Added close asset path
 };
 
 const JournalEntry = ({
@@ -128,6 +130,7 @@ const HuntingJournalScreen = () => {
 
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false); // Toggle visibility state
   const [refreshing, setRefreshing] = useState(false);
   const [groupedJournals, setGroupedJournals] = useState<{ [key: string]: any[] }>({});
 
@@ -151,6 +154,11 @@ const HuntingJournalScreen = () => {
     setRefreshing(true);
     await loadJournals();
     setRefreshing(false);
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setShowSearch(false);
   };
 
   const handleToggleMenu = (id: number) => {
@@ -221,12 +229,13 @@ const HuntingJournalScreen = () => {
     }
   }, [journals, searchQuery]);
 
-  // ✅ Log journals to debug
+  // Log journals to debug
   React.useEffect(() => {
     console.log('Journals data:', JSON.stringify(journals, null, 2));
   }, [journals]);
 
   const showLoadingInList = isLoading && journals.length === 0;
+  const hasFilteredResults = Object.keys(groupedJournals).length > 0;
 
   return (
     <View style={styles.container}>
@@ -238,22 +247,41 @@ const HuntingJournalScreen = () => {
             style={styles.backButton}
           >
             <Image source={ASSETS.backIcon} style={styles.headerIcon} />
+            <Text style={styles.headerTitle}>Hunting Journal</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Hunting Journal</Text>
+          
+          <TouchableOpacity
+            style={styles.searchToggleButton}
+            onPress={() => {
+              setShowSearch(!showSearch);
+              if (!showSearch) {
+                setSearchQuery('');
+              }
+            }}
+          >
+            <Image source={ASSETS.searchIcon} style={styles.headerSearchIcon} />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.searchContainer}>
-          <TextInput
-            placeholder="Search..."
-            placeholderTextColor="#999"
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          <TouchableOpacity style={styles.searchButton}>
-            <Image source={ASSETS.searchIcon} style={styles.searchIcon} />
-          </TouchableOpacity>
-        </View>
+        {/* CONDITIONALLY RENDERED SEARCH INPUT */}
+        {showSearch && (
+          <View style={styles.searchContainer}>
+            <Image source={ASSETS.searchIcon} style={styles.inlineSearchIcon} />
+            <TextInput
+              placeholder="Search journals..."
+              placeholderTextColor="#999"
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus={true}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={handleClearSearch}>
+                <Image source={ASSETS.closeIcon} style={styles.clearIcon} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       <ScrollView
@@ -269,26 +297,37 @@ const HuntingJournalScreen = () => {
             <Text style={styles.loadingText}>Loading your journals...</Text>
           </View>
         ) : journals && journals.length > 0 ? (
-          Object.entries(groupedJournals).map(([month, monthJournals]) => (
-            <View key={month}>
-              <Text style={styles.sectionTitle}>{month}</Text>
-              {monthJournals.map((journal) => (
-                <JournalEntry
-                  key={journal?.id?.toString() || Math.random().toString()}
-                  id={journal?.id || 0}
-                  title={journal?.title || 'Untitled'}
-                  date={journal?.date || journal?.createdAt || new Date().toISOString()}
-                  description={journal?.description || ''}
-                  location={journal?.location?.locationText || 'Unknown Location'}
-                  weather={journal?.weather || 'Not specified'}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  activeMenu={activeMenu}
-                  onToggleMenu={handleToggleMenu}
-                />
-              ))}
+          hasFilteredResults ? (
+            Object.entries(groupedJournals).map(([month, monthJournals]) => (
+              <View key={month}>
+                <Text style={styles.sectionTitle}>{month}</Text>
+                {monthJournals.map((journal) => (
+                  <JournalEntry
+                    key={journal?.id?.toString() || Math.random().toString()}
+                    id={journal?.id || 0}
+                    title={journal?.title || 'Untitled'}
+                    date={journal?.date || journal?.createdAt || new Date().toISOString()}
+                    description={journal?.description || ''}
+                    location={journal?.location?.locationText || 'Unknown Location'}
+                    weather={journal?.weather || 'Not specified'}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    activeMenu={activeMenu}
+                    onToggleMenu={handleToggleMenu}
+                  />
+                ))}
+              </View>
+            ))
+          ) : (
+            /* FALLBACK FOR NO FILTER MATCHES */
+            <View style={styles.emptyContainer}>
+              <Image source={ASSETS.searchIcon} style={[styles.emptyIcon, { tintColor: '#CCC' }]} />
+              <Text style={styles.emptyText}>No entries found</Text>
+              <Text style={styles.emptySubtext}>
+                No results matching "{searchQuery}"
+              </Text>
             </View>
-          ))
+          )
         ) : (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No journal entries yet</Text>
@@ -312,20 +351,27 @@ const HuntingJournalScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
-  loadingContainer: { 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    paddingVertical: 50 
+  container: {
+    flex: 1,
+    backgroundColor: '#FCFAF0',
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#666',
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
   },
   header: {
     backgroundColor: '#0E713E',
-    padding: 25,
+    paddingHorizontal: 25,
+    paddingTop: Platform.OS === 'android' ? 0 : 50
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 15,
+    marginBottom: 15,
   },
   backButton: {
     flexDirection: 'row',
@@ -340,35 +386,60 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '900',
+  },
+  loadingContainer: { 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    paddingVertical: 50 
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#666',
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 15,
     marginTop: 10,
+  },
+  searchToggleButton: {
+    padding: 8,
+  },
+  headerSearchIcon: {
+    width: 20,
+    height: 20,
+    tintColor: '#FFF',
+    resizeMode: 'contain',
   },
   searchContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFF',
     borderRadius: 30,
     alignItems: 'center',
-    paddingLeft: 20,
+    paddingHorizontal: 15,
     height: 45,
+    marginTop: 5,
+    marginBottom: 15,
+  },
+  inlineSearchIcon: {
+    width: 18,
+    height: 18,
+    tintColor: '#999',
+    marginRight: 10,
   },
   searchInput: {
     flex: 1,
-    fontSize: 10,
+    fontSize: 14,
     color: '#000',
   },
-  searchButton: {
-    padding: 10,
-    marginRight: 5,
-  },
-  searchIcon: {
-    width: 20,
-    height: 20,
+  clearIcon: {
+    width: 18,
+    height: 18,
+    tintColor: '#999',
   },
   content: {
     paddingHorizontal: 20,
@@ -485,6 +556,7 @@ const styles = StyleSheet.create({
     height: 24,
   },
   emptyContainer: { alignItems: 'center', paddingTop: 50 },
+  emptyIcon: { width: 40, height: 40, marginBottom: 15 },
   emptyText: { fontSize: 16, color: '#999', marginBottom: 8 },
   emptySubtext: { fontSize: 12, color: '#CCC', textAlign: 'center' },
 });

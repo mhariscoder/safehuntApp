@@ -433,19 +433,18 @@ const SettingScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FCFAF0',
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFF',
   },
   header: {
     backgroundColor: '#0E713E',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     paddingHorizontal: 25,
-    // paddingBottom: 15,
+    paddingTop: Platform.OS === 'android' ? 0 : 50
   },
   headerTop: {
     flexDirection: 'row',

@@ -244,7 +244,7 @@ const GroupMembersModal = ({ visible, onClose, groupId, groupName, currentUserId
       transparent={false}
       onRequestClose={onClose}
     >
-      <SafeAreaView style={styles.modalContainerFull}>
+      <View style={styles.modalContainerFull}>
         <View style={styles.modalHeaderFull}>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Text style={styles.closeButtonText}>←</Text>
@@ -295,7 +295,7 @@ const GroupMembersModal = ({ visible, onClose, groupId, groupName, currentUserId
             contentContainerStyle={styles.listContentFull}
           />
         )}
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 };
@@ -1084,28 +1084,58 @@ const GroupPostsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
+  container: {
+    flex: 1,
+    backgroundColor: '#FCFAF0',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+  },
   header: {
-    height: 60,
     backgroundColor: '#0E713E',
+    paddingHorizontal: 25,
+    paddingTop: Platform.OS === 'android' ? 0 : 75,
+    paddingBottom: 15,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between'
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    marginTop: 15,
+    marginBottom: 15,
   },
-  backButton: { padding: 5 },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 10,
+    resizeMode: 'contain',
+    tintColor: '#FFF',
+  },
+  headerTitle: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
   backIcon: { width: 20, height: 20, tintColor: '#FFF', resizeMode: 'contain' },
-  headerTitle: { color: '#FFF', fontSize: 16, fontWeight: '900' },
   membersButton: { padding: 5 },
   membersButtonText: { height: 24, width: 24, tintColor: '#FFF', resizeMode: 'contain' },
-  coverImage: { width: '100%', height: 150, resizeMode: 'cover' },
+  coverImage: { width: '100%', height: 100, resizeMode: 'cover' },
   groupInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 25,
-    backgroundColor: '#FFF'
+    paddingVertical: 15,
+    paddingHorizontal: 25,
+    backgroundColor: '#FFF',
   },
   groupLogo: { width: 60, height: 60, borderRadius: 30, borderWidth: 2, borderColor: '#0E713E' },
   groupTextInfo: { flex: 1, marginLeft: 15 },
@@ -1113,7 +1143,8 @@ const styles = StyleSheet.create({
   groupDesc: { fontSize: 12, color: '#666' },
   createPostSection: {
     backgroundColor: '#0E713E',
-    padding: 25,
+    paddingVertical: 15,
+    paddingHorizontal: 25
   },
   inputContainer: { 
     flexDirection: 'row', 
@@ -1195,7 +1226,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingTop: 50,
+    paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#EEE',
   },
@@ -1232,7 +1264,7 @@ const styles = StyleSheet.create({
   leaveButtonText: { color: '#FF6B6B', fontSize: 16, fontWeight: '600' },
   pendingContainer: { backgroundColor: '#FFF3E0', marginHorizontal: 20, marginVertical: 10, padding: 12, borderRadius: 25, alignItems: 'center', borderWidth: 1, borderColor: '#FF9800' },
   pendingText: { color: '#FF9800', fontSize: 14, fontWeight: '500' },
-  adminBadge: { backgroundColor: '#E8F5E9', marginHorizontal: 20, marginVertical: 5, padding: 8, borderRadius: 20, alignItems: 'center' },
+  adminBadge: { backgroundColor: '#E8F5E9', marginHorizontal: 20, marginVertical: 5, padding: 5, borderRadius: 20, alignItems: 'center' },
   adminBadgeText: { color: '#0E713E', fontSize: 12, fontWeight: '500' },
 });
 

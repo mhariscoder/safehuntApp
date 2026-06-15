@@ -763,7 +763,12 @@ const FeedScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
-  header: { backgroundColor: '#0E713E', paddingHorizontal: 20, paddingBottom: 20 },
+  header: {
+    backgroundColor: '#0E713E',
+    paddingHorizontal: 25,
+    paddingTop: Platform.OS === 'android' ? 0 : 25,
+    paddingBottom: 20
+  },
   inputContainer: { 
     flexDirection: 'row', 
     backgroundColor: '#FFF', 

@@ -149,7 +149,9 @@ const ChangePasswordScreen = () => {
       <StatusBar barStyle="light-content" />
       <LinearGradient
         colors={['#0B733F', '#4E2D18', '#121212']}
-        locations={[0.3, 1, 0.5]}
+        locations={[0, 0.55, 1]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
 
@@ -291,7 +293,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 50,
+    marginTop: 100,
     marginBottom: 60,
   },
   backButton: { padding: 5 },

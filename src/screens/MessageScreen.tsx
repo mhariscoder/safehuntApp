@@ -600,12 +600,18 @@ const MessageScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FCFAF0',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
   },
   header: {
     backgroundColor: '#0E713E',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     paddingHorizontal: 25,
+    paddingTop: Platform.OS === 'android' ? 0 : 50
   },
   headerTop: {
     flexDirection: 'row',
@@ -613,6 +619,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 15,
     marginBottom: 15,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 10,
+    resizeMode: 'contain',
+    tintColor: '#FFF',
   },
   headerTitle: {
     color: '#FFF',

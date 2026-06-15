@@ -437,7 +437,7 @@ const ProfileScreen = () => {
               </Text>
             </View>
 
-            <View style={styles.detailItem}>
+            {/* <View style={styles.detailItem}>
               <View style={styles.detailHeader}>
                 <Text style={styles.detailLabel}>Equipment</Text>
                 <TouchableOpacity onPress={handleAddEquipment}>
@@ -458,7 +458,7 @@ const ProfileScreen = () => {
                   <Text style={styles.noEquipmentText}>No equipment added</Text>
                 )}
               </View>
-            </View>
+            </View> */}
           </View>
         );
       default:
@@ -794,28 +794,33 @@ const ProfileScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
+  container: {
+    flex: 1,
+    backgroundColor: '#FCFAF0',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+  },
   headerContainer: { height: 260, position: 'relative' },
   coverImage: { width: '100%', height: 215, resizeMode: 'cover' },
   header: {
-    height: 60,
-    backgroundColor: '#0E713E', 
+    backgroundColor: '#0E713E',
+    paddingHorizontal: 25,
+    paddingTop: Platform.OS === 'android' ? 0 : 75,
+    paddingBottom: 15,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between'
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 25,
-    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 15,
-  },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '900',
+    marginTop: 15,
+    marginBottom: 15,
   },
   backButton: {
     flexDirection: 'row',
@@ -827,6 +832,16 @@ const styles = StyleSheet.create({
     marginRight: 10,
     resizeMode: 'contain',
     tintColor: '#FFF',
+  },
+  headerTitle: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
   },
   searchCircle: {
     paddingHorizontal: 15,
