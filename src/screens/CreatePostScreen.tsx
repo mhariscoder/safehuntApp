@@ -193,16 +193,33 @@ const CreatePostScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FCFAF0',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
   },
   header: {
-    height: 60,
-    backgroundColor: '#0E713E', 
+    backgroundColor: '#0E713E',
+    paddingHorizontal: 25,
+    paddingTop: Platform.OS === 'android' ? 0 : 75,
+    paddingBottom: 15,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between'
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    marginTop: 15,
+    marginBottom: 15,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerTitle: {
     color: '#FFFFFF',

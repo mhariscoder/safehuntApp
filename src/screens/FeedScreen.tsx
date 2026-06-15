@@ -271,7 +271,10 @@ const FeedScreen = () => {
   const [isCommentModalVisible, setIsCommentModalVisible] = useState(false);
   const [modalComments, setModalComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
+  
+  // Track continuous pages and bounds checks safely
   const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   const navigation = useNavigation<any>();
@@ -297,27 +300,39 @@ const FeedScreen = () => {
 
   const flatListRef = useRef<FlatList>(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadPosts();
-    }, [])
-  );
+  useEffect(() => {
+    loadInitialPosts();
+  }, []);
 
-  const loadPosts = async () => {
+  const loadInitialPosts = async () => {
+    if (isLoading) return;
     try {
       setPage(1);
-      await getAllPosts({ page: 1, limit: 20 });
+      setHasMore(true);
+      const result = await getAllPosts({ page: 1, limit: 20 });
+      // Guard against final data sets if your API structure returns total items/pages
+      if (result && result.posts && result.posts.length < 20) {
+        setHasMore(false);
+      }
     } catch (error) {
       console.error('Error loading posts:', error);
     }
   };
 
   const loadMorePosts = async () => {
-    if (isLoadingMore || isLoading) return;
+    // Prevent execution if already querying, refreshing, or out of database entities
+    if (isLoadingMore || isLoading || !hasMore || posts.length === 0) return;
+    
     setIsLoadingMore(true);
+    const nextPage = page + 1;
+    
     try {
-      const nextPage = page + 1;
-      await getAllPosts({ page: nextPage, limit: 20 });
+      const result = await getAllPosts({ page: nextPage, limit: 20 });
+      
+      // If the backend returned fewer items than the limit, we hit the end of the collection
+      if (result && (!result.posts || result.posts.length < 20)) {
+        setHasMore(false);
+      }
       setPage(nextPage);
     } catch (error) {
       console.error('Error loading more posts:', error);
@@ -328,7 +343,7 @@ const FeedScreen = () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadPosts();
+    await loadInitialPosts();
     setRefreshing(false);
   };
 
@@ -369,7 +384,7 @@ const FeedScreen = () => {
       setCommentText('');
       const commentsData = await getCommentsByPost(selectedPost.id);
       setModalComments(commentsData.comments || []);
-      await loadPosts();
+      // Instead of sweeping back to page 1 entirely, keep current layout or silently update
       Alert.alert('Success', 'Comment added successfully');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to add comment');
@@ -432,7 +447,6 @@ const FeedScreen = () => {
               if (selectedPost) {
                 const commentsData = await getCommentsByPost(selectedPost.id);
                 setModalComments(commentsData.comments || []);
-                await loadPosts();
               }
               Alert.alert('Success', 'Comment deleted successfully');
             } catch (error: any) {
@@ -600,18 +614,14 @@ const FeedScreen = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0E713E"]} />
         }
         onEndReached={loadMorePosts}
-        onEndReachedThreshold={0.5}
+        onEndReachedThreshold={0.2} // Decreased threshold to avoid premature firing
         ListFooterComponent={renderFooter}
         ListEmptyComponent={renderEmpty}
         initialNumToRender={5}
-        maxToRenderPerBatch={3}
-        windowSize={10}
-        removeClippedSubviews={true}
-        getItemLayout={(data, index) => ({
-          length: 500,
-          offset: 500 * index,
-          index,
-        })}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS === 'android'}
+        // REMOVED fixed getItemLayout structure since heights are dynamic
       />
 
       <View style={styles.bottomNavContainer}>

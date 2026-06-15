@@ -119,7 +119,7 @@ const CreateGroupPostScreen = () => {
           <Image source={ASSETS.iconClose} style={styles.headerCloseIcon} />
         </TouchableOpacity>
         
-        <Text style={styles.headerTitle}>Create Post in {groupName}</Text>
+        <Text style={styles.headerTitle}>Create Post in Group</Text>
         
         <TouchableOpacity 
           style={styles.headerButton} 
@@ -206,7 +206,11 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#0E713E',
     paddingHorizontal: 25,
-    paddingTop: Platform.OS === 'android' ? 0 : 50
+    paddingTop: Platform.OS === 'android' ? 0 : 75,
+    paddingBottom: 15,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between'
   },
   headerTop: {
     flexDirection: 'row',

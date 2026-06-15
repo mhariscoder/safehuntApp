@@ -28,6 +28,7 @@ import {
   removeMember,
   addMember,
 } from '../features/groups/groupsActions';
+import { clearPosts } from '../features/posts/postsSlice';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const POST_IMAGE_HEIGHT = SCREEN_WIDTH * 0.8;
@@ -345,25 +346,29 @@ const GroupPostsScreen = () => {
   const [groupMembersList, setGroupMembersList] = useState<any[]>([]);
 
   const loadGroupPosts = async () => {
+    console.log('loadGroupPosts', groupId)
     try {
-      await getAllPosts({ page: 1, limit: 20, groupId: groupId });
+      if(groupId) await getAllPosts({ page: 1, limit: 20, groupId: groupId });
     } catch (error) {
       console.error('Error loading group posts:', error);
     }
   };
 
   const loadGroupMembers = async () => {
+    console.log('loadGroupMembers', groupId)
     try {
-      const result = await dispatch(getGroupMembers(groupId)).unwrap();
-      console.log('Raw group members result:', JSON.stringify(result));
-      
-      // The result might be an array directly or have a members property
-      let membersArray = result;
-      if (result && result.members) {
-        membersArray = result.members;
+      if(groupId) {
+        const result = await dispatch(getGroupMembers(groupId)).unwrap();
+        console.log('Raw group members result:', JSON.stringify(result));
+        
+        // The result might be an array directly or have a members property
+        let membersArray = result;
+        if (result && result.members) {
+          membersArray = result.members;
+        }
+        
+        setGroupMembersList(membersArray || []);
       }
-      
-      setGroupMembersList(membersArray || []);
     } catch (error) {
       console.error('Error loading group members:', error);
     }
@@ -378,7 +383,6 @@ const GroupPostsScreen = () => {
       return;
     }
     
-    // Fix: memberId is inside the member object
     const currentMember = groupMembersList.find((m: any) => {
       // Check both possible structures
       const memberId = m.memberId || m.member?.id;
@@ -405,6 +409,8 @@ const GroupPostsScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
+      dispatch(clearPosts());
+      
       loadGroupPosts();
       loadGroupMembers();
     }, [groupId])

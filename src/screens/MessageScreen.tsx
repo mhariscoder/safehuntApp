@@ -713,6 +713,7 @@ const styles = StyleSheet.create({
     minWidth: 90,
     alignItems: 'center',
     position: 'relative',
+    flex: 1
   },
   activeTab: {
     backgroundColor: '#0E713E',
