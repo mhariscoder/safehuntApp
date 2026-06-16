@@ -2,58 +2,95 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+
 	<key>CFBundleDisplayName</key>
 	<string>safehuntApp</string>
+
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
+
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
+
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+
 	<key>CFBundleSignature</key>
 	<string>????</string>
+
+	<key>CFBundleVersion</key>
+	<string>2</string>
+
+	<!-- Facebook URL Scheme -->
 	<key>CFBundleURLTypes</key>
 	<array>
+
 		<dict>
+			<key>CFBundleURLName</key>
+			<string>facebook</string>
+
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>fb1177510584104443</string>
 			</array>
 		</dict>
+
+		<!-- Google Sign In -->
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
+
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.googleusercontent.apps.1025243047759-v9ajc10u5jutq1ut2da1f2mjhis97pq6</string>
 			</array>
 		</dict>
+
 	</array>
-	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
+
+	<!-- Facebook SDK -->
 	<key>FacebookAppID</key>
 	<string>1177510584104443</string>
+
 	<key>FacebookClientToken</key>
-	<string>YOUR_FACEBOOK_CLIENT_TOKEN_HERE</string>
+	<string>2adf426750265236995f7d0b55934e9c</string>
+
 	<key>FacebookDisplayName</key>
 	<string>safehuntApp</string>
+
+	<key>FacebookAutoLogAppEventsEnabled</key>
+	<true/>
+
+	<key>FacebookAdvertiserIDCollectionEnabled</key>
+	<true/>
+
+	<!-- Facebook Query Schemes -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>fbapi</string>
 		<string>fb-messenger-share-api</string>
+		<string>fbauth2</string>
+		<string>fbshareextension</string>
 	</array>
+
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -61,24 +98,32 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>This app needs access to location to show hunting spots near you</string>
+
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app needs access to location to show hunting spots near you</string>
+
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs access to photo library to update profile pictures</string>
+
 	<key>RCTNewArchEnabled</key>
 	<true/>
+
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
+
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>
 	</array>
+
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
@@ -86,7 +131,9 @@
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
+
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+
 </dict>
 </plist>

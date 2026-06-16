@@ -37,15 +37,18 @@ const WelcomeScreen = ({ navigation }: any) => {
   
   // Connect cleanly to your auth state loading wrapper from slice
   const { isLoading: reduxLoading } = useSelector((state: RootState) => state.auth);
-  const [localLoading, setLocalLoading] = useState<boolean>(false);
+  const [loadingProvider, setLoadingProvider] = useState<
+    'google' | 'facebook' | null
+  >(null);
 
   // Combine both loading sources to prevent button interactions while processing
-  const isAuthenticating = localLoading || reduxLoading;
+  const isAuthenticating =
+  loadingProvider !== null || reduxLoading;
 
   // --- GOOGLE SIGN IN ---
   const handleGoogleSignIn = async () => {
     try {
-      setLocalLoading(true);
+      setLoadingProvider('google');
       await GoogleSignin.hasPlayServices();
       
       // 1. Fire up native Google Single Sign-On window interface
@@ -84,14 +87,14 @@ const WelcomeScreen = ({ navigation }: any) => {
       console.error('Google Sign-In Error:', error);
       Alert.alert('Google Sign-In Error', error.message || 'An error occurred.');
     } finally {
-      setLocalLoading(false);
+      setLoadingProvider(null);
     }
   };
 
   // --- FACEBOOK SIGN IN ---
   const handleFacebookSignIn = async () => {
     try {
-      setLocalLoading(true);
+      setLoadingProvider('facebook');
 
       // 1. Prompt the user to log in via native Facebook UI/Browser
       const result = await LoginManager.logInWithPermissions(['public_profile', 'email']);
@@ -138,7 +141,7 @@ const WelcomeScreen = ({ navigation }: any) => {
       console.error('Facebook Sign-In Error:', error);
       Alert.alert('Facebook Sign-In Error', error.message || 'An error occurred.');
     } finally {
-      setLocalLoading(false);
+      setLoadingProvider(null);
     }
   };
 
@@ -183,7 +186,7 @@ const WelcomeScreen = ({ navigation }: any) => {
             onPress={handleGoogleSignIn}
             disabled={isAuthenticating}
           >
-            {isAuthenticating ? (
+            {loadingProvider === 'google' ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <>
@@ -203,7 +206,7 @@ const WelcomeScreen = ({ navigation }: any) => {
             onPress={handleFacebookSignIn}
             disabled={isAuthenticating}
           >
-            {isAuthenticating ? (
+            {loadingProvider === 'facebook' ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <>
