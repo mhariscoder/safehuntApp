@@ -24,6 +24,7 @@ import { usePosts } from '../hooks/usePosts';
 import { updateUser } from '../features/auth/authActions';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { API_BASE_URL } from '../constants/config';
+import { updateUserLocal } from '../features/auth/authSlice';
 
 const { width } = Dimensions.get('window');
 
@@ -244,7 +245,22 @@ const ProfileScreen = () => {
         files.coverPhoto = coverImage;
       }
       
-      await dispatch(updateUser({ 
+      // Update the local state first for immediate feedback
+      dispatch(updateUserLocal({
+        displayname: updateData.displayname,
+        username: updateData.username,
+        bio: updateData.bio,
+        huntingExperience: updateData.huntingExperience,
+        email: updateData.email,
+        phonenumber: updateData.phonenumber,
+        skills: updateData.skills,
+        // If you have profilePhoto and coverPhoto in user state
+        ...(profileImage && { profilePhoto: profileImage.uri }),
+        ...(coverImage && { coverPhoto: coverImage.uri }),
+      }));
+      
+      // Then update on the server
+      const result = await dispatch(updateUser({ 
         userId: user?.id, 
         userData: updateData,
         files: Object.keys(files).length > 0 ? files : undefined
@@ -254,6 +270,10 @@ const ProfileScreen = () => {
       setEditModalVisible(false);
       setProfileImage(null);
       setCoverImage(null);
+      
+      // DON'T navigate back here - let the user stay on the profile screen
+      // navigation.goBack(); // Remove this line if present
+      
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to update profile');
     } finally {

@@ -27,6 +27,9 @@ const ASSETS = {
   trashIconRed: require('../../assets/trash_red.png'),
 };
 
+// Google Weather API configuration (same as TopHeader)
+const GOOGLE_WEATHER_API_KEY = 'AIzaSyDfERDiOAjbLmRs1XZYleJhmr7GJQ6lPaM';
+
 const NewNoteScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -45,57 +48,107 @@ const NewNoteScreen = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [loadingWeather, setLoadingWeather] = useState(false);
-  
+
   const isEditing = !!journalParam;
 
-  // Helper function to fetch weather and format it exactly like your payload format
-  const fetchLiveWeatherPayload = async (lat: number, lon: number) => {
+  // -------------------------------
+  // GET LOCATION NAME (OpenStreetMap) 
+  // Same as TopHeader
+  // -------------------------------
+  const getLocationName = async (lat: number, lon: number) => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
+      );
+      const data = await res.json();
+
+      const a = data?.address;
+
+      const city = a?.city || a?.town || a?.village || a?.suburb;
+      const country = a?.country;
+
+      const locationName = city && country ? `${city}, ${country}` : data?.display_name || 'Unknown';
+      
+      setLocationText(locationName);
+      return locationName;
+    } catch (error) {
+      console.warn('Failed to get location name:', error);
+      setLocationText('Unknown Location');
+      return 'Unknown Location';
+    }
+  };
+
+  // -------------------------------
+  // GOOGLE WEATHER (Same as TopHeader)
+  // Returns temperature in Fahrenheit
+  // -------------------------------
+  const fetchWeatherData = async (lat: number, lon: number) => {
     try {
       setLoadingWeather(true);
-      const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`;
-      
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'HuntingApp/1.0 (contact: [email protected])',
-        },
-      });
 
-      const data = await response.json();
-      const current = data.properties.timeseries[0];
-      
-      // 1. Get raw numeric temperature value
-      const rawTemp = Math.round(current.data.instant.details.air_temperature);
-      
-      // 2. Get symbol code (e.g., "cloudy" or "partlycloudy_day")
-      const symbolCode = current.data.next_1_hours?.summary?.symbol_code || 'clearsky_day';
-      
-      // 3. Extract the icon suffix code name (e.g., "04n", "01d")
-      // MET Norway symbols often end with parts like _day, _night, or raw numbers
-      let iconCode = '01d'; 
-      if (symbolCode.includes('cloud')) iconCode = '04n';
-      else if (symbolCode.includes('rain')) iconCode = '09d';
-      else if (symbolCode.includes('snow')) iconCode = '13d';
-      else if (symbolCode.includes('clear')) iconCode = '01d';
+      const url =
+        `https://weather.googleapis.com/v1/currentConditions:lookup` +
+        `?key=${GOOGLE_WEATHER_API_KEY}` +
+        `&location.latitude=${lat}` +
+        `&location.longitude=${lon}`;
 
-      // 4. Transform string token words to matching visual summaries (e.g., "partlycloudy_day" -> "Clouds")
-      let conditionText = 'Clear';
-      if (symbolCode.toLowerCase().includes('cloud')) conditionText = 'Clouds';
-      else if (symbolCode.toLowerCase().includes('rain')) conditionText = 'Rain';
-      else if (symbolCode.toLowerCase().includes('snow')) conditionText = 'Snow';
+      const res = await fetch(url);
+      const data = await res.json();
 
-      // FORMAT RECONSTRUCTION MATCHING: "Clouds with temp : 2°,04n"
-      const formattedWeatherString = `${conditionText} with temp : ${rawTemp}°,${iconCode}`;
+      if (!res.ok) throw new Error('Weather API failed');
+
+      // Get temperature in Celsius from API
+      const tempC = data?.temperature?.degrees ?? 0;
+      // Convert to Fahrenheit
+      const tempF = Math.round((tempC * 9) / 5 + 32);
+      
+      // Get weather condition from the API response
+      const condition = data?.condition || 'Clear';
+
+      // Format: "Clouds with temp : 72°F" - No icon code
+      const formattedWeatherString = `${condition} with temp : ${tempF}°F`;
+      
       setWeather(formattedWeatherString);
     } catch (error) {
-      console.warn("Failed to generate custom weather payload format string:", error);
-      setWeather('Clear with temp : 0°,01d'); // Fallback structure safety match
+      console.warn('Failed to fetch weather:', error);
+      setWeather('Clear with temp : 72°F'); // Fallback structure with Fahrenheit
     } finally {
       setLoadingWeather(false);
     }
   };
 
+  // -------------------------------
+  // MAIN LOCATION & WEATHER FLOW
+  // -------------------------------
+  const getLocationAndWeather = () => {
+    setLoadingWeather(true);
+
+    Geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setLatitude(latitude);
+        setLongitude(longitude);
+
+        // Fetch both location name and weather in parallel
+        await Promise.all([
+          getLocationName(latitude, longitude),
+          fetchWeatherData(latitude, longitude)
+        ]);
+      },
+      (error) => {
+        console.warn('Could not get GPS location:', error.message);
+        setLoadingWeather(false);
+        // Set fallback values with Fahrenheit
+        setLocationText('Location unavailable');
+        setWeather('Clear with temp : 72°F');
+      },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
+    );
+  };
+
   useEffect(() => {
     if (journalParam) {
+      // Editing existing journal
       setTitle(journalParam.title || '');
       setDescription(journalParam.description || '');
       setWeather(journalParam.weather || '');
@@ -103,21 +156,8 @@ const NewNoteScreen = () => {
       setLatitude(journalParam.location?.latitude ?? null);
       setLongitude(journalParam.location?.longitude ?? null);
     } else {
-      Geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lon = position.coords.longitude;
-          setLatitude(lat);
-          setLongitude(lon);
-          
-          // Trigger the weather api calculation automatically on location response
-          fetchLiveWeatherPayload(lat, lon);
-        },
-        (error) => {
-          console.warn("Could not tag fine GPS point context to new entry:", error.message);
-        },
-        { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
-      );
+      // New journal - fetch current location and weather
+      getLocationAndWeather();
     }
   }, [journalParam]);
 
@@ -132,7 +172,7 @@ const NewNoteScreen = () => {
     const journalData = {
       title: title.trim(),
       description: description.trim(),
-      weather: weather.trim(), // Saves your custom formatted weather string string data payload
+      weather: weather.trim(),
       date: new Date().toISOString(),
       location: {
         locationText: locationText.trim() || 'Unknown Location',
@@ -172,6 +212,16 @@ const NewNoteScreen = () => {
     }
   };
 
+  // Manual refresh for location and weather
+  const handleRefreshWeather = () => {
+    if (!isEditing && latitude && longitude) {
+      fetchWeatherData(latitude, longitude);
+      getLocationName(latitude, longitude);
+    } else if (!isEditing) {
+      getLocationAndWeather();
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -182,6 +232,11 @@ const NewNoteScreen = () => {
           <Image source={ASSETS.backIcon} style={styles.iconBack} />
           <Text style={styles.headerTitle}>Hunting Journal</Text>
         </TouchableOpacity>
+        {!isEditing && !loadingWeather && (
+          <TouchableOpacity onPress={handleRefreshWeather} style={styles.refreshButton}>
+            <Text style={styles.refreshText}>⟳</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -230,7 +285,7 @@ const NewNoteScreen = () => {
           <View style={styles.dataRow}>
             <Image source={ASSETS.locationIcon} style={styles.dataIcon} />
             <View>
-              <Text style={styles.dataText}>{locationText || 'Sierra National Forest'}</Text>
+              <Text style={styles.dataText}>{locationText || 'Loading location...'}</Text>
               {latitude !== null && longitude !== null && (
                 <Text style={styles.coordsText}>
                   {latitude.toFixed(5)}, {longitude.toFixed(5)}
@@ -241,7 +296,7 @@ const NewNoteScreen = () => {
 
           <View style={styles.dataRow}>
             <Image source={ASSETS.weatherIcon} style={styles.dataIcon} />
-            <Text style={styles.dataText}>{weather || 'Not specified'}</Text>
+            <Text style={styles.dataText}>{weather || 'Loading weather...'}</Text>
           </View>
         </View>
       </ScrollView>
@@ -254,7 +309,7 @@ const NewNoteScreen = () => {
           </TouchableOpacity>
         )}
         
-        <TouchableOpacity onPress={handleSave} disabled={isSaving || loadingWeather}>
+        <TouchableOpacity style={{marginLeft: 'auto'}} onPress={handleSave} disabled={isSaving || loadingWeather}>
           {isSaving ? (
             <ActivityIndicator size="small" color="#0E713E" />
           ) : (
@@ -329,18 +384,28 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
   iconBack: { width: 22, height: 22, marginRight: 15, resizeMode: 'contain' },
   iconMore: { width: 20, height: 20, resizeMode: 'contain' },
+  refreshButton: {
+    padding: 8,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20,
+  },
+  refreshText: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
   scrollContent: { paddingHorizontal: 25, paddingTop: 10 },
   titleInput: { fontSize: 24, fontWeight: 'bold', color: '#000', marginBottom: 20, padding: 0 },
   descriptionInput: { fontSize: 14, color: '#6D6A5B', minHeight: 100, marginBottom: 15, padding: 0 },
   inputWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, borderBottomWidth: 0, borderColor: '#eee' },
-  weatherInput: { fontSize: 14, color: '#6D6A5B', padding: 0 },
-  locationInput: { fontSize: 14, color: '#6D6A5B', marginBottom: 15, padding: 0 },
+  weatherInput: { fontSize: 14, color: '#6D6A5B', padding: 0, display: 'none' },
+  locationInput: { fontSize: 14, color: '#6D6A5B', marginBottom: 15, padding: 0, display: 'none' },
   dataContainer: { marginTop: 10 },
   dataRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   dataIcon: { width: 18, height: 18, marginRight: 15, resizeMode: 'contain' },
   dataText: { fontSize: 10, color: '#333', fontWeight: '500' },
   coordsText: { fontSize: 9, color: '#777', marginTop: 2 },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, paddingVertical: 20, backgroundColor: '#FFFFFF' },
+  footer: { flexDirection: 'row', paddingHorizontal: 25, paddingVertical: 20, backgroundColor: '#FFFFFF' },
   footerIcon: { width: 24, height: 24, tintColor: '#0E713E', resizeMode: 'contain' },
   modalOverlay: {
     flex: 1,

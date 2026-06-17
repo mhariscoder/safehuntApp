@@ -50,37 +50,37 @@ PODS:
     - FBSDKCoreKit (= 18.0.3)
   - FBSDKShareKit (18.0.3):
     - FBSDKCoreKit (= 18.0.3)
-  - Firebase/Auth (12.11.0):
+  - Firebase/Auth (12.10.0):
     - Firebase/CoreOnly
-    - FirebaseAuth (~> 12.11.0)
-  - Firebase/CoreOnly (12.11.0):
-    - FirebaseCore (~> 12.11.0)
-  - FirebaseAppCheckInterop (12.11.0)
-  - FirebaseAuth (12.11.0):
-    - FirebaseAppCheckInterop (~> 12.11.0)
-    - FirebaseAuthInterop (~> 12.11.0)
-    - FirebaseCore (~> 12.11.0)
-    - FirebaseCoreExtension (~> 12.11.0)
+    - FirebaseAuth (~> 12.10.0)
+  - Firebase/CoreOnly (12.10.0):
+    - FirebaseCore (~> 12.10.0)
+  - FirebaseAppCheckInterop (12.10.0)
+  - FirebaseAuth (12.10.0):
+    - FirebaseAppCheckInterop (~> 12.10.0)
+    - FirebaseAuthInterop (~> 12.10.0)
+    - FirebaseCore (~> 12.10.0)
+    - FirebaseCoreExtension (~> 12.10.0)
     - GoogleUtilities/AppDelegateSwizzler (~> 8.1)
     - GoogleUtilities/Environment (~> 8.1)
     - GTMSessionFetcher/Core (< 6.0, >= 3.4)
     - RecaptchaInterop (~> 101.0)
-  - FirebaseAuthInterop (12.11.0)
-  - FirebaseCore (12.11.0):
-    - FirebaseCoreInternal (~> 12.11.0)
+  - FirebaseAuthInterop (12.10.0)
+  - FirebaseCore (12.10.0):
+    - FirebaseCoreInternal (~> 12.10.0)
     - GoogleUtilities/Environment (~> 8.1)
     - GoogleUtilities/Logger (~> 8.1)
-  - FirebaseCoreExtension (12.11.0):
-    - FirebaseCore (~> 12.11.0)
-  - FirebaseCoreInternal (12.11.0):
+  - FirebaseCoreExtension (12.10.0):
+    - FirebaseCore (~> 12.10.0)
+  - FirebaseCoreInternal (12.10.0):
     - "GoogleUtilities/NSData+zlib (~> 8.1)"
   - Google-Maps-iOS-Utils (6.1.0):
     - GoogleMaps (~> 9.0)
   - GoogleMaps (9.4.0):
     - GoogleMaps/Maps (= 9.4.0)
   - GoogleMaps/Maps (9.4.0)
-  - GoogleSignIn (9.1.0):
-    - AppAuth (~> 2.0)
+  - GoogleSignIn (9.2.0):
+    - AppAuth (~> 2.1)
     - AppCheckCore (~> 11.0)
     - GTMAppAuth (~> 5.0)
     - GTMSessionFetcher/Core (~> 3.3)
@@ -1794,6 +1794,28 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - react-native-webview (13.16.1):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - React-NativeModulesApple (0.85.2):
     - hermes-engine
     - React-callinvoker
@@ -2202,8 +2224,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - RNFBApp (24.1.0):
-    - Firebase/CoreOnly (= 12.11.0)
+  - RNFBApp (24.1.1):
+    - Firebase/CoreOnly (= 12.10.0)
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2225,8 +2247,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - RNFBAuth (24.1.0):
-    - Firebase/Auth (= 12.11.0)
+  - RNFBAuth (24.1.1):
+    - Firebase/Auth (= 12.10.0)
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2484,6 +2506,7 @@ DEPENDENCIES:
   - "react-native-netinfo (from `../node_modules/@react-native-community/netinfo`)"
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - "react-native-slider (from `../node_modules/@react-native-community/slider`)"
+  - react-native-webview (from `../node_modules/react-native-webview`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../node_modules/react-native/ReactCommon/react/networking`)
   - React-oscompat (from `../node_modules/react-native/ReactCommon/oscompat`)
@@ -2657,6 +2680,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-safe-area-context"
   react-native-slider:
     :path: "../node_modules/@react-native-community/slider"
+  react-native-webview:
+    :path: "../node_modules/react-native-webview"
   React-NativeModulesApple:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios"
   React-networking:
@@ -2758,16 +2783,16 @@ SPEC CHECKSUMS:
   FBSDKGamingServicesKit: fbf065fa50428f30d05417009d6c7ef76352110a
   FBSDKLoginKit: 66d20fcb7afcafc0c420477662f96845cd1a5179
   FBSDKShareKit: 837e908192dd6dc8f34aea673e62bb9570f75a99
-  Firebase: 3c3a624c4eb42b091c32590a87678cfee193c9c5
-  FirebaseAppCheckInterop: d9b5acb52c1141697215d08f719c332ed4740d8e
-  FirebaseAuth: d510c93904adc3d172d01c163bff76d6ecdacf3f
-  FirebaseAuthInterop: 8a470f4fee5a66c628e9cc4ffd3f3afa73672178
-  FirebaseCore: 1b39aa6e67b4b4d5771045abf9c9a57a585ff1e7
-  FirebaseCoreExtension: dd75d774a2d9bc48a4e559c5b80b7c43e30d66dd
-  FirebaseCoreInternal: 26601b1134d192ef73e80c0c0110fb96477db687
+  Firebase: 99f203d3a114c6ba591f3b32263a9626e450af65
+  FirebaseAppCheckInterop: 2480ab50a070a6bc02e26e62733874361f017a11
+  FirebaseAuth: 7109e33998bbd96f983dc02b97289b535f6f4141
+  FirebaseAuthInterop: f9c841843d840cae6a7db7551452eac520ffa3bd
+  FirebaseCore: f4428e22415ea3b3eca652c2098413dabf2a23a9
+  FirebaseCoreExtension: 3473a6ec16a91aee29fb75994a86c0220d2cddf3
+  FirebaseCoreInternal: e7bbaeb00ab73011298f35ed223aa7371e212948
   Google-Maps-iOS-Utils: 0a484b05ed21d88c9f9ebbacb007956edd508a96
   GoogleMaps: 0608099d4870cac8754bdba9b6953db543432438
-  GoogleSignIn: fcee2257188d5eda57a5e2b6a715550ffff9206d
+  GoogleSignIn: e449a40a92e9f2eea56e98b5214d13725dc5a00a
   GoogleUtilities: 4f2618a4a1e762a1ee134a1e2323bba9843e06da
   GTMAppAuth: 217a876b249c3c585a54fd6f73e6b58c4f5c4238
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
@@ -2820,6 +2845,7 @@ SPEC CHECKSUMS:
   react-native-netinfo: a05f9b897e76ad24b53f615fed1cbb731932363d
   react-native-safe-area-context: 0bbcdfba5c4a1b3203276f1ed9128e3239fdf199
   react-native-slider: b15258ac3d287a5951f76b11497d659ed20c0def
+  react-native-webview: 2a4da2e03d3ec2c731c4d1a389cb86aaa4902167
   React-NativeModulesApple: 993744f42aab769eb02bf5d256b6767c546d0bb5
   React-networking: 723406be4a3bd0ff5f28442e1486704c3ecfe4f4
   React-oscompat: ed8fa636665935e962d4091180ba6f07dcad7ea9
@@ -2856,8 +2882,8 @@ SPEC CHECKSUMS:
   ReactNativeDependencies: 2cb2557d8356859dc1b3817373854c094527ad86
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
   RNBootSplash: 35737b991b457c29bc815937c53fab65ec58d4d8
-  RNFBApp: aa6838973c5f868d6744bc0aa274823ba9b20388
-  RNFBAuth: 78715bc0d02107b708538992cebe0c25bdc293f0
+  RNFBApp: b6ff63eaeb1bf85585fce3d25b7d123178fac05e
+  RNFBAuth: c7f1c1e48d92a627616dee98180623f21632c887
   RNGoogleSignin: 6fa1cf7f7fb24d68cc41a89bd6370f302bbe2dcc
   RNKeychain: d57edf101a72acf3ae85fe4d796eed1d951d2a90
   RNPermissions: 5c2ffb518e7c01d1b34f2543741844e77471ae42

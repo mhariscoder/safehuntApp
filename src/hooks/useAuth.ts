@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../app/store/hooks';
 import { login, signup, logout, resetPassword } from '../features/auth/authActions';
 import { updateUser, clearError } from '../features/auth/authSlice';
@@ -23,6 +24,7 @@ export const useAuth = () => {
   };
 
   const handleUpdateUser = (userData: Partial<any>) => {
+    Alert.alert('')
     dispatch(updateUser(userData));
   };
 

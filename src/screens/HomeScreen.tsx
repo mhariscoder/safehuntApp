@@ -574,7 +574,7 @@ const HomeScreen = () => {
               </View>
             )}
 
-          <View style={{ marginTop: 'auto', marginBottom: 20, width: '100%' }}>
+          <View style={{ marginTop: 'auto', marginBottom: 10, width: '100%' }}>
             <View style={styles.sliderContainer}>
               {/* <Text style={styles.zoomLabel}>Map Range Metric: {currentZoomLabel}</Text> */}
               <Slider
@@ -612,7 +612,7 @@ const HomeScreen = () => {
           </View>
           {/* </View> */}
 
-          <BottomTabNav containerStyle={{ marginBottom: 30 }}/>
+          <BottomTabNav containerStyle={{ marginBottom: 15 }}/>
         </View>
       </View>
     </View>
@@ -625,7 +625,7 @@ const styles = StyleSheet.create({
   loadingText: { color: '#FFF', marginTop: 10, fontSize: 14 },
   mapContainer: { flex: 1, position: 'relative' },
   map: { flex: 1 },
-  overlayContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'space-between', paddingHorizontal: 25 },
+  overlayContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'space-between', paddingHorizontal: 20 },
   mapFrame: { flex: 1, marginBottom: 50, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 30, backgroundColor: 'rgba(48, 78, 24, 0.15)', justifyContent: 'flex-end', alignItems: 'center', padding: 15, position: 'relative' },
   sliderContainer: { 
     width: '100%', 
@@ -634,15 +634,15 @@ const styles = StyleSheet.create({
     borderRadius: 12, 
     // paddingVertical: 8, 
     // paddingHorizontal: 12, 
-    marginBottom: 10 
+    // marginBottom: 10 
   },
-  zoomLabel: { color: '#FFF', fontSize: 12, marginBottom: 4, fontWeight: '600' },
+  zoomLabel: { color: '#FFF', fontSize: 12, fontWeight: '600' },
   zoomPresets: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 0, gap: 8 },
-  zoomPresetButton: { flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
+  zoomPresetButton: { flex: 1, borderRadius: 8, alignItems: 'center' },
   zoomPresetButtonActive: { 
     // backgroundColor: '#0E713E' 
   },
-  zoomPresetText: { color: '#4D3626', fontSize: 18 },
+  zoomPresetText: { color: '#4D3626', fontSize: 14 },
   zoomPresetTextActive: { fontWeight: 'bold' },
   locationInfoCard: {
     backgroundColor: 'rgba(15, 15, 15, 0.98)',

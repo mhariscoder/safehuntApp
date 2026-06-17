@@ -1,6 +1,16 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { AuthState, User } from './authTypes';
-import { login, signup, logout, checkAuth, resetPassword, loginViaSocialToken } from './authActions';
+import { 
+  login, 
+  signup, 
+  logout, 
+  checkAuth, 
+  resetPassword, 
+  loginViaSocialToken,
+  updateUser,  // Import the updateUser action
+  changePassword,
+  deleteMyAccount
+} from './authActions';
 
 const initialState: AuthState = {
   user: null,
@@ -22,7 +32,7 @@ const authSlice = createSlice({
         state.user.subscriptionTier = action.payload as 'free' | 'premium';
       }
     },
-    updateUser: (state, action: PayloadAction<Partial<User>>) => {
+    updateUserLocal: (state, action: PayloadAction<Partial<User>>) => {
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
       }
@@ -111,6 +121,81 @@ const authSlice = createSlice({
       state.error = action.payload as string;
     });
 
+    // Update User - FIX: Update the user state with the response
+    builder.addCase(updateUser.pending, (state) => {
+      // state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(updateUser.fulfilled, (state, action) => {
+      // state.isLoading = false;
+      state.error = null;
+      
+      // Update the user state with the response data
+      if (action.payload && action.payload.data) {
+        // If the response has a nested data object
+        const updatedUser = action.payload.data.user || action.payload.data;
+        if (state.user) {
+          state.user = { ...state.user, ...updatedUser };
+        } else {
+          state.user = updatedUser;
+        }
+      } else if (action.payload && action.payload.user) {
+        // If the response has a user property
+        if (state.user) {
+          state.user = { ...state.user, ...action.payload.user };
+        } else {
+          state.user = action.payload.user;
+        }
+      } else if (action.payload && typeof action.payload === 'object') {
+        // If the response is the user object directly
+        if (state.user) {
+          state.user = { ...state.user, ...action.payload };
+        } else {
+          state.user = action.payload;
+        }
+      }
+      
+      // Update the token if it's in the response
+      if (action.payload && action.payload.token) {
+        state.token = action.payload.token;
+      }
+    });
+    builder.addCase(updateUser.rejected, (state, action) => {
+      // state.isLoading = false;
+      state.error = action.payload as string;
+    });
+
+    // Change Password
+    builder.addCase(changePassword.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(changePassword.fulfilled, (state) => {
+      state.isLoading = false;
+      state.error = null;
+    });
+    builder.addCase(changePassword.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
+    });
+
+    // Delete Account
+    builder.addCase(deleteMyAccount.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(deleteMyAccount.fulfilled, (state) => {
+      state.user = null;
+      state.token = null;
+      state.isAuthenticated = false;
+      state.isLoading = false;
+      state.error = null;
+    });
+    builder.addCase(deleteMyAccount.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
+    });
+
     // Social Login
     builder.addCase(loginViaSocialToken.pending, (state) => {
       state.isLoading = true;
@@ -130,5 +215,11 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, updateSubscription, updateUser, logoutLocal } = authSlice.actions;
+export const { 
+  clearError, 
+  updateSubscription, 
+  updateUserLocal, 
+  logoutLocal 
+} = authSlice.actions;
+
 export const authReducer = authSlice.reducer;

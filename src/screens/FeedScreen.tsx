@@ -574,11 +574,8 @@ const FeedScreen = () => {
       <View style={styles.header}>
         <TopHeader 
           onMenuPress={() => setMenuOpen(true)}
-          containerStyle={{ 
-            marginTop: 30,
-            marginBottom: 20,
-            backgroundColor: 'transparent' 
-          }}
+            onSearchPress={() => navigation.navigate('HuntingJournal')}
+            containerStyle={{ marginTop: 40, backgroundColor: 'transparent' }}
         />
 
         <TouchableOpacity 
@@ -809,7 +806,7 @@ const styles = StyleSheet.create({
   actionImage: { width: 14, height: 14, marginRight: 5, resizeMode: 'contain', tintColor: '#0E713E' },
   actionImageActive: { tintColor: '#FF6B6B' },
   bottomTabContainer: { paddingHorizontal: 25, position: 'absolute', bottom: 30, left: 0, right: 0 },
-  bottomNavContainer: { position: 'absolute', bottom: 30, left: 20, right: 20,},
+  bottomNavContainer: { position: 'absolute', bottom: 15, left: 20, right: 20,},
   commentsSection: { paddingHorizontal: 25, marginTop: 10 },
   commentDropdown: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
   allCommentsText: { fontSize: 12, fontWeight: '700', color: '#333' },

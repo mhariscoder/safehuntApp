@@ -916,7 +916,7 @@ const styles = StyleSheet.create({
   },
   bottomNavContainer: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 15,
     left: 20,
     right: 20,
   },

@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
   },
   bottomTabContainer: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 15,
     left: 20,
     right: 20,
   },
@@ -512,8 +512,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyIcon: {
-    width: 60,
-    height: 60,
+    width: 30,
+    height: 30,
     tintColor: '#CCC',
     marginBottom: 20,
   },

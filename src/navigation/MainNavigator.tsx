@@ -25,6 +25,7 @@ import BlockedUsersScreen from '../screens/BlockedUsersScreen.tsx';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen.tsx';
 import PostDetailScreen from '../screens/PostDetailScreen';
 import UserScreen from '../screens/UserScreen';
+import WindyScreen from '../screens/WindyScreen.tsx';
 import { useAppSelector } from '../app/store/hooks.ts';
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -37,7 +38,7 @@ export const MainNavigator = () => {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        animation: 'slide_from_right',
+        animation: 'fade',
         gestureEnabled: true,
       }}
     >
@@ -48,6 +49,7 @@ export const MainNavigator = () => {
       <Stack.Screen name="Notification" component={NotificationScreen} />
       <Stack.Screen name="Message" component={MessageScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="Windy" component={WindyScreen} />
       
       {/* Other Screens */}
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />

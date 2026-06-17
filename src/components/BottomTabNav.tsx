@@ -79,15 +79,15 @@ const BottomTabNav: React.FC<BottomTabNavProps> = ({ containerStyle, activeTab }
 const styles = StyleSheet.create({
   bottomNav: { 
     flexDirection: 'row', 
-    backgroundColor: '#096235B5', 
-    height: 52, 
-    borderRadius: 30, 
+    backgroundColor: '#096235e0', 
+    height: 65, 
+    borderRadius: 35, 
     alignItems: 'center', 
     paddingHorizontal: 20,
     width: '100%' 
   },
   navItem: { flex: 1, alignItems: 'center' },
-  navIcon: { height: 20, width: 20, resizeMode: 'contain' },
+  navIcon: { height: 26, width: 26, resizeMode: 'contain' },
   activeIcon: {
     tintColor: '#FFFFFF',
     transform: [{ scale: 1.1 }],

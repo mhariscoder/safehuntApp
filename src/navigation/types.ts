@@ -18,6 +18,7 @@ export type MainStackParamList = {
   Notification: undefined;
   Message: undefined;
   Profile: { userId?: string };
+  Windy: undefined;
   
   // Other screens
   CreatePost: undefined;

@@ -81,8 +81,6 @@ export const resetPassword = createAsyncThunk(
   }
 );
 
-// New actions based on your backend
-
 export const otpVerification = createAsyncThunk(
   'auth/otpVerification',
   async (data: OtpVerificationData, { rejectWithValue }) => {
@@ -119,12 +117,22 @@ export const regenerateOtp = createAsyncThunk(
   }
 );
 
+// FIX: Handle the response properly
 export const updateUser = createAsyncThunk(
   'auth/updateUser',
-  async (data: { userId: number; userData: UpdateUserData; files?: any }, { rejectWithValue }) => {
+  async (data: { userId: number|undefined; userData: UpdateUserData; files?: any }, { rejectWithValue }) => {
     try {
       const response = await authService.updateUser(data.userId, data.userData, data.files);
-      return response;
+      
+      // Return the user data from the response
+      // Adjust based on your API response structure
+      if (response && response.data) {
+        return response.data;
+      } else if (response && response.user) {
+        return response.user;
+      } else {
+        return response;
+      }
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'User update failed');
     }

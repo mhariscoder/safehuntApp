@@ -13,6 +13,7 @@ import { RootNavigator } from '../navigation/RootNavigator';
 import BootSplash from 'react-native-bootsplash';
 
 import './../config/googleAuth';
+import '@react-native-firebase/app';
 
 import { LogBox } from 'react-native';
 LogBox.ignoreLogs(['Warning: ...']); 

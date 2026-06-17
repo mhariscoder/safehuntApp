@@ -241,6 +241,28 @@ class AuthService {
         },
       });
       
+      // FIX: Return the user data from the response
+      // Update the stored user data in AsyncStorage
+      if (response.data && response.data.data) {
+        const updatedUser = response.data.data.user || response.data.data;
+        
+        // Update AsyncStorage with the new user data
+        try {
+          const storedUserJson = await AsyncStorage.getItem('user');
+          if (storedUserJson) {
+            const storedUser = JSON.parse(storedUserJson);
+            const mergedUser = { ...storedUser, ...updatedUser };
+            await AsyncStorage.setItem('user', JSON.stringify(mergedUser));
+          } else {
+            await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+          }
+        } catch (storageError) {
+          console.error('Error updating AsyncStorage:', storageError);
+        }
+        
+        return response.data;
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Update user error:', error);

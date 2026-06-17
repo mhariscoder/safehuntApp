@@ -89,6 +89,6 @@ export interface SocialLoginData {
   socialToken: string;
   email?: string;
   name?: string;
-  deviceToken?: string;
+  deviceToken?: string | any;
   deviceType?: string;
 }
