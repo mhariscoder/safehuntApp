@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   },
   bgGreen: { backgroundColor: '#0E713E' },
   bgBrown: { backgroundColor: '#4D3626' },
-  navIcon: { height: 22, width: 22 },
+  navIcon: { height: 22, width: 22, resizeMode: 'contain' },
 
   weatherBadge: {
     backgroundColor: '#FFF',

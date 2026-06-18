@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#0E713E',
     paddingHorizontal: 25,
-    paddingTop: Platform.OS === 'android' ? 0 : 75,
+    paddingTop: Platform.OS === 'android' ? 50 : 75,
     paddingBottom: 15,
     flexDirection: 'row', 
     alignItems: 'center', 

@@ -58,9 +58,9 @@ export const MainNavigator = () => {
       }
 
       // Trial started locally
-      // else if (hasStartedTrial === 'true') {
-      //   setShowSubscription(false);
-      // }
+      else if (hasStartedTrial === 'true') {
+        setShowSubscription(false);
+      }
 
       // First-time user
       else {

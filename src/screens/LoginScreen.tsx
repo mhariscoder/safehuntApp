@@ -104,7 +104,7 @@ const LoginScreen = ({ navigation }: any) => {
           
           {/* Header with Back Arrow */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <TouchableOpacity onPress={() => navigation.navigate('Welcome')} style={styles.backButton}>
               <Image source={require('../../assets/back_arrow.png')} style={styles.backArrow} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Log In</Text>

@@ -11,6 +11,7 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAppDispatch, useAppSelector } from '../app/store/hooks';
@@ -192,7 +193,7 @@ const styles = StyleSheet.create({
     minHeight: 100, 
     backgroundColor: '#0E713E', 
     paddingHorizontal: 20, 
-    paddingTop: 75,
+    paddingTop: Platform.OS === 'android' ? 50 : 75,
   },
   profileCircle: { 
     width: 50, 

@@ -25,7 +25,7 @@ export const RootNavigator = () => {
       await dispatch(checkAuth());
     };
     
-    initializeAuth();
+    // initializeAuth();
     
     // Network listener
     const unsubscribe = NetInfo.addEventListener(state => {

@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#0E713E',
     paddingHorizontal: 25,
-    paddingTop: Platform.OS === 'android' ? 0 : 50
+    paddingTop: Platform.OS === 'android' ? 25 : 50
   },
   headerTop: {
     flexDirection: 'row',
