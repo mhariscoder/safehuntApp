@@ -64,6 +64,16 @@ target 'safehuntApp' do
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        
+        # --- ENHANCED FIX FOR FIREBASE MESSAGING V24 MODULE IMPORT ERROR ---
+        if target.name == 'RNFBMessaging'
+          config.build_settings['OTHER_CFLAGS'] ||= '$(inherited) -DRNFB_DYNAMIC_FRAMEWORKS=1'
+          
+          # Force Xcode to look inside RNFBApp headers to satisfy RCTPromiseRejectBlock
+          config.build_settings['HEADER_SEARCH_PATHS'] ||= '$(inherited) '
+          config.build_settings['HEADER_SEARCH_PATHS'] << '"$(PODS_ROOT)/Headers/Public/RNFBApp" '
+          config.build_settings['HEADER_SEARCH_PATHS'] << '"$(PODS_TARGET_SRCROOT)/../RNFBApp" '
+        end
       end
     end
   end

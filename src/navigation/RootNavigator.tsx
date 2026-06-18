@@ -12,6 +12,7 @@ import { setOffline } from '../features/ui/uiSlice';
 import NetInfo from '@react-native-community/netinfo';
 import { resetAndNavigate } from './navigationRef';
 import SignUpConfirmationScreen from '../screens/SignUpConfirmationScreen';
+import { Alert } from 'react-native';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -24,7 +25,7 @@ export const RootNavigator = () => {
       await dispatch(checkAuth());
     };
     
-    // initializeAuth();
+    initializeAuth();
     
     // Network listener
     const unsubscribe = NetInfo.addEventListener(state => {
@@ -45,16 +46,18 @@ export const RootNavigator = () => {
   return (
     <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
-        {!isAuthenticated ? (
-          <Stack.Screen name="Auth" component={AuthNavigator} />
-        ) 
-        // : needsVerification ? (
-        //   // If user is authenticated but not verified, redirect to verification
-        //   <Stack.Screen name="SignUpConfirmation" component={SignUpConfirmationScreen} />
-        // ) 
-        : (
-          <Stack.Screen name="Main" component={MainNavigator} />
-        )}
+        {
+          !isAuthenticated ? (
+            <Stack.Screen name="Auth" component={AuthNavigator} />
+          ) 
+          : needsVerification ? (
+            // If user is authenticated but not verified, redirect to verification
+            <Stack.Screen name="SignUpConfirmation" component={SignUpConfirmationScreen} />
+          ) 
+          : (
+            <Stack.Screen name="Main" component={MainNavigator} />
+          )
+        }
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -1,5 +1,5 @@
 // src/navigation/MainNavigator.tsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MainStackParamList } from './types';
 import HomeScreen from '../screens/HomeScreen';
@@ -27,24 +27,86 @@ import PostDetailScreen from '../screens/PostDetailScreen';
 import UserScreen from '../screens/UserScreen';
 import WindyScreen from '../screens/WindyScreen.tsx';
 import { useAppSelector } from '../app/store/hooks.ts';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ActivityIndicator, View } from 'react-native';
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
 export const MainNavigator = () => {
-  const { isAuthenticated, isLoading, user } = useAppSelector((state) => state.auth);
-  console.log('user', user)
+  const { user } = useAppSelector(state => state.auth);
+
+  const [loading, setLoading] = useState(true);
+  const [showSubscription, setShowSubscription] = useState(true);
+
+  useEffect(() => {
+    determineAccess();
+  }, [user]);
+
+  const determineAccess = async () => {
+    try {
+      const hasStartedTrial =
+        await AsyncStorage.getItem('HAS_STARTED_TRIAL');
+
+      // Active subscription
+      if (user?.subscriptionStatus === 'SUBSCRIBED') {
+        setShowSubscription(false);
+      }
+
+      // Subscription cancelled/expired
+      else if (user?.subscriptionStatus === 'CANCEL') {
+        setShowSubscription(true);
+      }
+
+      // Trial started locally
+      // else if (hasStartedTrial === 'true') {
+      //   setShowSubscription(false);
+      // }
+
+      // First-time user
+      else {
+        setShowSubscription(true);
+      }
+    } catch (error) {
+      console.log(error);
+      setShowSubscription(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <ActivityIndicator />
+      </View>
+    );
+  }
 
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
         animation: 'fade',
-        gestureEnabled: true,
       }}
     >
-      <Stack.Screen name="Subscription" component={SubscriptionScreen} />
-      {/* Main Tab Screens - now directly in stack */}
-      <Stack.Screen name="Home" component={HomeScreen} />
+      {showSubscription ? (
+        <Stack.Screen
+          name="Subscription"
+          component={SubscriptionScreen}
+        />
+      ) : (
+        <Stack.Screen
+          name="Home"
+          component={HomeScreen}
+        />
+      )}
+
       <Stack.Screen name="Feed" component={FeedScreen} />
       <Stack.Screen name="Notification" component={NotificationScreen} />
       <Stack.Screen name="Message" component={MessageScreen} />

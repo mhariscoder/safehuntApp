@@ -14,44 +14,58 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { useAppDispatch, useAppSelector } from '../app/store/hooks';
 import { otpVerification, regenerateOtp } from '../features/auth/authActions';
-import { clearError, updateUser } from '../features/auth/authSlice';
+import { clearError, updateUserLocal } from '../features/auth/authSlice';
 
 const SignUpConfirmationScreen = ({ navigation, route }: any) => {
+  const { isLoading, error, user } = useAppSelector((state) => state.auth);
+
   const [code, setCode] = useState('');
   const [isResending, setIsResending] = useState(false);
-  const email = route?.params?.email || '';
+  const email = route?.params?.email || user?.email || '';
   
   const dispatch = useAppDispatch();
-  const { isLoading, error } = useAppSelector((state) => state.auth);
+  
 
   const handleVerifyCode = async () => {
     // Validation
     if (!code.trim()) {
-      Alert.alert('Validation Error', 'Please enter the confirmation code');
+      Alert.alert(
+        'Validation Error',
+        'Please enter the confirmation code'
+      );
       return;
     }
 
     if (code.length < 4) {
-      Alert.alert('Validation Error', 'Please enter a valid confirmation code');
+      Alert.alert(
+        'Validation Error',
+        'Please enter a valid confirmation code'
+      );
       return;
     }
 
     try {
-      // Clear any previous errors
+      // Clear previous errors
       dispatch(clearError());
-      
-      // Call the OTP verification API
-      const result = await dispatch(otpVerification({ 
-        email: email, 
-        otp: code 
-      })).unwrap();
-      
-      console.log('OTP verification response:', result);
-      
-      // Update user status to OTP_VERIFIED
-      dispatch(updateUser({ status: 'OTP_VERIFIED' }));
-      
-      // Show success message and navigate to subscription
+
+      // Verify OTP
+      const response = await dispatch(
+        otpVerification({
+          email,
+          otp: code,
+        })
+      ).unwrap();
+
+      console.log('OTP verification response:', response);
+
+      // Update local user state
+      dispatch(
+        updateUserLocal({
+          status: 'OTP_VERIFIED',
+        })
+      );
+
+      // Success message
       Alert.alert(
         'Success',
         'Email verified successfully!',
@@ -67,16 +81,22 @@ const SignUpConfirmationScreen = ({ navigation, route }: any) => {
       );
     } catch (err: any) {
       console.error('OTP verification error:', err);
-      
-      // Show error message from API
-      let errorMessage = 'Invalid verification code. Please try again.';
+
+      let errorMessage =
+        'Invalid verification code. Please try again.';
+
       if (typeof err === 'string') {
         errorMessage = err;
-      } else if (err.message) {
+      } else if (err?.message) {
         errorMessage = err.message;
+      } else if (err) {
+        errorMessage = String(err);
       }
-      
-      Alert.alert('Verification Failed', errorMessage);
+
+      Alert.alert(
+        'Verification Failed',
+        errorMessage
+      );
     }
   };
 

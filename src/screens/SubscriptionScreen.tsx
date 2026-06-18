@@ -14,17 +14,79 @@ import {
   Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { useIAP, ErrorCode } from 'react-native-iap';
+import { useIAP, ErrorCode, type Purchase } from 'react-native-iap';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../constants/config';
 
 const { width } = Dimensions.get('window');
 
+// iOS: safeHuntSubscriptionPro (from App Store Connect)
+// Android: safe_hunt_subscription_pro (from Google Play Console)
 const SUBSCRIPTION_IDS =
   Platform.OS === 'ios'
-    ? ['SafeHuntSubscription']
+    ? ['safeHuntSubscriptionPro']
     : ['safe_hunt_subscription_pro'];
 
 const SubscriptionScreen = ({ navigation }: any) => {
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Verify Google Play subscription (Android)
+  const verifyGoogleSubscription = async (purchase: Purchase) => {
+    try {
+      const token = purchase?.purchaseToken || purchase?.transactionReceipt;
+      const packageName = 'com.safehunt.app'; // Replace with your actual package name
+      const productId = purchase?.productId || purchase?.sku;
+
+      const response = await fetch(
+        `${API_BASE_URL}/in-app-purchase/verify-google-subscription`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            token,
+            packageName,
+            productId,
+          }),
+        },
+      );
+
+      return await response.json();
+    } catch (error) {
+      console.log('Verify API Error:', error);
+      throw error;
+    }
+  };
+
+  // Verify Apple App Store subscription (iOS)
+  const verifyAppleSubscription = async (purchase: Purchase) => {
+    try {
+      const transactionId = purchase?.transactionId || purchase?.transactionReceipt;
+      
+      const response = await fetch(
+        `${API_BASE_URL}/in-app-purchase/verify-apple-subscription`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            transactionId,
+            productId: purchase?.productId,
+          }),
+        },
+      );
+
+      return await response.json();
+    } catch (error) {
+      console.log('Apple Verify API Error:', error);
+      throw error;
+    }
+  };
 
   const {
     connected,
@@ -35,74 +97,163 @@ const SubscriptionScreen = ({ navigation }: any) => {
     getActiveSubscriptions,
     finishTransaction: finishTransactionHook,
   } = useIAP({
-    onPurchaseSuccess: async purchase => {
+    onPurchaseSuccess: async (purchase) => {
       try {
+        console.log('✅ Purchase successful:', purchase);
+
+        // Finish the transaction
         await finishTransactionHook({
           purchase,
           isConsumable: false,
         });
 
+        // Verify subscription with backend based on platform
+        if (Platform.OS === 'android') {
+          const result = await verifyGoogleSubscription(purchase);
+          console.log('Google verify result:', result);
+        } else {
+          const result = await verifyAppleSubscription(purchase);
+          console.log('Apple verify result:', result);
+        }
+
+        // Refresh active subscriptions
         await getActiveSubscriptions(SUBSCRIPTION_IDS);
+
+        setIsPurchasing(false);
         
         Alert.alert(
-          'Success',
-          'Subscription activated successfully!',
-          [{ text: 'OK', onPress: () => navigation.navigate('Home') }]
+          '🎉 Success',
+          'Subscription activated successfully! You now have full access to Safe Hunt.',
+          [
+            { 
+              text: 'Continue', 
+              onPress: () => navigation.navigate('Home') 
+            }
+          ]
         );
       } catch (error) {
         console.log('Finish Transaction Error:', error);
-        Alert.alert('Error', 'Failed to complete transaction');
+        setIsPurchasing(false);
+        Alert.alert('Error', 'Failed to complete transaction. Please contact support.');
       }
     },
 
-    onPurchaseError: error => {
+    onPurchaseError: (error) => {
+      setIsPurchasing(false);
+      
       if (error.code === ErrorCode.UserCancelled) {
+        console.log('User cancelled purchase');
         return;
       }
+      
       Alert.alert(
         'Purchase Failed',
         error.message || 'Something went wrong. Please try again.',
       );
     },
     
-    onError: error => {
+    onError: (error) => {
       console.error('IAP Error:', error);
-      Alert.alert('Error', error.message);
+      setIsPurchasing(false);
+      setErrorMessage(error.message || 'An unexpected error occurred');
+      Alert.alert('Error', error.message || 'An unexpected error occurred');
     },
   });
 
-  // Load subscriptions when connected status turns true
+  // Load subscriptions when connected
   useEffect(() => {
     if (connected) {
       loadSubscriptions();
     }
   }, [connected]);
 
-  // FIXED: Accessing item.id to match your Google Play response object structure
+  // Set default selected plan when subscriptions load
   useEffect(() => {
     if (subscriptions && subscriptions.length > 0) {
-      const firstProductId = subscriptions[0].id || subscriptions[0].productId;
+      const firstProductId = subscriptions[0]?.productId || subscriptions[0]?.id;
       if (firstProductId) {
         setSelectedPlanId(firstProductId);
+        setErrorMessage(null);
       }
-    } else if (connected) {
-      setSelectedPlanId(SUBSCRIPTION_IDS[0]);
+    } else if (connected && !loadingProducts) {
+      // If connected but no subscriptions, show error
+      setErrorMessage('No subscription products found. Please check your product configuration.');
     }
-  }, [subscriptions, connected]);
+  }, [subscriptions, connected, loadingProducts]);
 
+  // Load subscription products from store with better error handling
   const loadSubscriptions = async () => {
     try {
-      await fetchProducts({
-        skus: SUBSCRIPTION_IDS,
-        type: 'subs',
-      });
-      await getActiveSubscriptions(SUBSCRIPTION_IDS);
+      setLoadingProducts(true);
+      setErrorMessage(null);
+      
+      console.log('📱 Loading subscriptions for platform:', Platform.OS);
+      console.log('📦 Subscription IDs:', SUBSCRIPTION_IDS);
+      console.log('🔗 Connected status:', connected);
+      
+      // First, check if the store is ready
+      if (!connected) {
+        console.warn('⚠️ Store not connected yet');
+        return;
+      }
+
+      // Try to fetch products with error handling
+      try {
+        await fetchProducts({
+          skus: SUBSCRIPTION_IDS,
+          type: 'subs',
+        });
+        console.log('✅ Products fetched successfully:', subscriptions.length);
+      } catch (fetchError) {
+        console.error('❌ Fetch products error:', fetchError);
+        // Try alternative approach for Android
+        if (Platform.OS === 'android') {
+          console.log('🔄 Trying alternative approach for Android...');
+          try {
+            await fetchProducts({
+              skus: SUBSCRIPTION_IDS,
+              type: 'inapp', // Try as in-app for Android
+            });
+            console.log('✅ Alternative approach succeeded');
+          } catch (altError) {
+            console.error('❌ Alternative approach failed:', altError);
+            throw altError;
+          }
+        } else {
+          throw fetchError;
+        }
+      }
+      
+      // Check if user already has active subscriptions
+      try {
+        const active = await getActiveSubscriptions(SUBSCRIPTION_IDS);
+        console.log('Active subscriptions:', active);
+        
+        if (active && active.length > 0) {
+          console.log('User already has active subscription');
+          // navigation.navigate('Home');
+        }
+      } catch (activeError) {
+        console.warn('Could not fetch active subscriptions:', activeError);
+      }
+      
     } catch (error) {
-      console.error('Error loading subscriptions:', error);
-      Alert.alert('Error', 'Failed to load subscription options from store');
+      console.error('❌ Error loading subscriptions:', error);
+      setErrorMessage(`Failed to load subscriptions: ${error.message || 'Unknown error'}`);
+      Alert.alert(
+        'Error Loading Subscriptions',
+        'Failed to load subscription options. Please check your internet connection and try again.',
+        [
+          { text: 'Retry', onPress: loadSubscriptions },
+          { text: 'Continue to Trial', onPress: handleContinueTrial }
+        ]
+      );
+    } finally {
+      setLoadingProducts(false);
     }
   };
 
+  // Handle purchase request
   const handlePurchase = async () => {
     if (!selectedPlanId) {
       Alert.alert('Select Subscription', 'Please select a plan first');
@@ -114,25 +265,88 @@ const SubscriptionScreen = ({ navigation }: any) => {
       return;
     }
 
+    if (isPurchasing) {
+      return;
+    }
+
     try {
-      await requestPurchase({
-        request: {
-          ios: { sku: selectedPlanId },
-          android: { skus: [selectedPlanId] },
-        },
+      setIsPurchasing(true);
+      console.log('🛒 Starting purchase for:', selectedPlanId);
+      console.log('📱 Platform:', Platform.OS);
+      
+      // Build purchase request
+      const purchaseRequest: any = {
         type: 'subs',
-      });
+        request: {},
+      };
+
+      if (Platform.OS === 'ios') {
+        purchaseRequest.request.ios = { 
+          sku: selectedPlanId 
+        };
+        console.log('🍎 iOS purchase request:', purchaseRequest);
+      } else if (Platform.OS === 'android') {
+        purchaseRequest.request.android = { 
+          skus: [selectedPlanId] 
+        };
+        console.log('🤖 Android purchase request:', purchaseRequest);
+      }
+
+      await requestPurchase(purchaseRequest);
+      console.log('✅ Purchase request sent successfully');
     } catch (error: any) {
-      console.error('Purchase error:', error);
+      console.error('❌ Purchase error:', error);
+      setIsPurchasing(false);
+      
       Alert.alert(
         'Purchase Error',
-        error.message || 'Failed to start purchase process'
+        error.message || 'Failed to start purchase process. Please try again.'
       );
     }
   };
 
-  // Loading Screen while connecting to Store Billing System
-  if (!connected) {
+  // Handle free trial continuation
+  const handleContinueTrial = async () => {
+    try {
+      await AsyncStorage.setItem('HAS_STARTED_TRIAL', 'true');
+      
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
+    } catch (error) {
+      console.log('Error saving trial state:', error);
+    }
+  };
+
+  // Handle restore purchases (iOS specific)
+  const handleRestorePurchases = async () => {
+    try {
+      console.log('🔄 Restoring purchases...');
+      const active = await getActiveSubscriptions(SUBSCRIPTION_IDS);
+      
+      if (active && active.length > 0) {
+        Alert.alert(
+          'Success', 
+          'Your subscriptions have been restored!',
+          [
+            { 
+              text: 'Continue', 
+              onPress: () => navigation.navigate('Home') 
+            }
+          ]
+        );
+      } else {
+        Alert.alert('No Subscriptions', 'No active subscriptions found to restore.');
+      }
+    } catch (error) {
+      console.error('Restore error:', error);
+      Alert.alert('Error', 'Failed to restore purchases. Please try again.');
+    }
+  };
+
+  // Loading Screen
+  if (!connected || loadingProducts) {
     return (
       <View style={styles.loaderContainer}>
         <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -141,7 +355,9 @@ const SubscriptionScreen = ({ navigation }: any) => {
           style={StyleSheet.absoluteFill}
         />
         <ActivityIndicator size="large" color="#0E713E" />
-        <Text style={styles.loaderText}>Connecting to billing service...</Text>
+        <Text style={styles.loaderText}>
+          {!connected ? 'Connecting to billing service...' : 'Loading subscription options...'}
+        </Text>
       </View>
     );
   }
@@ -160,15 +376,21 @@ const SubscriptionScreen = ({ navigation }: any) => {
         <View style={styles.content}>
           {/* Header Section */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <TouchableOpacity 
+              onPress={() => navigation.goBack()} 
+              style={styles.backButton}
+              disabled={isPurchasing}
+            >
               <Image source={require('../../assets/back_arrow.png')} style={styles.backArrow} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Safe Hunt Subscription</Text>
             <View style={{ width: 40 }} /> 
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            contentContainerStyle={styles.scrollContent}
+          >
             {/* Hero Image */}
             <View style={styles.heroWrapper}>
               <Image
@@ -191,16 +413,36 @@ const SubscriptionScreen = ({ navigation }: any) => {
                 <FeatureRow text="Lorem ipsum dolor sit amet" />
               </View>
 
+              {/* Error Message */}
+              {errorMessage && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
+                  <TouchableOpacity 
+                    style={styles.retryButton} 
+                    onPress={loadSubscriptions}
+                  >
+                    <Text style={styles.retryButtonText}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* Dynamic Subscriptions mapping */}
-              {subscriptions.length === 0 ? (
+              {subscriptions.length === 0 && !errorMessage ? (
                 <View style={styles.loadingPlansCard}>
                   <ActivityIndicator size="small" color="#0E713E" />
                   <Text style={styles.loadingPlansText}>Loading subscription options...</Text>
                 </View>
+              ) : subscriptions.length === 0 && errorMessage ? (
+                <View style={styles.noPlansCard}>
+                  <Text style={styles.noPlansEmoji}>📦</Text>
+                  <Text style={styles.noPlansTitle}>No Subscription Plans Available</Text>
+                  <Text style={styles.noPlansText}>
+                    Please check your product configuration in App Store Connect or Google Play Console.
+                  </Text>
+                </View>
               ) : (
-                subscriptions.map(item => {
-                  // FIXED: Fallback checklist to catch .id instead of missing .productId field
-                  const currentId = item.id || item.productId;
+                subscriptions.map((item) => {
+                  const currentId = item.productId || item.id;
                   const isSelected = selectedPlanId === currentId;
 
                   return (
@@ -209,6 +451,7 @@ const SubscriptionScreen = ({ navigation }: any) => {
                       activeOpacity={0.9}
                       style={[styles.planBox, isSelected && styles.selectedPlanBorder]} 
                       onPress={() => setSelectedPlanId(currentId)}
+                      disabled={isPurchasing}
                     >
                       <View style={styles.radioCircle}>
                         {isSelected && (
@@ -217,10 +460,13 @@ const SubscriptionScreen = ({ navigation }: any) => {
                       </View>
                       <View style={styles.planInfo}>
                         <Text style={styles.priceText}>
-                          {item.displayPrice || item.localizedPrice || item.price}
+                          {item.displayPrice || item.localizedPrice || item.price || 'Price Unavailable'}
                         </Text>
                         <Text style={styles.subText}>
-                          {item.title || 'Premium Access'}
+                          {item.title || item.description || 'Premium Access'}
+                        </Text>
+                        <Text style={styles.platformTag}>
+                          {Platform.OS === 'ios' ? '🍎 Apple App Store' : '🤖 Google Play Store'}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -228,32 +474,59 @@ const SubscriptionScreen = ({ navigation }: any) => {
                 })
               )}
 
-              {/* DEBUGGER ELEMENT */}
-              {/* <Text style={styles.debugText}>
-                [DEBUG] Count: {subscriptions.length} | ID Selected: {selectedPlanId || 'None'}
-              </Text> */}
-
               {/* Proceed Button */}
               <TouchableOpacity 
                 style={[
                   styles.proceedButton,
-                  (!selectedPlanId || subscriptions.length === 0) && styles.buttonDisabled
+                  (!selectedPlanId || subscriptions.length === 0 || isPurchasing) && styles.buttonDisabled
                 ]}
                 onPress={handlePurchase}
-                disabled={!selectedPlanId || subscriptions.length === 0}
+                disabled={!selectedPlanId || subscriptions.length === 0 || isPurchasing}
               >
-                <Text style={styles.proceedText}>Proceed</Text>
+                {isPurchasing ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.proceedText}>Subscribe Now</Text>
+                )}
               </TouchableOpacity>
 
               {/* Continue to Trial Link */}
               <TouchableOpacity
                 style={styles.trialLinkContainer}
-                onPress={() => navigation.navigate('Home')}
+                onPress={handleContinueTrial}
+                disabled={isPurchasing}
               >
                 <Text style={styles.trialLinkText}>
-                  Continue to Trial
+                  Continue with Free Trial
                 </Text>
               </TouchableOpacity>
+
+              {/* Restore Purchases (iOS specific) */}
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity
+                  style={styles.restoreButton}
+                  onPress={handleRestorePurchases}
+                  disabled={isPurchasing}
+                >
+                  <Text style={styles.restoreText}>Restore Purchases</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Debug Info */}
+              <View style={styles.debugContainer}>
+                <Text style={styles.debugText}>
+                  Platform: {Platform.OS}
+                </Text>
+                <Text style={styles.debugText}>
+                  Product IDs: {SUBSCRIPTION_IDS.join(', ')}
+                </Text>
+                <Text style={styles.debugText}>
+                  Subscriptions found: {subscriptions.length}
+                </Text>
+                <Text style={styles.debugText}>
+                  Connected: {connected ? 'Yes' : 'No'}
+                </Text>
+              </View>
             </View>
           </ScrollView>
         </View>
@@ -262,6 +535,7 @@ const SubscriptionScreen = ({ navigation }: any) => {
   );
 };
 
+// Feature Row Component
 const FeatureRow = ({ text }: { text: string }) => (
   <View style={styles.featureRow}>
     <Text style={styles.checkMark}>✓</Text>
@@ -291,53 +565,51 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 100,
+    marginTop: 50,
+    marginBottom: 20,
   },
   backButton: {
-    //  padding: 10 
+    padding: 10,
   },
   backArrow: { width: 21, height: 21, resizeMode: 'contain' },
   headerTitle: { color: '#FFF', fontSize: 20, fontWeight: '700' },
   scrollContent: { paddingBottom: 40 },
   heroWrapper: {
     alignItems: 'center',
-    marginTop: 50,
+    marginTop: 20,
     zIndex: 10,
     elevation: 10,
-    transform: [{ scale: 1.25 }],
   },
   heroImage: {
-    width: '100%',
-    height: 250,
+    width: width - 50,
+    height: 200,
     borderRadius: 30,
   },
   whiteCard: {
     backgroundColor: '#FFF',
-    marginTop: -40,
-    borderBottomRightRadius: 30,
-    borderBottomLeftRadius: 30,
-    paddingHorizontal: 30,
+    marginTop: -20,
+    borderTopRightRadius: 30,
+    borderTopLeftRadius: 30,
+    paddingHorizontal: 25,
     paddingBottom: 30,
-    paddingTop: 50,
+    paddingTop: 30,
   },
   mainTitle: {
-    fontFamily: 'Montserrat-Bold', 
+    fontFamily: 'Montserrat-Bold',
     fontWeight: '700',
     fontSize: 14,
-    lineHeight: 17,        
-    letterSpacing: 0,
+    lineHeight: 17,
     color: '#000000',
     marginBottom: 20,
   },
   featureContainer: { marginBottom: 20 },
-  featureRow: { flexDirection: 'row', marginBottom: 15 },
+  featureRow: { flexDirection: 'row', marginBottom: 12 },
   checkMark: { color: '#1D4D2F', marginRight: 10, fontSize: 18, fontWeight: 'bold' },
   featureText: {
-    fontFamily: 'Montserrat-Regular', 
-    fontWeight: '400',              
+    fontFamily: 'Montserrat-Regular',
+    fontWeight: '400',
     fontSize: 12,
-    lineHeight: 14.4,               
-    letterSpacing: 0,
+    lineHeight: 14.4,
     color: '#4E2D18',
     flex: 1,
   },
@@ -352,14 +624,58 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
   },
+  errorContainer: {
+    backgroundColor: '#FFF3CD',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#856404',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  retryButton: {
+    backgroundColor: '#0E713E',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  retryButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  noPlansCard: {
+    padding: 30,
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  noPlansEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  noPlansTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  noPlansText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
   planBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#D3D3D3',
     borderRadius: 10,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 15,
-    marginBottom: 15,
+    marginBottom: 12,
     borderWidth: 2,
     borderColor: 'transparent',
   },
@@ -372,53 +688,75 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     backgroundColor: '#FFF',
-    marginRight: 20,
+    marginRight: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: '#1D4D2F',
   },
   checkIconText: {
     color: '#1D4D2F',
     fontWeight: '900',
-    fontSize: 22,
+    fontSize: 20,
     lineHeight: 24,
     textAlign: 'center',
   },
   planInfo: {
     flex: 1,
   },
-  priceText: { fontSize: 24, fontWeight: '900', color: '#1D4D2F' },
+  priceText: { fontSize: 22, fontWeight: '900', color: '#1D4D2F' },
   subText: { fontSize: 12, color: '#555', marginTop: 2 },
+  platformTag: {
+    fontSize: 10,
+    color: '#888',
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
   proceedButton: {
     backgroundColor: '#0E713E',
     borderRadius: 35,
-    paddingVertical: 13,
+    paddingVertical: 14,
     alignItems: 'center',
     marginTop: 10,
+    minHeight: 50,
+    justifyContent: 'center',
   },
   buttonDisabled: {
     backgroundColor: '#ccc',
     opacity: 0.6,
   },
-  proceedText: { color: '#FFF', fontSize: 14, fontWeight: 'bold' },
-  debugText: {
-    color: 'red',
-    fontSize: 11,
-    textAlign: 'center',
-    marginVertical: 8,
-    fontWeight: '600'
-  },
+  proceedText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
   trialLinkContainer: {
     alignItems: 'center',
     marginTop: 16,
   },
-
   trialLinkText: {
     fontSize: 14,
     color: '#0E713E',
     fontWeight: '600',
     textDecorationLine: 'underline',
+  },
+  restoreButton: {
+    alignItems: 'center',
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  restoreText: {
+    fontSize: 13,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  debugContainer: {
+    marginTop: 20,
+    padding: 12,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 8,
+  },
+  debugText: {
+    fontSize: 11,
+    color: '#666',
+    fontFamily: 'monospace',
+    marginBottom: 2,
   },
 });
 

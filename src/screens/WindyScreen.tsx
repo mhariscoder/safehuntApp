@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     justifyContent: 'space-between',
-    paddingHorizontal: 25,
+    paddingHorizontal: 20,
     pointerEvents: 'box-none',
   },
 

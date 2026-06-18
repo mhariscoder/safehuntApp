@@ -6,7 +6,6 @@ import GoogleMaps
 import AuthenticationServices
 import SafariServices
 import FBSDKCoreKit
-import Firebase
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -19,11 +18,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
-
-    // Firebase initialization ✅ IMPORTANT FIX
-    if FirebaseApp.app() == nil {
-      FirebaseApp.configure()
-    }
 
     // Facebook SDK Initialization
     ApplicationDelegate.shared.application(

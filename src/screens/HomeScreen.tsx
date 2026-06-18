@@ -11,31 +11,33 @@ import {
   Image,
   PermissionsAndroid,
   Alert,
+  FlatList,
 } from 'react-native';
 import MapView, {
   PROVIDER_GOOGLE,
   Marker,
   LatLng,
 } from 'react-native-maps';
-import MapViewDirections from 'react-native-maps-directions'; 
+import MapViewDirections from 'react-native-maps-directions';
 import { useNavigation } from '@react-navigation/native';
 import Geolocation from '@react-native-community/geolocation';
 import Slider from '@react-native-community/slider';
 
 import { useDispatch, useSelector } from 'react-redux';
-import { getMyJournals } from './../features/huntingJournal/huntingJournalActions'; // 🔥 Swapped to your custom active API action
-import { sendFriendRequest } from './../features/friends/friendsActions'; 
-import { updateLocation } from './../features/chat/chatActions'; 
-import { connectSocket, disconnectSocket } from './../features/chat/chatActions'; 
+import { getMyJournals } from './../features/huntingJournal/huntingJournalActions';
+import { sendFriendRequest } from './../features/friends/friendsActions';
+import { updateLocation } from './../features/chat/chatActions';
+import { connectSocket, disconnectSocket } from './../features/chat/chatActions';
 
 import SideMenu from '../components/SideMenu';
 import TopHeader from '../components/TopHeader';
 import BottomTabNav from '../components/BottomTabNav';
+import ChatService from '../features/chat/chatService';
 
 const { width, height } = Dimensions.get('window');
 
-const IMAGE_SERVER_BASE_URL = 'https://your-api-domain.com'; 
-const GOOGLE_MAPS_APIKEY = 'AIzaSyDfERDiOAjbLmRs1XZYleJhmr7GJQ6lPaM'; 
+const IMAGE_SERVER_BASE_URL = 'https://your-api-domain.com';
+const GOOGLE_MAPS_APIKEY = 'AIzaSyDfERDiOAjbLmRs1XZYleJhmr7GJQ6lPaM';
 
 interface LocationMarker {
   id: string;
@@ -44,16 +46,28 @@ interface LocationMarker {
   description: string;
   type: string;
   weather?: string;
+  isJournal?: boolean;
   user?: {
     id: string;
     displayname: string;
     username: string;
     email: string;
     profilePhoto: string | null;
-    io: string;
+    bio: string;
     huntingExperience: string;
     skills: string[];
   };
+}
+
+interface NearbyUser {
+  id: string;
+  displayname: string;
+  username: string;
+  profilePicture?: string;
+  currentLatitude: number;
+  currentLongitude: number;
+  distance?: number;
+  friendRequestStatus?: 'pending' | 'accepted' | 'none';
 }
 
 const ZOOM_OPTIONS = [
@@ -69,36 +83,46 @@ const HomeScreen = () => {
   const dispatch = useDispatch<any>();
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [initialCamera, setInitialCamera] = useState<any>(null); 
+  const [initialCamera, setInitialCamera] = useState<any>(null);
   const [currentLocation, setCurrentLocation] = useState<LatLng | null>(null);
   const [locationLoaded, setLocationLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentZoom, setCurrentZoom] = useState(0.3);
   const [currentZoomLabel, setCurrentZoomLabel] = useState('0.3km');
-  
-  const [locations, setLocations] = useState<LocationMarker[]>([]);
+
+  // State for markers (journals)
+  const [journalMarkers, setJournalMarkers] = useState<LocationMarker[]>([]);
+  // State for nearby users
+  const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
   const [selectedLocation, setSelectedLocation] = useState<LocationMarker | null>(null);
+  const [selectedNearbyUser, setSelectedNearbyUser] = useState<NearbyUser | null>(null);
   const [showAllMarkers] = useState(true);
   const [filterType] = useState<string | null>(null);
 
   const [routeDistance, setRouteDistance] = useState<string | null>(null);
   const [routeDuration, setRouteDuration] = useState<string | null>(null);
-  
+
   const [sendingRequestId, setSendingRequestId] = useState<string | null>(null);
+  const [processingRequests, setProcessingRequests] = useState<Set<string>>(new Set());
 
   const mapRef = useRef<MapView>(null);
   const watchIdRef = useRef<number | null>(null);
   const locationUpdateTimeoutRef = useRef<any>(null);
 
-  // ✂️ Removed huntingJournal selectors completely
   const { isConnected: socketConnected } = useSelector((state: any) => state.chat || { isConnected: false });
   const currentUserId = useSelector((state: any) => state.auth?.user?.id);
 
+  // Initialize socket connection
   useEffect(() => {
     if (currentUserId) {
       console.log('🏠 HomeScreen: Initializing socket connection for user:', currentUserId);
       dispatch(connectSocket({ receiverUserId: currentUserId.toString() }));
+
+      // Set up socket listeners for nearby users and friend requests
+      setupSocketListeners();
     }
 
     return () => {
@@ -106,14 +130,114 @@ const HomeScreen = () => {
       if (locationUpdateTimeoutRef.current) {
         clearTimeout(locationUpdateTimeoutRef.current);
       }
+      cleanupSocketListeners();
       dispatch(disconnectSocket());
     };
   }, [currentUserId, dispatch]);
 
+  // Set up socket listeners
+  const setupSocketListeners = () => {
+    const chatService = ChatService;
+
+    // Listen for user info updates (contains nearbyUsers)
+    chatService.listen('userInfo', (data) => {
+      console.log('📨 User info received in HomeScreen:', data);
+      
+      if (data) {
+        if (data.me) {
+          setCurrentUser(data.me);
+        }
+        
+        if (data.nearbyUsers && data.nearbyUsers.length > 0) {
+          console.log(`📍 Found ${data.nearbyUsers.length} nearby users`);
+          setNearbyUsers(data.nearbyUsers);
+        }
+      }
+    });
+
+    // Listen for friend request responses
+    chatService.listen('friendRequestSent', (data) => {
+      console.log('📨 Friend request sent:', data);
+      if (data.success) {
+        // Update nearby users status
+        setNearbyUsers(prev => 
+          prev.map(user => 
+            user.id === data.receiverId 
+              ? { ...user, friendRequestStatus: 'pending' }
+              : user
+          )
+        );
+        Alert.alert('Success', 'Friend request sent successfully!');
+      } else {
+        Alert.alert('Error', data.message || 'Failed to send friend request');
+      }
+      setProcessingRequests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(data.receiverId);
+        return newSet;
+      });
+    });
+
+    chatService.listen('friendRequestReceived', (data) => {
+      console.log('📨 Friend request received:', data);
+      // Refresh nearby users
+      if (currentLocation && currentUserId) {
+        ChatService.updateLocation(
+          parseInt(currentUserId),
+          currentLocation.latitude,
+          currentLocation.longitude
+        );
+      }
+    });
+
+    chatService.listen('friendRequestAccepted', (data) => {
+      console.log('📨 Friend request accepted:', data);
+      setNearbyUsers(prev => 
+        prev.map(user => 
+          user.id === data.requesterId 
+            ? { ...user, friendRequestStatus: 'accepted' }
+            : user
+        )
+      );
+      Alert.alert('Success', 'Friend request accepted!');
+      setProcessingRequests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(data.requesterId);
+        return newSet;
+      });
+    });
+
+    chatService.listen('friendRequestRejected', (data) => {
+      console.log('📨 Friend request rejected:', data);
+      setNearbyUsers(prev => 
+        prev.map(user => 
+          user.id === data.requesterId 
+            ? { ...user, friendRequestStatus: 'none' }
+            : user
+        )
+      );
+      setProcessingRequests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(data.requesterId);
+        return newSet;
+      });
+    });
+  };
+
+  const cleanupSocketListeners = () => {
+    const chatService = ChatService;
+    chatService.off('userInfo');
+    chatService.off('friendRequestSent');
+    chatService.off('friendRequestReceived');
+    chatService.off('friendRequestAccepted');
+    chatService.off('friendRequestRejected');
+  };
+
+  // Initialize app and fetch data
   useEffect(() => {
     const initializeApp = async () => {
       await requestLocationPermission();
-      fetchMyJournalsData(); // 🔥 Call the updated API integration wrapper
+      fetchMyJournalsData();
     };
     initializeApp();
 
@@ -124,6 +248,7 @@ const HomeScreen = () => {
     };
   }, []);
 
+  // Debounced location update
   const debouncedLocationUpdate = useCallback((location: LatLng) => {
     if (locationUpdateTimeoutRef.current) {
       clearTimeout(locationUpdateTimeoutRef.current);
@@ -132,33 +257,29 @@ const HomeScreen = () => {
     locationUpdateTimeoutRef.current = setTimeout(() => {
       if (location && currentUserId && socketConnected) {
         console.log('📍 Sending location update:', location);
-        dispatch(updateLocation({
-          userId: Number(currentUserId), 
-          latitude: location.latitude,
-          longitude: location.longitude
-        }))
-        .unwrap()
-        .then(() => console.log('✅ Live telemetry coordinates pushed successfully.'))
-        .catch((err: any) => {
-          console.log('⚠️ Telemetry push failed:', err?.message || err);
-        });
+        const chatService = ChatService;
+        chatService.updateLocation(
+          Number(currentUserId),
+          location.latitude,
+          location.longitude
+        );
       }
     }, 1000);
-  }, [currentUserId, socketConnected, dispatch]);
+  }, [currentUserId, socketConnected]);
 
-  // useEffect(() => {
-  //   if (currentLocation && currentUserId && socketConnected) {
-  //     debouncedLocationUpdate(currentLocation);
-  //   }
-  // }, [currentLocation, currentUserId, socketConnected, debouncedLocationUpdate]);
+  useEffect(() => {
+    if (currentLocation && currentUserId && socketConnected) {
+      debouncedLocationUpdate(currentLocation);
+    }
+  }, [currentLocation, currentUserId, socketConnected, debouncedLocationUpdate]);
 
-  // 🔥 Dynamically loads maps parameters from your custom target getMyJournals payload structure
+  // Fetch my journals
   const fetchMyJournalsData = () => {
     dispatch(getMyJournals({ page: 1, limit: 10 }))
       .unwrap()
       .then((res: any) => {
         const backendData = res?.data || res || [];
-        console.log('Successfully synced My Journals API context records:', backendData.length);
+        console.log('✅ Synced My Journals:', backendData.length);
         
         const parsedMarkers: LocationMarker[] = backendData.map((item: any) => ({
           id: String(item.id),
@@ -170,8 +291,9 @@ const HomeScreen = () => {
           description: item.description || '',
           type: item.type || 'default',
           weather: item.weather,
+          isJournal: true,
           user: item.user ? {
-            id: String(item.user.id), 
+            id: String(item.user.id),
             displayname: item.user.displayname,
             username: item.user.username,
             email: item.user.email,
@@ -182,13 +304,14 @@ const HomeScreen = () => {
           } : undefined
         }));
         
-        setLocations(parsedMarkers);
+        setJournalMarkers(parsedMarkers);
       })
       .catch((err: any) => {
-        console.error('Error executing custom journals call:', err);
+        console.error('Error fetching journals:', err);
       });
   };
 
+  // Location permission and tracking
   const requestLocationPermission = async () => {
     if (Platform.OS === 'android') {
       try {
@@ -228,10 +351,10 @@ const HomeScreen = () => {
         
         setInitialCamera({
           center: { latitude, longitude },
-          pitch: 55,       
-          heading: 0,      
-          altitude: 1000,  
-          zoom: 16.5       
+          pitch: 55,
+          heading: 0,
+          altitude: 1000,
+          zoom: 16.5
         });
         setLoading(false);
         setError(null);
@@ -268,7 +391,7 @@ const HomeScreen = () => {
       (err) => console.log('Background telemetry watch warning:', err),
       {
         enableHighAccuracy: true,
-        distanceFilter: 10, 
+        distanceFilter: 10,
         interval: 10000,
         fastestInterval: 5000
       }
@@ -276,7 +399,7 @@ const HomeScreen = () => {
   };
 
   const setDefaultLocation = () => {
-    const defaultLoc = { latitude: 34.958854, longitude: -92.374599 }; 
+    const defaultLoc = { latitude: 34.958854, longitude: -92.374599 };
     setCurrentLocation(defaultLoc);
     setLocationLoaded(true);
     setInitialCamera({
@@ -289,12 +412,39 @@ const HomeScreen = () => {
     setLoading(false);
   };
 
-  const getFilteredLocations = () => {
-    if (!showAllMarkers) return [];
-    if (filterType) {
-      return locations.filter(loc => loc.type === filterType);
-    }
-    return locations;
+  // Get all markers (journals + nearby users)
+  const getAllMarkers = (): LocationMarker[] => {
+    const markers: LocationMarker[] = [];
+
+    // Add journal markers
+    markers.push(...journalMarkers);
+
+    // Add nearby user markers
+    nearbyUsers.forEach(user => {
+      markers.push({
+        id: `user_${user.id}`,
+        coordinate: {
+          latitude: user.currentLatitude,
+          longitude: user.currentLongitude,
+        },
+        title: user.displayname || user.username,
+        description: `${user.distance?.toFixed(1)}km away`,
+        type: 'user',
+        isJournal: false,
+        user: {
+          id: user.id,
+          displayname: user.displayname,
+          username: user.username,
+          email: '',
+          profilePhoto: user.profilePicture || null,
+          bio: '',
+          huntingExperience: '',
+          skills: [],
+        }
+      });
+    });
+
+    return markers;
   };
 
   const centerToCurrentLocation = () => {
@@ -304,7 +454,7 @@ const HomeScreen = () => {
           latitude: currentLocation.latitude,
           longitude: currentLocation.longitude,
         },
-        pitch: 55, 
+        pitch: 55,
         zoom: 16.5,
         heading: 0,
       }, { duration: 600 });
@@ -325,8 +475,8 @@ const HomeScreen = () => {
           center: currentCamera.center,
           pitch: currentCamera.pitch ?? 55,
           heading: currentCamera.heading ?? 0,
-          zoom: zoomOption.zoom,        
-          altitude: zoomOption.altitude, 
+          zoom: zoomOption.zoom,
+          altitude: zoomOption.altitude,
         }, { duration: 200 });
       } catch (error) {
         if (currentLocation) {
@@ -341,25 +491,188 @@ const HomeScreen = () => {
     }
   };
 
+  // Handle friend request
   const handleSendFriendRequest = (recipientId: string | undefined, displayName: string) => {
     if (!recipientId) {
-      Alert.alert('Error', 'Unable to resolve hunter identification context.');
+      Alert.alert('Error', 'Unable to identify user.');
       return;
     }
 
-    setSendingRequestId(recipientId);
+    setProcessingRequests(prev => new Set(prev).add(recipientId));
+    
+    const chatService = ChatService;
+    chatService.emitEvent({
+      eventName: 'sendFriendRequest',
+      eventParameters: { receiverId: recipientId }
+    });
+  };
 
-    dispatch(sendFriendRequest({ recipientId } as any))
-      .unwrap()
-      .then(() => {
-        Alert.alert('Request Sent', `Friend request successfully sent to ${displayName}`);
-      })
-      .catch((errorMessage: string) => {
-        Alert.alert('Failed to Send', errorMessage);
-      })
-      .finally(() => {
-        setSendingRequestId(null);
-      });
+  // Handle accepting friend request
+  const handleAcceptFriendRequest = (requesterId: string) => {
+    setProcessingRequests(prev => new Set(prev).add(requesterId));
+    const chatService = ChatService;
+    chatService.emitEvent({
+      eventName: 'acceptFriendRequest',
+      eventParameters: { requesterId }
+    });
+  };
+
+  // Handle rejecting friend request
+  const handleRejectFriendRequest = (requesterId: string) => {
+    setProcessingRequests(prev => new Set(prev).add(requesterId));
+    const chatService = ChatService;
+    chatService.emitEvent({
+      eventName: 'rejectFriendRequest',
+      eventParameters: { requesterId }
+    });
+  };
+
+  // Check friend status for a user
+  const getFriendStatus = (userId: string): 'accepted' | 'pending' | 'none' => {
+    if (!currentUser) return 'none';
+
+    const isFriend = currentUser.receivedFriendRequests?.some(
+      (req: any) => req.requester.id === userId && req.status === 'accepted'
+    );
+    if (isFriend) return 'accepted';
+
+    const isRequestSent = currentUser.sentFriendRequests?.some(
+      (req: any) => req.receiverId === userId && req.status === 'pending'
+    );
+    if (isRequestSent) return 'pending';
+
+    const isRequestReceived = currentUser.receivedFriendRequests?.some(
+      (req: any) => req.requester.id === userId && req.status === 'pending'
+    );
+    if (isRequestReceived) return 'pending';
+
+    return 'none';
+  };
+
+  // Render friend request button
+  const renderFriendRequestButton = (userId: string) => {
+    const status = getFriendStatus(userId);
+    const isProcessing = processingRequests.has(userId);
+
+    switch (status) {
+      case 'accepted':
+        return (
+          <View style={styles.friendBadge}>
+            <Text style={styles.friendBadgeText}>✓ Friends</Text>
+          </View>
+        );
+
+      case 'pending':
+        const isReceived = currentUser?.receivedFriendRequests?.some(
+          (req: any) => req.requester.id === userId && req.status === 'pending'
+        );
+        
+        if (isReceived) {
+          return (
+            <View style={styles.requestActions}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.acceptButton]}
+                onPress={() => handleAcceptFriendRequest(userId)}
+                disabled={isProcessing}
+              >
+                <Text style={styles.actionButtonText}>
+                  {isProcessing ? '...' : 'Accept'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.rejectButton]}
+                onPress={() => handleRejectFriendRequest(userId)}
+                disabled={isProcessing}
+              >
+                <Text style={styles.actionButtonText}>
+                  {isProcessing ? '...' : 'Reject'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+        
+        return (
+          <View style={styles.pendingBadge}>
+            <Text style={styles.pendingBadgeText}>⏳ Pending</Text>
+          </View>
+        );
+
+      default:
+        return (
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => handleSendFriendRequest(userId, 'User')}
+            disabled={isProcessing}
+          >
+            <Text style={styles.addButtonText}>
+              {isProcessing ? '...' : 'Add Friend'}
+            </Text>
+          </TouchableOpacity>
+        );
+    }
+  };
+
+  // Render nearby users list
+  const renderNearbyUsersList = () => {
+    if (nearbyUsers.length === 0) return null;
+
+    return (
+      <View style={styles.nearbyUsersContainer}>
+        <Text style={styles.nearbyUsersTitle}>
+          👥 Nearby Hunters ({nearbyUsers.length})
+        </Text>
+        <FlatList
+          horizontal
+          data={nearbyUsers}
+          keyExtractor={(item) => item.id}
+          showsHorizontalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.nearbyUserCard}
+              onPress={() => {
+                setSelectedNearbyUser(item);
+                // Animate to user location
+                if (mapRef.current) {
+                  mapRef.current.animateCamera({
+                    center: {
+                      latitude: item.currentLatitude,
+                      longitude: item.currentLongitude,
+                    },
+                    pitch: 55,
+                    zoom: 16.5,
+                  }, { duration: 600 });
+                }
+              }}
+            >
+              <View style={styles.nearbyUserAvatar}>
+                {item.profilePicture ? (
+                  <Image 
+                    source={{ uri: item.profilePicture }} 
+                    style={styles.nearbyUserImage} 
+                  />
+                ) : (
+                  <View style={styles.nearbyUserInitial}>
+                    <Text style={styles.nearbyUserInitialText}>
+                      {item.displayname?.charAt(0) || item.username?.charAt(0) || '?'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.nearbyUserName} numberOfLines={1}>
+                {item.displayname || item.username}
+              </Text>
+              <Text style={styles.nearbyUserDistance}>
+                {item.distance ? `${item.distance.toFixed(1)}km` : 'Nearby'}
+              </Text>
+              <View style={styles.nearbyUserAction}>
+                {renderFriendRequestButton(item.id)}
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+    );
   };
 
   const getProfileImageUri = (profilePhotoPath: string | null | undefined) => {
@@ -389,13 +702,13 @@ const HomeScreen = () => {
             ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={styles.map}
-            initialCamera={initialCamera} 
+            initialCamera={initialCamera}
             showsUserLocation={true}
             showsMyLocationButton={false}
             showsCompass={true}
             zoomEnabled={true}
             scrollEnabled={true}
-            pitchEnabled={true} 
+            pitchEnabled={true}
             rotateEnabled={true}
           >
             {currentLocation && (
@@ -412,20 +725,35 @@ const HomeScreen = () => {
               </Marker>
             )}
             
-            {getFilteredLocations().map((location) => (
+            {/* Render all markers (journals + nearby users) */}
+            {getAllMarkers().map((location) => (
               <Marker
                 key={location.id}
                 coordinate={location.coordinate}
                 title={location.title}
                 description={location.description}
                 onPress={() => {
-                  setSelectedLocation(location);
+                  if (location.isJournal) {
+                    setSelectedLocation(location);
+                    setSelectedNearbyUser(null);
+                  } else {
+                    // It's a user marker
+                    const user = nearbyUsers.find(u => u.id === location.user?.id);
+                    if (user) {
+                      setSelectedNearbyUser(user);
+                      setSelectedLocation(null);
+                    }
+                  }
                   setRouteDistance(null);
                   setRouteDuration(null);
                 }}
               >
                 <Image
-                  source={require('../../assets/about_icon.png')}
+                  source={
+                    location.isJournal 
+                      ? require('../../assets/about_icon.png')
+                      : require('../../assets/tab_1.png')
+                  }
                   style={{ width: 30, height: 30 }}
                   resizeMode="contain"
                 />
@@ -439,7 +767,7 @@ const HomeScreen = () => {
                 apikey={GOOGLE_MAPS_APIKEY}
                 strokeWidth={4}
                 strokeColor="#0E713E"
-                mode="DRIVING" 
+                mode="DRIVING"
                 precision="high"
                 onReady={(result) => {
                   setRouteDistance(`${result.distance.toFixed(1)} km`);
@@ -448,11 +776,11 @@ const HomeScreen = () => {
                   mapRef.current?.fitToCoordinates(result.coordinates, {
                     edgePadding: {
                       right: width / 10,
-                      bottom: height / 3.0, 
+                      bottom: height / 3.0,
                       left: width / 10,
                       top: height / 6,
                     },
-                    animated: false, 
+                    animated: false,
                   });
 
                   const midLat = (currentLocation.latitude + selectedLocation.coordinate.latitude) / 2;
@@ -467,7 +795,7 @@ const HomeScreen = () => {
                   setTimeout(() => {
                     mapRef.current?.animateCamera({
                       center: { latitude: midLat, longitude: midLng },
-                      pitch: 50, 
+                      pitch: 50,
                       altitude: targetAltitude,
                       heading: 0,
                     }, { duration: 600 });
@@ -488,97 +816,99 @@ const HomeScreen = () => {
             containerStyle={{ marginTop: 40, backgroundColor: 'transparent' }}
           />
 
-          {/* <View style={styles.mapFrame}> */}
-            {selectedLocation && (
-              <View style={styles.locationInfoCard}>
-                <TouchableOpacity 
-                  style={styles.cardCloseCornerBtn} 
-                  onPress={() => {
-                    setSelectedLocation(null);
-                    setRouteDistance(null);
-                    setRouteDuration(null);
-                    
-                    setTimeout(() => {
-                      centerToCurrentLocation();
-                    }, 50);
-                  }}
-                >
-                  <Text style={styles.cardCloseCornerText}>✕</Text>
-                </TouchableOpacity>
+          {/* Journal Info Card */}
+          {selectedLocation && (
+            <View style={styles.locationInfoCard}>
+              <TouchableOpacity 
+                style={styles.cardCloseCornerBtn} 
+                onPress={() => {
+                  setSelectedLocation(null);
+                  setRouteDistance(null);
+                  setRouteDuration(null);
+                  setTimeout(() => centerToCurrentLocation(), 50);
+                }}
+              >
+                <Text style={styles.cardCloseCornerText}>✕</Text>
+              </TouchableOpacity>
 
-                <View style={styles.profileRow}>
-                  {/* <Image 
-                    source={getProfileImageUri(selectedLocation.user?.profilePhoto)} 
-                    style={styles.profileAvatar}
-                  /> */}
-                  <View style={styles.profileTextContainer}>
-                    {/* <Text style={styles.locationInfoTitle}>
-                      {selectedLocation.user?.displayname || 'Anonymous Hunter'}
-                    </Text> */}
-                    <Text style={styles.journalSpotTitle}>
-                      📍 {selectedLocation.title}
+              <View style={styles.profileRow}>
+                <View style={styles.profileTextContainer}>
+                  <Text style={styles.journalSpotTitle}>
+                    📍 {selectedLocation.title}
+                  </Text>
+                  
+                  {routeDistance && routeDuration && (
+                    <Text style={styles.routeDistanceBadge}>
+                      🚗 {routeDistance} ({routeDuration}) away via road
                     </Text>
-                    
-                    {routeDistance && routeDuration && (
-                      <Text style={styles.routeDistanceBadge}>
-                        🚗 {routeDistance} ({routeDuration}) away via road
-                      </Text>
-                    )}
+                  )}
 
-                    <Text style={styles.locationInfoDesc} numberOfLines={2}>
-                      "{selectedLocation.description || 'No description recorded.'}"
+                  <Text style={styles.locationInfoDesc} numberOfLines={2}>
+                    "{selectedLocation.description || 'No description recorded.'}"
+                  </Text>
+                  {selectedLocation.weather && (
+                    <Text style={styles.weatherInfoText}>
+                      🌤️ {selectedLocation.weather}
                     </Text>
-                    {selectedLocation.weather && (
-                      <Text style={styles.weatherInfoText}>
-                        🌤️ {selectedLocation.weather}
+                  )}
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Nearby User Info Card */}
+          {selectedNearbyUser && (
+            <View style={styles.locationInfoCard}>
+              <TouchableOpacity 
+                style={styles.cardCloseCornerBtn} 
+                onPress={() => {
+                  setSelectedNearbyUser(null);
+                  setTimeout(() => centerToCurrentLocation(), 50);
+                }}
+              >
+                <Text style={styles.cardCloseCornerText}>✕</Text>
+              </TouchableOpacity>
+
+              <View style={styles.profileRow}>
+                <View style={styles.nearbyUserAvatarLarge}>
+                  {selectedNearbyUser.profilePicture ? (
+                    <Image 
+                      source={{ uri: selectedNearbyUser.profilePicture }} 
+                      style={styles.nearbyUserImageLarge} 
+                    />
+                  ) : (
+                    <View style={styles.nearbyUserInitialLarge}>
+                      <Text style={styles.nearbyUserInitialTextLarge}>
+                        {selectedNearbyUser.displayname?.charAt(0) || selectedNearbyUser.username?.charAt(0) || '?'}
                       </Text>
-                    )}
+                    </View>
+                  )}
+                </View>
+                <View style={styles.profileTextContainer}>
+                  <Text style={styles.locationInfoTitle}>
+                    {selectedNearbyUser.displayname || selectedNearbyUser.username}
+                  </Text>
+                  <Text style={styles.userDistanceText}>
+                    📍 {selectedNearbyUser.distance?.toFixed(1)}km away
+                  </Text>
+                  <Text style={styles.userLocationText}>
+                    {selectedNearbyUser.currentLatitude.toFixed(4)}, {selectedNearbyUser.currentLongitude.toFixed(4)}
+                  </Text>
+                  <View style={styles.friendActionContainer}>
+                    {renderFriendRequestButton(selectedNearbyUser.id)}
                   </View>
                 </View>
-
-                {/* <View style={styles.locationInfoActions}>
-                  <TouchableOpacity 
-                    style={[
-                      styles.friendRequestBtn,
-                      sendingRequestId === selectedLocation.user?.id && styles.friendRequestBtnDisabled
-                    ]} 
-                    disabled={sendingRequestId === selectedLocation.user?.id}
-                    onPress={() => handleSendFriendRequest(
-                      selectedLocation.user?.id, 
-                      selectedLocation.user?.displayname || 'User'
-                    )}
-                  >
-                    {sendingRequestId === selectedLocation.user?.id ? (
-                      <ActivityIndicator size="small" color="#FFF" />
-                    ) : (
-                      <Text style={styles.friendRequestBtnText}>Send Friend Request</Text>
-                    )}
-                  </TouchableOpacity>
-
-                  <TouchableOpacity 
-                    style={styles.centerBtn} 
-                    onPress={() => {
-                      if (mapRef.current) {
-                        mapRef.current.animateCamera({
-                          center: selectedLocation.coordinate,
-                          pitch: 60, 
-                          heading: 45, 
-                          zoom: 16.5, 
-                        }, { duration: 600 });
-                      }
-                    }}
-                  >
-                    <Text style={styles.centerBtnText}>Focus Spot</Text>
-                  </TouchableOpacity>
-                </View> */}
               </View>
-            )}
+            </View>
+          )}
+
+          {/* Nearby Users Horizontal List */}
+          {renderNearbyUsersList()}
 
           <View style={{ marginTop: 'auto', marginBottom: 10, width: '100%' }}>
             <View style={styles.sliderContainer}>
-              {/* <Text style={styles.zoomLabel}>Map Range Metric: {currentZoomLabel}</Text> */}
               <Slider
-                style={{ width: '100%', height: 30 }} 
+                style={{ width: '100%', height: 30 }}
                 minimumValue={0.1}
                 maximumValue={0.5}
                 step={0.1}
@@ -610,9 +940,8 @@ const HomeScreen = () => {
               ))}
             </View>
           </View>
-          {/* </View> */}
 
-          <BottomTabNav containerStyle={{ marginBottom: 15 }}/>
+          <BottomTabNav containerStyle={{ marginBottom: 15 }} />
         </View>
       </View>
     </View>
@@ -625,25 +954,39 @@ const styles = StyleSheet.create({
   loadingText: { color: '#FFF', marginTop: 10, fontSize: 14 },
   mapContainer: { flex: 1, position: 'relative' },
   map: { flex: 1 },
-  overlayContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'space-between', paddingHorizontal: 20 },
-  mapFrame: { flex: 1, marginBottom: 50, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 30, backgroundColor: 'rgba(48, 78, 24, 0.15)', justifyContent: 'flex-end', alignItems: 'center', padding: 15, position: 'relative' },
+  overlayContainer: { 
+    position: 'absolute', 
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    bottom: 0, 
+    justifyContent: 'space-between', 
+    paddingHorizontal: 20 
+  },
   sliderContainer: { 
     width: '100%', 
-    alignItems: 'center', 
-    // backgroundColor: 'rgba(0,0,0,0.75)', 
-    borderRadius: 12, 
-    // paddingVertical: 8, 
-    // paddingHorizontal: 12, 
-    // marginBottom: 10 
+    alignItems: 'center',
   },
-  zoomLabel: { color: '#FFF', fontSize: 12, fontWeight: '600' },
-  zoomPresets: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 0, gap: 8 },
-  zoomPresetButton: { flex: 1, borderRadius: 8, alignItems: 'center' },
-  zoomPresetButtonActive: { 
-    // backgroundColor: '#0E713E' 
+  zoomPresets: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    width: '100%', 
+    marginTop: 0, 
+    gap: 8 
   },
-  zoomPresetText: { color: '#4D3626', fontSize: 14 },
-  zoomPresetTextActive: { fontWeight: 'bold' },
+  zoomPresetButton: { 
+    flex: 1, 
+    borderRadius: 8, 
+    alignItems: 'center' 
+  },
+  zoomPresetButtonActive: {},
+  zoomPresetText: { 
+    color: '#4D3626', 
+    fontSize: 14 
+  },
+  zoomPresetTextActive: { 
+    fontWeight: 'bold' 
+  },
   locationInfoCard: {
     backgroundColor: 'rgba(15, 15, 15, 0.98)',
     borderRadius: 20,
@@ -651,7 +994,6 @@ const styles = StyleSheet.create({
     width: '100%',
     borderWidth: 1.5,
     borderColor: '#0E713E',
-    // position: 'absolute',
     top: 15,
     zIndex: 99,
     shadowColor: '#000',
@@ -676,15 +1018,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 14,
     paddingRight: 20,
-  },
-  profileAvatar: {
-    width: 55,
-    height: 55,
-    borderRadius: 27.5,
-    backgroundColor: '#222',
-    marginRight: 14,
-    borderWidth: 2,
-    borderColor: '#0E713E',
   },
   profileTextContainer: {
     flex: 1,
@@ -724,43 +1057,164 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 4,
   },
-  locationInfoActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 8,
+  userDistanceText: {
+    color: '#0E713E',
+    fontSize: 12,
     marginTop: 4,
   },
-  friendRequestBtn: {
-    flex: 2,
-    backgroundColor: '#0E713E',
-    paddingVertical: 10,
+  userLocationText: {
+    color: '#888',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  friendActionContainer: {
+    marginTop: 8,
+  },
+  addButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  pendingBadge: {
+    backgroundColor: '#FFA500',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  pendingBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  friendBadge: {
+    backgroundColor: '#34C759',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  friendBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  requestActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
     paddingHorizontal: 12,
-    borderRadius: 10,
+    paddingVertical: 8,
+    borderRadius: 20,
+    minWidth: 60,
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 38,
   },
-  friendRequestBtnDisabled: {
-    backgroundColor: '#1E462F',
-    opacity: 0.8,
+  acceptButton: {
+    backgroundColor: '#34C759',
   },
-  friendRequestBtnText: {
+  rejectButton: {
+    backgroundColor: '#FF3B30',
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  nearbyUsersContainer: {
+    backgroundColor: 'rgba(15, 15, 15, 0.95)',
+    borderRadius: 16,
+    padding: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#0E713E',
+  },
+  nearbyUsersTitle: {
     color: '#FFF',
-    fontSize: 12,
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  nearbyUserCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    padding: 12,
+    marginRight: 12,
+    alignItems: 'center',
+    width: 100,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  nearbyUserAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    overflow: 'hidden',
+    marginBottom: 6,
+    backgroundColor: '#222',
+  },
+  nearbyUserImage: {
+    width: 50,
+    height: 50,
+  },
+  nearbyUserInitial: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#0E713E',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nearbyUserInitialText: {
+    color: '#FFF',
+    fontSize: 20,
     fontWeight: 'bold',
   },
-  centerBtn: {
-    flex: 1,
-    backgroundColor: '#4D3626',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  centerBtnText: {
+  nearbyUserName: {
     color: '#FFF',
     fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  nearbyUserDistance: {
+    color: '#888',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  nearbyUserAction: {
+    marginTop: 6,
+  },
+  nearbyUserAvatarLarge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    overflow: 'hidden',
+    marginRight: 14,
+    backgroundColor: '#222',
+  },
+  nearbyUserImageLarge: {
+    width: 60,
+    height: 60,
+  },
+  nearbyUserInitialLarge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#0E713E',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nearbyUserInitialTextLarge: {
+    color: '#FFF',
+    fontSize: 24,
+    fontWeight: 'bold',
   },
 });
 
