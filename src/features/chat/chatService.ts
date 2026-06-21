@@ -1,7 +1,6 @@
 // src/features/chat/chatService.ts
 
 import io, { Socket } from 'socket.io-client';
-import { SendMessageData } from './chatTypes';
 import { SOCKET_URL } from '../../constants/config';
 import { store } from '../../app/store';
 import api from '../../services/api';
@@ -10,6 +9,7 @@ class ChatService {
   private static _instance: ChatService;
   private _socket: Socket | null = null;
   private listeners: Map<string, Function[]> = new Map();
+  private registeredSocketEvents: Set<string> = new Set();
   private isSettingUpListeners: boolean = false;
 
   private constructor() {}
@@ -39,10 +39,17 @@ class ChatService {
       return;
     }
 
+    if (this._socket?.connected) {
+      console.log('🔄 Socket already connected actively. Skipping reset.');
+      return; 
+    }
+
     if (this._socket) {
       this._socket.disconnect();
       this._socket = null;
     }
+
+    this.registeredSocketEvents.clear();
     
     try {
       this._socket = io(SOCKET_URL, {
@@ -62,6 +69,7 @@ class ChatService {
       });
       
       this.setupSocketEvents();
+      this.rebindActiveListeners();
     } catch (error) {
       console.error('❌ Socket creation error:', error);
     }
@@ -114,7 +122,7 @@ class ChatService {
     }
     
     console.log(`📤 Emitting event: ${eventName}`);
-    this._socket?.emit(eventName, eventParameters);
+    this._socket.emit(eventName, eventParameters);
   }
 
   public listen(event: string, callback: (data: any) => void): void {
@@ -123,32 +131,55 @@ class ChatService {
     }
     this.listeners.get(event)!.push(callback);
     
-    // Also register with socket if not already registered
-    if (this._socket && !this._socket.hasListeners(event)) {
-      this._socket.on(event, (data: any) => {
-        // Call all registered callbacks for this event
-        const callbacks = this.listeners.get(event);
-        if (callbacks) {
-          callbacks.forEach(cb => cb(data));
-        }
-      });
+    this.bindSocketEvent(event);
+  }
+
+  private bindSocketEvent(event: string): void {
+    if (!this._socket || this.registeredSocketEvents.has(event)) {
+      return;
+    }
+
+    this.registeredSocketEvents.add(event);
+    this._socket.on(event, (data: any) => {
+      const callbacks = this.listeners.get(event);
+      if (callbacks) {
+        callbacks.forEach(cb => {
+          try {
+            cb(data);
+          } catch (err) {
+            console.error(`Error executing callback for event "${event}":`, err);
+          }
+        });
+      }
+    });
+  }
+
+  private rebindActiveListeners(): void {
+    if (!this._socket) return;
+    for (const event of this.listeners.keys()) {
+      this.bindSocketEvent(event);
     }
   }
 
   public off(event: string, callback?: Function): void {
+    const callbacks = this.listeners.get(event);
+    if (!callbacks) return;
+
     if (callback) {
-      const callbacks = this.listeners.get(event);
-      if (callbacks) {
-        const index = callbacks.indexOf(callback);
-        if (index !== -1) {
-          callbacks.splice(index, 1);
-        }
-        if (callbacks.length === 0 && this._socket) {
+      const index = callbacks.indexOf(callback);
+      if (index !== -1) {
+        callbacks.splice(index, 1);
+      }
+      if (callbacks.length === 0) {
+        this.listeners.delete(event);
+        this.registeredSocketEvents.delete(event);
+        if (this._socket) {
           this._socket.off(event);
         }
       }
     } else {
       this.listeners.delete(event);
+      this.registeredSocketEvents.delete(event);
       if (this._socket) {
         this._socket.off(event);
       }
@@ -158,13 +189,12 @@ class ChatService {
   private notifyListeners(event: string, data: any): void {
     const callbacks = this.listeners.get(event);
     if (callbacks && callbacks.length > 0) {
-      // Use setTimeout to prevent recursive calls
       setTimeout(() => {
         callbacks.forEach(callback => {
           try {
             callback(data);
           } catch (error) {
-            console.error(`Error in listener for ${event}:`, error);
+            console.error(`Error in static event listener for ${event}:`, error);
           }
         });
       }, 0);
@@ -179,7 +209,6 @@ class ChatService {
   }
 
   private setupListeners(): void {
-    // Prevent multiple setups
     if (this.isSettingUpListeners) {
       console.log('Listeners already being set up');
       return;
@@ -187,7 +216,6 @@ class ChatService {
     
     this.isSettingUpListeners = true;
     
-    // Use the listen method which handles registration properly
     this.listen('response', (data) => {
       console.log('📨 Response received:', data);
     });
@@ -219,6 +247,7 @@ class ChatService {
     if (this._socket) {
       console.log('🧹 Disposing socket...');
       this.listeners.clear();
+      this.registeredSocketEvents.clear();
       this._socket.disconnect();
       this._socket.close();
       this._socket = null;

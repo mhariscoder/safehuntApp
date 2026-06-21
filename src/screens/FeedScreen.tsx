@@ -80,7 +80,7 @@ const PostCard = memo(({
 
   return (
     <View style={styles.postCard}>
-      <TouchableOpacity activeOpacity={0.9} onPress={handlePostPress}>
+      <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('User', { userId: post.user?.id })}>
         <View style={styles.postHeader}>
           <Image 
             source={userAvatar ? { uri: userAvatar } : ASSETS.userHenry} 
@@ -98,19 +98,21 @@ const PostCard = memo(({
         </View>
       </TouchableOpacity>
 
-      <Text style={styles.postCaption}>
-        {post.description}
-        {post.tags && <Text style={styles.hashtag}> {post.tags}</Text>}
-      </Text>
+      <TouchableOpacity onPress={() => handlePostPress()}>
+        <Text style={styles.postCaption}>
+          {post.description}
+          {post.tags && <Text style={styles.hashtag}> {post.tags}</Text>}
+        </Text>
 
-      {imageUrl && (
-        <Image 
-          source={{ uri: imageUrl }} 
-          style={styles.mainPostImage}
-          resizeMode="cover"
-          progressiveRenderingEnabled={true}
-        />
-      )}
+        {imageUrl && (
+          <Image 
+            source={{ uri: imageUrl }} 
+            style={styles.mainPostImage}
+            resizeMode="cover"
+            progressiveRenderingEnabled={true}
+          />
+        )}
+      </TouchableOpacity>
 
       <View style={styles.statsRow}>
         <Text style={styles.statsText}>❤️ {post.likesCount || 0} {(post.likesCount === 1 ? 'Like' : 'Likes')}</Text>
@@ -300,9 +302,16 @@ const FeedScreen = () => {
 
   const flatListRef = useRef<FlatList>(null);
 
-  useEffect(() => {
-    loadInitialPosts();
-  }, []);
+  // useEffect(() => {
+  //   loadInitialPosts();
+  // }, []);
+  useFocusEffect(
+    useCallback(() => {
+      if (posts.length === 0) {
+        loadInitialPosts();
+      }
+    }, [posts.length])
+  );
 
   const loadInitialPosts = async () => {
     if (isLoading) return;

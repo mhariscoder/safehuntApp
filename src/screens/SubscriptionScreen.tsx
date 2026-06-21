@@ -305,17 +305,36 @@ const SubscriptionScreen = ({ navigation }: any) => {
     }
   };
 
-  // Handle free trial continuation
   const handleContinueTrial = async () => {
     try {
+      console.log('📝 Starting trial...');
       await AsyncStorage.setItem('HAS_STARTED_TRIAL', 'true');
+      console.log('✅ Trial status saved');
       
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
+      // Method 1: Try global refresh first
+      // @ts-ignore
+      if (global.refreshNavigation) {
+        console.log('🔄 Using global refresh...');
+        // @ts-ignore
+        await global.refreshNavigation();
+        return;
+      }
+      
+      // Method 2: Pop to top and navigate
+      console.log('🔄 Using navigation fallback...');
+      navigation.popToTop();
+      
+      // Method 3: Reset navigation completely
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
+      }, 300);
+      
     } catch (error) {
       console.log('Error saving trial state:', error);
+      Alert.alert('Error', 'Failed to start trial. Please try again.');
     }
   };
 
@@ -396,7 +415,6 @@ const SubscriptionScreen = ({ navigation }: any) => {
               <Image
                 source={require('../../assets/hunter_hero.png')} 
                 style={styles.heroImage}
-                resizeMode="cover"
               />
             </View>
 
@@ -581,18 +599,19 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   heroImage: {
-    width: width - 50,
-    height: 200,
+    // width: width,
+    height: 300,
     borderRadius: 30,
+    resizeMode: 'contain'
   },
   whiteCard: {
     backgroundColor: '#FFF',
     marginTop: -20,
-    borderTopRightRadius: 30,
-    borderTopLeftRadius: 30,
+    borderRadius: 30,
     paddingHorizontal: 25,
     paddingBottom: 30,
     paddingTop: 30,
+    width: '100%'
   },
   mainTitle: {
     fontFamily: 'Montserrat-Bold',

@@ -115,40 +115,18 @@ const MessageDetailScreen = () => {
     setIsSending(true);
     const messageText = inputText.trim();
     
-    // Set type to 'file' if image is selected, otherwise 'text'
     const messageType = selectedImage ? 'file' : 'text';
     const attachmentBase64 = selectedImage?.base64 || null;
-    const localUri = selectedImage?.uri || null;
 
-    // Clear inputs immediately for better UX
     setInputText('');
     setSelectedImage(null);
-
-    const tempId = Date.now();
-    sentMessageIds.current.add(tempId);
-
-    // Optimistic UI update (optional, but keep dispatch commented if slice handles it)
-    /*
-    const tempMessage = {
-      id: tempId,
-      senderId: user?.id,
-      receiverId: otherUserIdNumber,
-      message: messageText,
-      type: messageType,
-      status: 'sent',
-      attachment: localUri, 
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    dispatch(receiveMessage(tempMessage));
-    */
 
     try {
       await dispatch(sendMessage({
         receiverUserId: otherUserIdNumber,
         message: messageText,
-        attachment: attachmentBase64, // The data:image/xxx;base64,... string
-        type: messageType,           // Now sent as 'file'
+        attachment: attachmentBase64, 
+        type: messageType,           
       })).unwrap();
       
       logSocketStatus('sendMessage', { success: true });
@@ -159,7 +137,7 @@ const MessageDetailScreen = () => {
     } finally {
       setIsSending(false);
     }
-  }, [inputText, selectedImage, isSending, otherUserIdNumber, user?.id, dispatch, logSocketStatus, loadMessages]);
+  }, [inputText, selectedImage, isSending, otherUserIdNumber, dispatch, logSocketStatus, loadMessages]);
 
   const handleSelectImage = useCallback(() => {
     const options: any = {
@@ -175,7 +153,6 @@ const MessageDetailScreen = () => {
         const asset = response.assets[0];
         setSelectedImage({
           uri: asset.uri,
-          // Create the standard Data URI string your backend expects
           base64: `data:${asset.type};base64,${asset.base64}`, 
           type: asset.type || 'image/jpeg',
           name: asset.fileName || `image_${Date.now()}.jpg`,
@@ -184,7 +161,6 @@ const MessageDetailScreen = () => {
     });
   }, []);
 
-  // ✅ Step 1: Initialize socket on mount
   useEffect(() => {
     if (otherUserIdNumber) {
       console.log('📱 Initializing chat for user:', otherUserId);
@@ -192,25 +168,31 @@ const MessageDetailScreen = () => {
       sentMessageIds.current.clear();
       messagesLoadedRef.current = false;
       setSocketReady(false);
+      
+      // Connect/Ensure socket is running globally
       dispatch(connectSocket({ receiverUserId: otherUserId.toString() }));
       dispatch(markAsRead(otherUserIdNumber));
     }
 
     return () => {
-      console.log('🧹 Cleaning up chat - disconnecting socket');
-      dispatch(disconnectSocket());
+      console.log('🧹 Cleaning up screen listeners (Leaving socket connected globally)');
+      
+      // 1. Explicitly clear the dynamic UI event stream listeners for this chat session
+      // This stops memory leaks or duplicating message handlers on your next chat session!
+      ChatService.off('receiveMessage'); 
+      
+      // 2. Clear out local state indicators
       sentMessageIds.current.clear();
     };
   }, [otherUserIdNumber, otherUserId, dispatch]);
 
-  // ✅ Step 2: Listen for socket connection and load messages
+  // Listen for socket connection and load messages
   useEffect(() => {
     const handleConnect = () => {
       console.log('✅ SOCKET CONNECTED! Loading messages...');
       setSocketReady(true);
       logSocketStatus('connect', { socketId: ChatService.socket?.id });
       
-      // Small delay to ensure socket is fully ready
       setTimeout(() => {
         if (!messagesLoadedRef.current) {
           loadMessages();
@@ -240,7 +222,6 @@ const MessageDetailScreen = () => {
     ChatService.listen('connect_error', handleConnectError);
     ChatService.listen('error', handleError);
     
-    // Check if already connected
     if (ChatService.socket?.connected) {
       console.log('✅ Socket already connected, loading messages...');
       setSocketReady(true);
@@ -262,24 +243,22 @@ const MessageDetailScreen = () => {
   // Receive message listener
   useEffect(() => {
     const handleReceiveMessage = (data: any) => {
-      const receivedSenderId = Number(data.senderUserId || data.senderId);
+      const receivedSenderId = Number(data.senderUserId || data.senderId || data.sender_id);
       const myId = Number(user?.id);
       const targetChatPartnerId = Number(otherUserIdNumber);
 
+      // Ignore messages sent by oneself
       if (receivedSenderId === myId) {
         return;
       }
 
+      // Check if message belongs to this current chat room stream
       if (receivedSenderId === targetChatPartnerId) {
         const messageId = data.id;
-        const isAlreadyInStore = messages.some(msg => msg.id === messageId);
+        const isAlreadyInStore = messages.some(msg => Number(msg.id) === Number(messageId));
 
-        if (isAlreadyInStore || (messageId && sentMessageIds.current.has(messageId))) {
+        if (isAlreadyInStore) {
           return;
-        }
-
-        if (messageId) {
-          sentMessageIds.current.add(messageId);
         }
         
         const newMessage = {
@@ -290,8 +269,8 @@ const MessageDetailScreen = () => {
           type: data.type || 'text',
           status: data.status || 'delivered',
           attachment: data.attachment || null,
-          createdAt: data.createdAt || new Date().toISOString(),
-          updatedAt: data.updatedAt || new Date().toISOString(),
+          createdAt: data.createdAt || data.created_at || new Date().toISOString(),
+          updatedAt: data.updatedAt || data.updated_at || new Date().toISOString(),
         };
         
         dispatch(receiveMessage(newMessage));
@@ -314,8 +293,8 @@ const MessageDetailScreen = () => {
   }, [messages]);
 
   const renderMessage = useCallback(({ item }: { item: any }) => {
-    console.log('item', item)
-    const isMyMessage = item.senderId === user?.id;
+    // Standardize comparison to solve type (string vs int) and schema mapping (snake vs camel) issues
+    const isMyMessage = Number(item.senderId || item.sender_id) === Number(user?.id);
     const messageDate = item.created_at || item.createdAt;
     const attachment = item.attachment;
     const imageUrl = (attachment && (attachment.startsWith('data:') || attachment.startsWith('file:') || attachment.startsWith('content:')))
@@ -492,48 +471,11 @@ const MessageDetailScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FCFAF0',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-  },
-  header: {
-    backgroundColor: '#0E713E',
-    paddingHorizontal: 25,
-    paddingTop: Platform.OS === 'android' ? 0 : 35,
-    paddingBottom: 15,
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between'
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 15,
-    marginBottom: 15,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerIcon: {
-    width: 20,
-    height: 20,
-    marginRight: 10,
-    resizeMode: 'contain',
-    tintColor: '#FFF',
-  },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: '900',
-  },
+  container: { flex: 1, backgroundColor: '#FCFAF0' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
+  header: { backgroundColor: '#0E713E', paddingHorizontal: 25, paddingTop: Platform.OS === 'ios' ? 35 : 0, paddingBottom: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  backButton: { flexDirection: 'row', alignItems: 'center' },
+  headerIcon: { width: 20, height: 20, marginRight: 10, resizeMode: 'contain', tintColor: '#FFF' },
   debugBar: { backgroundColor: '#333', paddingVertical: 4, paddingHorizontal: 10, marginTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
   debugText: { color: '#0E713E', fontSize: 10, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },

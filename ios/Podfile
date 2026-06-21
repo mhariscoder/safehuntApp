@@ -14,10 +14,7 @@ require Pod::Executable.execute_command('node', ['-p',
 
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
-
-# 1. Enable static frameworks globally (Required for Firebase Swift)
 use_frameworks! :linkage => :static
-use_modular_headers!
 
 # Fix for v5.x Permissions
 setup_permissions([
@@ -52,6 +49,9 @@ target 'safehuntApp' do
   # React Native Maps dependencies
   rn_maps_path = '../node_modules/react-native-maps'
   pod 'react-native-maps/Google', :path => rn_maps_path
+
+  pod 'RNFBApp', :path => '../node_modules/@react-native-firebase/app'
+  #pod 'RNFBMessaging', :path => '../node_modules/@react-native-firebase/messaging'
 
   post_install do |installer|
     react_native_post_install(

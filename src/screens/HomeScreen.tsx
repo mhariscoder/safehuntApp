@@ -116,6 +116,25 @@ const HomeScreen = () => {
   const currentUserId = useSelector((state: any) => state.auth?.user?.id);
 
   // Initialize socket connection
+  // useEffect(() => {
+  //   if (currentUserId) {
+  //     console.log('🏠 HomeScreen: Initializing socket connection for user:', currentUserId);
+  //     dispatch(connectSocket({ receiverUserId: currentUserId.toString() }));
+
+  //     // Set up socket listeners for nearby users and friend requests
+  //     setupSocketListeners();
+  //   }
+
+  //   return () => {
+  //     console.log('🏠 HomeScreen: Cleaning up socket connection');
+  //     if (locationUpdateTimeoutRef.current) {
+  //       clearTimeout(locationUpdateTimeoutRef.current);
+  //     }
+  //     cleanupSocketListeners();
+  //     dispatch(disconnectSocket());
+  //   };
+  // }, [currentUserId, dispatch]);
+
   useEffect(() => {
     if (currentUserId) {
       console.log('🏠 HomeScreen: Initializing socket connection for user:', currentUserId);
@@ -126,12 +145,15 @@ const HomeScreen = () => {
     }
 
     return () => {
-      console.log('🏠 HomeScreen: Cleaning up socket connection');
+      console.log('🏠 HomeScreen: Cleaning up screen layout variables');
       if (locationUpdateTimeoutRef.current) {
         clearTimeout(locationUpdateTimeoutRef.current);
       }
+      // 1. Remove layout event listeners so we don't handle map updates when screen is gone
       cleanupSocketListeners();
-      dispatch(disconnectSocket());
+      
+      // 2. 🚨 REMOVED dispatch(disconnectSocket()) FROM HERE!
+      // Keeping connection alive globally across layout variations.
     };
   }, [currentUserId, dispatch]);
 
@@ -613,6 +635,43 @@ const HomeScreen = () => {
     }
   };
 
+  // Handle marker press - FIXED to properly show friend card
+  const handleMarkerPress = (location: LocationMarker) => {
+    console.log('📍 Marker pressed:', location);
+    
+    if (location.isJournal) {
+      // Journal marker
+      setSelectedLocation(location);
+      setSelectedNearbyUser(null);
+      setRouteDistance(null);
+      setRouteDuration(null);
+    } else {
+      // User marker - find the full user data
+      const user = nearbyUsers.find(u => u.id === location.user?.id);
+      if (user) {
+        console.log('👤 User found, showing friend card:', user.displayname);
+        setSelectedNearbyUser(user);
+        setSelectedLocation(null);
+        setRouteDistance(null);
+        setRouteDuration(null);
+        
+        // Animate to user location
+        if (mapRef.current) {
+          mapRef.current.animateCamera({
+            center: {
+              latitude: user.currentLatitude,
+              longitude: user.currentLongitude,
+            },
+            pitch: 45,
+            zoom: 16,
+          }, { duration: 500 });
+        }
+      } else {
+        console.warn('⚠️ User not found in nearbyUsers array');
+      }
+    }
+  };
+
   // Render nearby users list
   const renderNearbyUsersList = () => {
     if (nearbyUsers.length === 0) return null;
@@ -632,6 +691,7 @@ const HomeScreen = () => {
               style={styles.nearbyUserCard}
               onPress={() => {
                 setSelectedNearbyUser(item);
+                setSelectedLocation(null);
                 // Animate to user location
                 if (mapRef.current) {
                   mapRef.current.animateCamera({
@@ -639,9 +699,9 @@ const HomeScreen = () => {
                       latitude: item.currentLatitude,
                       longitude: item.currentLongitude,
                     },
-                    pitch: 55,
-                    zoom: 16.5,
-                  }, { duration: 600 });
+                    pitch: 45,
+                    zoom: 16,
+                  }, { duration: 500 });
                 }
               }}
             >
@@ -716,6 +776,8 @@ const HomeScreen = () => {
                 coordinate={currentLocation}
                 title="You are here"
                 description="Your current location"
+                anchor={{ x: 0.5, y: 0.5 }}
+                tracksViewChanges={true}
               >
                 <Image
                   source={require('../../assets/tab_0.png')}
@@ -732,21 +794,8 @@ const HomeScreen = () => {
                 coordinate={location.coordinate}
                 title={location.title}
                 description={location.description}
-                onPress={() => {
-                  if (location.isJournal) {
-                    setSelectedLocation(location);
-                    setSelectedNearbyUser(null);
-                  } else {
-                    // It's a user marker
-                    const user = nearbyUsers.find(u => u.id === location.user?.id);
-                    if (user) {
-                      setSelectedNearbyUser(user);
-                      setSelectedLocation(null);
-                    }
-                  }
-                  setRouteDistance(null);
-                  setRouteDuration(null);
-                }}
+                onPress={() => handleMarkerPress(location)}
+                tracksViewChanges={true}
               >
                 <Image
                   source={
@@ -856,9 +905,9 @@ const HomeScreen = () => {
             </View>
           )}
 
-          {/* Nearby User Info Card */}
+          {/* Nearby User Info Card - FIXED to show properly */}
           {selectedNearbyUser && (
-            <View style={styles.locationInfoCard}>
+            <View style={[styles.locationInfoCard, styles.userInfoCard]}>
               <TouchableOpacity 
                 style={styles.cardCloseCornerBtn} 
                 onPress={() => {
@@ -892,7 +941,7 @@ const HomeScreen = () => {
                     📍 {selectedNearbyUser.distance?.toFixed(1)}km away
                   </Text>
                   <Text style={styles.userLocationText}>
-                    {selectedNearbyUser.currentLatitude.toFixed(4)}, {selectedNearbyUser.currentLongitude.toFixed(4)}
+                    Lat: {selectedNearbyUser.currentLatitude.toFixed(4)}, Lng: {selectedNearbyUser.currentLongitude.toFixed(4)}
                   </Text>
                   <View style={styles.friendActionContainer}>
                     {renderFriendRequestButton(selectedNearbyUser.id)}
@@ -1001,6 +1050,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 6,
     elevation: 8,
+  },
+  userInfoCard: {
+    borderColor: '#007AFF', // Different border color for user cards
   },
   cardCloseCornerBtn: {
     position: 'absolute',

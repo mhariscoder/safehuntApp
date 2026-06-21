@@ -6,6 +6,8 @@ import GoogleMaps
 import AuthenticationServices
 import SafariServices
 import FBSDKCoreKit
+// import RNFBMessaging
+import UserNotifications
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -29,6 +31,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     let factory = RCTReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
 
+    // RNFirebase Messaging (isHeadless support)
+    // let initialProps = RNFBMessagingModule.addCustomProps(
+    //   toUserProps: nil,
+    //   withLaunchOptions: launchOptions
+    // )
+    // Pass props to React Native
+    // delegate.initialProps = initialProps
+
     GMSServices.provideAPIKey("AIzaSyDfERDiOAjbLmRs1XZYleJhmr7GJQ6lPaM")
 
     reactNativeDelegate = delegate
@@ -41,6 +51,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       in: window,
       launchOptions: launchOptions
     )
+
+    UNUserNotificationCenter.current().delegate = self
+    application.registerForRemoteNotifications()
 
     return true
   }
@@ -65,8 +78,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 }
 
 class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
+
+  // var initialProps: [AnyHashable: Any]?
+
   override func sourceURL(for bridge: RCTBridge) -> URL? {
-    self.bundleURL()
+    bundleURL()
   }
 
   override func bundleURL() -> URL? {
@@ -75,5 +91,20 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
 #else
     Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif
+  }
+
+  // override func prepareInitialProps() -> [AnyHashable : Any]! {
+  //   return initialProps ?? [:]
+  // }
+}
+
+extension AppDelegate: UNUserNotificationCenterDelegate {
+
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    completionHandler([.banner, .sound, .badge])
   }
 }

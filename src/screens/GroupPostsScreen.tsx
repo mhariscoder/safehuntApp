@@ -407,12 +407,33 @@ const GroupPostsScreen = () => {
     }
   }, [user?.id, groupMembersList]);
 
+  // useFocusEffect(
+  //   useCallback(() => {
+  //     dispatch(clearPosts());
+      
+  //     loadGroupPosts();
+  //     loadGroupMembers();
+  //   }, [groupId])
+  // );
+
   useFocusEffect(
     useCallback(() => {
-      dispatch(clearPosts());
+      let isMounted = true;
       
-      loadGroupPosts();
-      loadGroupMembers();
+      const loadData = async () => {
+        if (isMounted) {
+          // Clear posts first
+          dispatch(clearPosts());
+          // Then reload everything
+          await Promise.all([loadGroupPosts(), loadGroupMembers()]);
+        }
+      };
+      
+      loadData();
+      
+      return () => {
+        isMounted = false;
+      };
     }, [groupId])
   );
 

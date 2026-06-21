@@ -1,5 +1,5 @@
 // src/navigation/MainNavigator.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MainStackParamList } from './types';
 import HomeScreen from '../screens/HomeScreen';
@@ -37,33 +37,23 @@ export const MainNavigator = () => {
 
   const [loading, setLoading] = useState(true);
   const [showSubscription, setShowSubscription] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     determineAccess();
   }, [user]);
 
-  const determineAccess = async () => {
+  const determineAccess = useCallback(async () => {
     try {
-      const hasStartedTrial =
-        await AsyncStorage.getItem('HAS_STARTED_TRIAL');
+      const hasStartedTrial = await AsyncStorage.getItem('HAS_STARTED_TRIAL');
 
-      // Active subscription
       if (user?.subscriptionStatus === 'SUBSCRIBED') {
         setShowSubscription(false);
-      }
-
-      // Subscription cancelled/expired
-      else if (user?.subscriptionStatus === 'CANCEL') {
+      } else if (user?.subscriptionStatus === 'CANCEL') {
         setShowSubscription(true);
-      }
-
-      // Trial started locally
-      else if (hasStartedTrial === 'true') {
+      } else if (hasStartedTrial === 'true') {
         setShowSubscription(false);
-      }
-
-      // First-time user
-      else {
+      } else {
         setShowSubscription(true);
       }
     } catch (error) {
@@ -72,7 +62,27 @@ export const MainNavigator = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      determineAccess();
+    }
+  }, [user, determineAccess]);
+
+  useEffect(() => {
+    // @ts-ignore
+    global.refreshNavigation = () => {
+      console.log('🔄 Refreshing navigation...');
+      setRefreshKey(prev => prev + 1);
+      determineAccess();
+    };
+    
+    return () => {
+      // @ts-ignore
+      delete global.refreshNavigation;
+    };
+  }, [determineAccess]);
 
   if (loading) {
     return (
@@ -90,6 +100,7 @@ export const MainNavigator = () => {
 
   return (
     <Stack.Navigator
+      key={refreshKey}
       screenOptions={{
         headerShown: false,
         animation: 'fade',
