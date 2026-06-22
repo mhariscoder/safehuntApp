@@ -7,6 +7,7 @@ import AuthenticationServices
 import SafariServices
 import FBSDKCoreKit
 // import RNFBMessaging
+import Firebase
 import UserNotifications
 
 @main
@@ -20,6 +21,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    FirebaseApp.configure()
 
     // Facebook SDK Initialization
     ApplicationDelegate.shared.application(

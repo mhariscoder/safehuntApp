@@ -16,6 +16,7 @@ import './../config/googleAuth';
 import '@react-native-firebase/app';
 
 import { LogBox } from 'react-native';
+import { getMessaging } from '@react-native-firebase/messaging';
 LogBox.ignoreLogs(['Warning: ...']); 
 LogBox.ignoreAllLogs();
 
@@ -46,8 +47,13 @@ const App = () => {
       appState.current = nextAppState;
     });
 
+    const unsubscribe = getMessaging().onMessage(async remoteMessage => {
+      Alert.alert('A new FCM message arrived!', JSON.stringify(remoteMessage));
+    });
+
     return () => {
       subscription.remove();
+      unsubscribe;
     };
   }, []);
 

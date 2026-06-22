@@ -1,16 +1,23 @@
-// import messaging from '@react-native-firebase/messaging';
+import messaging from '@react-native-firebase/messaging';
 
-// export const getDeviceToken = async () => {
-//   try {
-//     await messaging().requestPermission();
+export const getDeviceToken = async () => {
+  try {
+    const authStatus = await messaging().requestPermission();
+    const enabled =
+        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
-//     const token = await messaging().getToken();
+    if (enabled) {
+        console.log('Authorization status:', authStatus);
+    }
 
-//     console.log('FCM Token:', token);
+    const token = await messaging().getToken();
 
-//     return token;
-//   } catch (error) {
-//     console.log('FCM error:', error);
-//     return null;
-//   }
-// };
+    console.log('FCM Token:', token);
+
+    return token;
+  } catch (error) {
+    console.log('FCM error:', error);
+    return null;
+  }
+};

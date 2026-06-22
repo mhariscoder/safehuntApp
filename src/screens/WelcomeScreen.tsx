@@ -23,6 +23,7 @@ import { AppDispatch, RootState } from '../app/store';
 // Native SDK SSO integration modules
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { LoginManager, AccessToken, Profile } from 'react-native-fbsdk-next';
+import { getDeviceToken } from '../utils/pushToken';
 
 const { width } = Dimensions.get('window');
 
@@ -118,6 +119,8 @@ const WelcomeScreen = ({ navigation }: any) => {
       const userEmail = currentProfile?.email ?? '';
       const userName = currentProfile?.name ?? '';
 
+      const deviceToken = await getDeviceToken();
+
       // 4. Dispatch identical layout directly into your NestJS/Firebase API gateway payload
       const resultAction = await dispatch(
         loginViaSocialToken({
@@ -125,7 +128,7 @@ const WelcomeScreen = ({ navigation }: any) => {
           socialToken: facebookAccessToken,
           email: userEmail,
           name: userName,
-          deviceToken: '', 
+          deviceToken: deviceToken, 
           deviceType: Platform.OS,
         })
       );
