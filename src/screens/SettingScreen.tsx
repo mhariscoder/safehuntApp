@@ -18,8 +18,9 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAppSelector, useAppDispatch } from '../app/store/hooks';
 import { useNotifications } from '../hooks/useNotifications';
-import { deleteMyAccount } from '../features/auth/authActions';
+import { deleteMyAccount, logout } from '../features/auth/authActions';
 import BottomTabNav from '../components/BottomTabNav';
+import { resetAndNavigate } from '../navigation/navigationRef';
 
 const { width } = Dimensions.get('window');
 
@@ -170,23 +171,41 @@ const SettingScreen = () => {
     );
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Show confirmation dialog
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
       [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
-          style: 'destructive',
-          onPress: () => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Auth' }],
-            });
-          }
+        {
+          text: 'Cancel',
+          style: 'cancel',
         },
-      ]
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Call logout API through Redux action
+              await dispatch(logout()).unwrap();
+              
+              // Navigate to login screen after successful logout
+              // Using reset to clear navigation stack
+              resetAndNavigate('Auth', { screen: 'Login' });
+              
+              // Show success message (optional)
+              Alert.alert('Success', 'Logged out successfully');
+            } catch (error: any) {
+              console.error('Logout error:', error);
+              Alert.alert(
+                'Error',
+                error.message || 'Failed to logout. Please try again.'
+              );
+            }
+          },
+        },
+      ],
+      { cancelable: true }
     );
   };
 
