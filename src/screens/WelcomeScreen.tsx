@@ -64,6 +64,8 @@ const WelcomeScreen = ({ navigation }: any) => {
         throw new Error('Failed to retrieve ID token from Google initialization.');
       }
 
+      const deviceToken = await getDeviceToken();
+
       // 2. Dispatch the SocialLoginData payload directly into your updated Redux flow
       const resultAction = await dispatch(
         loginViaSocialToken({
@@ -71,7 +73,7 @@ const WelcomeScreen = ({ navigation }: any) => {
           socialToken: idToken,
           email: user.email,
           name: user.name ?? '',
-          deviceToken: '', 
+          deviceToken: deviceToken, 
           deviceType: Platform.OS, 
         })
       );
