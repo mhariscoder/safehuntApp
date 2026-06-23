@@ -48,7 +48,25 @@ const App = () => {
     });
 
     const unsubscribe = getMessaging().onMessage(async remoteMessage => {
-      Alert.alert('A new FCM message arrived!', JSON.stringify(remoteMessage));
+      console.log('A new FCM message arrived!', JSON.stringify(remoteMessage));
+
+      // Safely extract notification title and body
+      const title = remoteMessage.notification?.title || 'New Notification';
+      const body = remoteMessage.notification?.body || '';
+
+      // Display the notification using your existing Toast configuration
+      Toast.show({
+        type: 'success', // formats the banner nicely (can also use 'info' or 'error')
+        text1: title,
+        text2: body,
+        position: 'top',
+        visibilityTime: 4000,
+        autoHide: true,
+        onPress: () => {
+          // Optional: Handle redirection when tapping the toast banner
+          console.log('Toast clicked! Payload metadata:', remoteMessage.data);
+        }
+      });
     });
 
     return () => {

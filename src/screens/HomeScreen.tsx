@@ -373,9 +373,9 @@ const HomeScreen = () => {
         
         setInitialCamera({
           center: { latitude, longitude },
-          pitch: 55,
-          heading: 0,
-          altitude: 1000,
+          // pitch: 55,
+          // heading: 0,
+          // altitude: 1000,
           zoom: 16.5
         });
         setLoading(false);
@@ -390,7 +390,8 @@ const HomeScreen = () => {
             setLocationLoaded(true);
             setInitialCamera({
               center: { latitude, longitude },
-              pitch: 55, heading: 0, altitude: 1000, zoom: 16.5
+              // pitch: 55, heading: 0, altitude: 1000, 
+              zoom: 16.5
             });
             setLoading(false);
           },
@@ -426,9 +427,9 @@ const HomeScreen = () => {
     setLocationLoaded(true);
     setInitialCamera({
       center: defaultLoc,
-      pitch: 55,
-      heading: 0,
-      altitude: 1500,
+      // pitch: 55,
+      // heading: 0,
+      // altitude: 1500,
       zoom: 15,
     });
     setLoading(false);
@@ -443,6 +444,19 @@ const HomeScreen = () => {
 
     // Add nearby user markers
     nearbyUsers.forEach(user => {
+      if (!user.currentLatitude || !user.currentLongitude) return;
+
+      let distance = user.distance;
+
+      if (!distance && currentLocation) {
+        distance = calculateDistance(
+          currentLocation.latitude,
+          currentLocation.longitude,
+          user.currentLatitude,
+          user.currentLongitude
+        );
+      }
+
       markers.push({
         id: `user_${user.id}`,
         coordinate: {
@@ -450,7 +464,9 @@ const HomeScreen = () => {
           longitude: user.currentLongitude,
         },
         title: user.displayname || user.username,
-        description: `${user.distance?.toFixed(1)}km away`,
+        description: distance
+          ? `${distance.toFixed(1)} km away`
+          : 'Distance unavailable',
         type: 'user',
         isJournal: false,
         user: {
@@ -476,9 +492,9 @@ const HomeScreen = () => {
           latitude: currentLocation.latitude,
           longitude: currentLocation.longitude,
         },
-        pitch: 55,
-        zoom: 16.5,
-        heading: 0,
+        // pitch: 55,
+        // zoom: 16.5,
+        // heading: 0,
       }, { duration: 600 });
     }
   };
@@ -494,19 +510,19 @@ const HomeScreen = () => {
       try {
         const currentCamera = await mapRef.current.getCamera();
         mapRef.current.animateCamera({
-          center: currentCamera.center,
-          pitch: currentCamera.pitch ?? 55,
-          heading: currentCamera.heading ?? 0,
+          // center: currentCamera.center,
+          // pitch: currentCamera.pitch ?? 55,
+          // heading: currentCamera.heading ?? 0,
           zoom: zoomOption.zoom,
-          altitude: zoomOption.altitude,
+          // altitude: zoomOption.altitude,
         }, { duration: 200 });
       } catch (error) {
         if (currentLocation) {
           mapRef.current.animateCamera({
             center: currentLocation,
-            pitch: 55,
+            // pitch: 55,
             zoom: zoomOption.zoom,
-            altitude: zoomOption.altitude,
+            // altitude: zoomOption.altitude,
           }, { duration: 200 });
         }
       }
@@ -514,19 +530,59 @@ const HomeScreen = () => {
   };
 
   // Handle friend request
-  const handleSendFriendRequest = (recipientId: string | undefined, displayName: string) => {
+  // const handleSendFriendRequest = (recipientId: string | undefined, displayName: string) => {
+  //   if (!recipientId) {
+  //     Alert.alert('Error', 'Unable to identify user.');
+  //     return;
+  //   }
+
+  //   setProcessingRequests(prev => new Set(prev).add(recipientId));
+    
+  //   const chatService = ChatService;
+  //   chatService.emitEvent({
+  //     eventName: 'sendFriendRequest',
+  //     eventParameters: { receiverId: recipientId }
+  //   });
+  // };
+
+  const handleSendFriendRequest = async (
+    recipientId: string | undefined,
+    displayName: string
+  ) => {
     if (!recipientId) {
       Alert.alert('Error', 'Unable to identify user.');
       return;
     }
 
-    setProcessingRequests(prev => new Set(prev).add(recipientId));
-    
-    const chatService = ChatService;
-    chatService.emitEvent({
-      eventName: 'sendFriendRequest',
-      eventParameters: { receiverId: recipientId }
-    });
+    try {
+      setProcessingRequests(prev => new Set(prev).add(recipientId));
+
+      const result = await dispatch(
+        sendFriendRequest({ recipientId: Number(recipientId) })
+      ).unwrap();
+
+      console.log('✅ Friend request sent:', result);
+
+      // update UI instantly
+      setNearbyUsers(prev =>
+        prev.map(user =>
+          user.id === recipientId
+            ? { ...user, friendRequestStatus: 'pending' }
+            : user
+        )
+      );
+
+      Alert.alert('Success', 'Friend request sent successfully!');
+    } catch (error: any) {
+      console.log('❌ Friend request error:', error);
+      Alert.alert('Error', error || 'Failed to send friend request');
+    } finally {
+      setProcessingRequests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(recipientId);
+        return newSet;
+      });
+    }
   };
 
   // Handle accepting friend request
@@ -638,107 +694,92 @@ const HomeScreen = () => {
   // Handle marker press - FIXED to properly show friend card
   const handleMarkerPress = (location: LocationMarker) => {
     console.log('📍 Marker pressed:', location);
-    
+
     if (location.isJournal) {
-      // Journal marker
       setSelectedLocation(location);
       setSelectedNearbyUser(null);
-      setRouteDistance(null);
-      setRouteDuration(null);
     } else {
-      // User marker - find the full user data
       const user = nearbyUsers.find(u => u.id === location.user?.id);
+
       if (user) {
-        console.log('👤 User found, showing friend card:', user.displayname);
         setSelectedNearbyUser(user);
-        setSelectedLocation(null);
-        setRouteDistance(null);
-        setRouteDuration(null);
-        
-        // Animate to user location
-        if (mapRef.current) {
-          mapRef.current.animateCamera({
-            center: {
-              latitude: user.currentLatitude,
-              longitude: user.currentLongitude,
-            },
-            pitch: 45,
-            zoom: 16,
-          }, { duration: 500 });
-        }
-      } else {
-        console.warn('⚠️ User not found in nearbyUsers array');
+
+        // 🔥 KEY FIX: create route destination
+        setSelectedLocation({
+          id: `route_user_${user.id}`,
+          coordinate: {
+            latitude: user.currentLatitude,
+            longitude: user.currentLongitude,
+          },
+          title: user.displayname || user.username,
+          description: 'Nearby hunter',
+          type: 'user',
+          isJournal: false,
+        });
+
+        // Smooth camera focus
+        // mapRef.current?.animateCamera({
+        //   center: {
+        //     latitude: user.currentLatitude,
+        //     longitude: user.currentLongitude,
+        //   },
+        //   pitch: 45,
+        //   zoom: 16,
+        // }, { duration: 500 });
+        mapRef.current?.animateToRegion({
+          latitude: user.currentLatitude,
+          longitude: user.currentLongitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }, 500);
       }
     }
+
+    setRouteDistance(null);
+    setRouteDuration(null);
   };
 
-  // Render nearby users list
-  const renderNearbyUsersList = () => {
-    if (nearbyUsers.length === 0) return null;
-
-    return (
-      <View style={styles.nearbyUsersContainer}>
-        <Text style={styles.nearbyUsersTitle}>
-          👥 Nearby Hunters ({nearbyUsers.length})
-        </Text>
-        <FlatList
-          horizontal
-          data={nearbyUsers}
-          keyExtractor={(item) => item.id}
-          showsHorizontalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.nearbyUserCard}
-              onPress={() => {
-                setSelectedNearbyUser(item);
-                setSelectedLocation(null);
-                // Animate to user location
-                if (mapRef.current) {
-                  mapRef.current.animateCamera({
-                    center: {
-                      latitude: item.currentLatitude,
-                      longitude: item.currentLongitude,
-                    },
-                    pitch: 45,
-                    zoom: 16,
-                  }, { duration: 500 });
-                }
-              }}
-            >
-              <View style={styles.nearbyUserAvatar}>
-                {item.profilePicture ? (
-                  <Image 
-                    source={{ uri: item.profilePicture }} 
-                    style={styles.nearbyUserImage} 
-                  />
-                ) : (
-                  <View style={styles.nearbyUserInitial}>
-                    <Text style={styles.nearbyUserInitialText}>
-                      {item.displayname?.charAt(0) || item.username?.charAt(0) || '?'}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.nearbyUserName} numberOfLines={1}>
-                {item.displayname || item.username}
-              </Text>
-              <Text style={styles.nearbyUserDistance}>
-                {item.distance ? `${item.distance.toFixed(1)}km` : 'Nearby'}
-              </Text>
-              <View style={styles.nearbyUserAction}>
-                {renderFriendRequestButton(item.id)}
-              </View>
-            </TouchableOpacity>
-          )}
-        />
-      </View>
-    );
-  };
 
   const getProfileImageUri = (profilePhotoPath: string | null | undefined) => {
     if (!profilePhotoPath) return require('../../assets/about_icon.png');
     const cleanPath = profilePhotoPath.replace(/^\.\/public\//, 'public/');
     return { uri: `${IMAGE_SERVER_BASE_URL}/${cleanPath}` };
+  };
+
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ) => {
+    const toRad = (value: number) => (value * Math.PI) / 180;
+
+    const R = 6371; // km
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) ** 2;
+
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  };
+
+  const getUserDistance = (user: NearbyUser) => {
+    if (user.distance) return user.distance;
+
+    if (currentLocation) {
+      return calculateDistance(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        user.currentLatitude,
+        user.currentLongitude
+      );
+    }
+
+    return null;
   };
 
   if (loading) {
@@ -759,17 +800,37 @@ const HomeScreen = () => {
       <View style={styles.mapContainer}>
         {initialCamera && (
           <MapView
+            // ref={mapRef}
+            // provider={PROVIDER_GOOGLE}
+            // style={styles.map}
+            // initialCamera={initialCamera}
+            // showsUserLocation={true}
+            // showsMyLocationButton={false}
+            // showsCompass={true}
+            // zoomEnabled={true}
+            // scrollEnabled={true}
+            // pitchEnabled={true}
+            // rotateEnabled={true}
             ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={styles.map}
-            initialCamera={initialCamera}
+
+            initialRegion={{
+              latitude: initialCamera.center.latitude,
+              longitude: initialCamera.center.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            }}
+
             showsUserLocation={true}
             showsMyLocationButton={false}
             showsCompass={true}
+
             zoomEnabled={true}
             scrollEnabled={true}
-            pitchEnabled={true}
-            rotateEnabled={true}
+
+            pitchEnabled={false}
+            rotateEnabled={false}
           >
             {currentLocation && (
               <Marker
@@ -801,7 +862,7 @@ const HomeScreen = () => {
                   source={
                     location.isJournal 
                       ? require('../../assets/about_icon.png')
-                      : require('../../assets/tab_1.png')
+                      : require('../../assets/about_icon.png')
                   }
                   style={{ width: 30, height: 30 }}
                   resizeMode="contain"
@@ -844,9 +905,9 @@ const HomeScreen = () => {
                   setTimeout(() => {
                     mapRef.current?.animateCamera({
                       center: { latitude: midLat, longitude: midLng },
-                      pitch: 50,
-                      altitude: targetAltitude,
-                      heading: 0,
+                      // pitch: 50,
+                      // altitude: targetAltitude,
+                      // heading: 0,
                     }, { duration: 600 });
                   }, 60);
                 }}
@@ -937,9 +998,15 @@ const HomeScreen = () => {
                   <Text style={styles.locationInfoTitle}>
                     {selectedNearbyUser.displayname || selectedNearbyUser.username}
                   </Text>
-                  <Text style={styles.userDistanceText}>
+                  {/* <Text style={styles.userDistanceText}>
                     📍 {selectedNearbyUser.distance?.toFixed(1)}km away
-                  </Text>
+                  </Text> */}
+                  <Text style={styles.userDistanceText}>
+                  📍 {(() => {
+                    const d = getUserDistance(selectedNearbyUser);
+                    return d ? `${d.toFixed(1)} km away` : 'Distance unavailable';
+                  })()}
+                </Text>
                   <Text style={styles.userLocationText}>
                     Lat: {selectedNearbyUser.currentLatitude.toFixed(4)}, Lng: {selectedNearbyUser.currentLongitude.toFixed(4)}
                   </Text>
@@ -950,9 +1017,6 @@ const HomeScreen = () => {
               </View>
             </View>
           )}
-
-          {/* Nearby Users Horizontal List */}
-          {renderNearbyUsersList()}
 
           <View style={{ marginTop: 'auto', marginBottom: 10, width: '100%' }}>
             <View style={styles.sliderContainer}>

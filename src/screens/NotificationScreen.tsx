@@ -210,32 +210,32 @@ const NotificationScreen = () => {
     );
   };
 
-  if (isLoading && notifications.length === 0) {
-    return (
-      <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#0E713E" />
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Image source={require('../../assets/back_white.png')} style={styles.headerIcon} />
-            <Text style={styles.headerTitle}>Notifications</Text>
-          </TouchableOpacity>
+  // if (isLoading && notifications.length === 0) {
+  //   return (
+  //     <View style={styles.container}>
+  //       <StatusBar barStyle="light-content" backgroundColor="#0E713E" />
+  //       <View style={styles.header}>
+  //         <TouchableOpacity 
+  //           style={styles.backButton}
+  //           onPress={() => navigation.goBack()}
+  //         >
+  //           <Image source={require('../../assets/back_white.png')} style={styles.headerIcon} />
+  //           <Text style={styles.headerTitle}>Notifications</Text>
+  //         </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={styles.searchToggleButton}
-            onPress={() => setShowSearch(!showSearch)}
-          >
-            <Image source={require('../../assets/search_icon.png')} style={styles.headerSearchIcon} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#0E713E" />
-        </View>
-      </View>
-    );
-  }
+  //         <TouchableOpacity 
+  //           style={styles.searchToggleButton}
+  //           onPress={() => setShowSearch(!showSearch)}
+  //         >
+  //           <Image source={require('../../assets/search_icon.png')} style={styles.headerSearchIcon} />
+  //         </TouchableOpacity>
+  //       </View>
+  //       <View style={styles.centerContainer}>
+  //         <ActivityIndicator size="large" color="#0E713E" />
+  //       </View>
+  //     </View>
+  //   );
+  // }
 
   return (
     <View style={styles.container}>
