@@ -1,3 +1,4 @@
+// MessageScreen.js - Updated with profile image/letter logic
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -15,7 +16,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import axios from 'axios'; // ✅ Added Axios for network requests
+import axios from 'axios';
 import { useFriends } from '../hooks/useFriends';
 import { useGroups } from '../hooks/useGroups';
 import { useAppSelector } from '../app/store/hooks';
@@ -33,7 +34,27 @@ const getFullImageUrl = (imagePath: string | null | undefined): string | null =>
   return `${API_BASE_URL}/public/uploads/${cleanPath}`;
 };
 
-// ✅ Define an interface matching your NestJS messageService.getInbox response structure
+// Avatar component that shows image or first letter
+const Avatar = ({ imagePath, name, size = 65, textSize = 24 }) => {
+  const imageUrl = getFullImageUrl(imagePath);
+  const initial = name?.charAt(0)?.toUpperCase() || '?';
+
+  if (imageUrl) {
+    return (
+      <Image 
+        source={{ uri: imageUrl }} 
+        style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]} 
+      />
+    );
+  }
+
+  return (
+    <View style={[styles.avatarPlaceholder, { width: size, height: size, borderRadius: size / 2 }]}>
+      <Text style={[styles.avatarText, { fontSize: textSize }]}>{initial}</Text>
+    </View>
+  );
+};
+
 interface RecentChat {
   id: string;
   user: {
@@ -52,7 +73,7 @@ type TabType = 'recent' | 'people' | 'groups';
 
 const MessageScreen = () => {
   const navigation = useNavigation<any>();
-  const { user, token } = useAppSelector((state) => state.auth); // ✅ Grab token from auth slice
+  const { user, token } = useAppSelector((state) => state.auth);
   const {
     friends,
     isLoading: friendsLoading,
@@ -67,8 +88,8 @@ const MessageScreen = () => {
     addMember,
   } = useGroups();
 
-  const [recentChats, setRecentChats] = useState<RecentChat[]>([]); // ✅ State managing actual API response
-  const [recentChatsLoading, setRecentChatsLoading] = useState(false); // ✅ Loader for inbox tab
+  const [recentChats, setRecentChats] = useState<RecentChat[]>([]);
+  const [recentChatsLoading, setRecentChatsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('recent');
   const [refreshing, setRefreshing] = useState(false);
   const [joiningGroupId, setJoiningGroupId] = useState<number | null>(null);
@@ -93,7 +114,6 @@ const MessageScreen = () => {
         },
       });
 
-      // ✅ Crucial Fix: extract the embedded array from your envelope response structure
       if (response.data && Array.isArray(response.data.data)) {
         setRecentChats(response.data.data);
       } else {
@@ -101,7 +121,7 @@ const MessageScreen = () => {
       }
     } catch (error) {
       console.error('Error fetching inbox items from backend:', error);
-      setRecentChats([]); // Fallback to clear loading states
+      setRecentChats([]);
     } finally {
       setRecentChatsLoading(false);
     }
@@ -110,7 +130,7 @@ const MessageScreen = () => {
   const loadData = async () => {
     try {
       if (activeTab === 'recent') {
-        await fetchRecentChatsFromApi(); // ✅ Fetch real history when on the recent tab
+        await fetchRecentChatsFromApi();
       } else if (activeTab === 'people') {
         await getFriends(currentUserId!);
       } else if (activeTab === 'groups') {
@@ -133,7 +153,6 @@ const MessageScreen = () => {
   };
 
   const handleRecentChatPress = (userId: number, displayname: string) => {
-    // Navigates directly into details with active recipient parameters
     navigation.navigate('MessageDetail', { userId, displayname });
   };
 
@@ -189,11 +208,8 @@ const MessageScreen = () => {
     navigation.navigate('CreateGroup');
   };
 
-  // ✅ Maps custom queries across dynamic inbox users and messages
-  // ✅ Safe check to ensure recentChats is an array before filtering
   const filteredRecentChats = Array.isArray(recentChats) 
     ? recentChats.filter(chat => {
-        // Use optional chaining everywhere to prevent deep property crashes
         const searchLower = searchQuery?.toLowerCase() || '';
         const displayName = chat?.user?.displayname || '';
         const msg = chat?.lastMessage || '';
@@ -201,23 +217,20 @@ const MessageScreen = () => {
         return displayName.toLowerCase().includes(searchLower) || 
               msg.toLowerCase().includes(searchLower);
       })
-    : []; // Fallback to an empty array if it's not ready or not an array
+    : [];
 
-  // Filter friends based on search query
   const filteredFriends = friends.filter(friend => {
     const searchLower = searchQuery.toLowerCase();
     return (friend.displayname || friend.username || '').toLowerCase().includes(searchLower) ||
            (friend.email || '').toLowerCase().includes(searchLower);
   });
 
-  // Filter groups based on search query
   const filteredGroups = groups.filter(group => {
     const searchLower = searchQuery.toLowerCase();
     return (group.name || '').toLowerCase().includes(searchLower) ||
            (group.description || '').toLowerCase().includes(searchLower);
   });
 
-  // ✅ Helper method to structure date parameters safely in list rows
   const formatChatTime = (timestampString: string) => {
     try {
       const date = new Date(timestampString);
@@ -257,26 +270,20 @@ const MessageScreen = () => {
         {filteredRecentChats.map((chat, index) => {
           const receiverName = chat.user?.displayname || 'Unknown User';
           const profilePic = chat.user?.profilePhoto;
-          
-          // Safely extract the raw string or format structural attachments
-          const displayMessage = chat.messageType === 'text' ? (chat.lastMessage || '') : `📁 Attached ${chat.messageType || 'file'}`;
-          
-          // Generate a safe fallback key if list rows lack unique matching markers
-          const itemKey = chat.user?.id ? chat.user.id.toString() : `chat-${index}`;
           const numericUserId = chat.user?.id ? parseInt(chat.user.id, 10) : 0;
 
           return (
             <TouchableOpacity 
-              key={itemKey} 
+              key={chat.user?.id ? chat.user.id.toString() : `chat-${index}`} 
               style={[styles.chatItem, chat.isUnread && styles.unreadChatBackground]}
               onPress={() => handleRecentChatPress(numericUserId, receiverName)}
             >
-              <View style={styles.avatarWrapper}>
-                <Image 
-                  source={profilePic ? { uri: getFullImageUrl(profilePic)! } : require('../../assets/circle_profile.png')} 
-                  style={styles.avatar} 
-                />
-              </View>
+              <Avatar 
+                imagePath={profilePic} 
+                name={receiverName}
+                size={65}
+                textSize={24}
+              />
               
               <View style={styles.textContainer}>
                 <View style={styles.nameRow}>
@@ -285,7 +292,7 @@ const MessageScreen = () => {
                 </View>
                 <View style={styles.messageRow}>
                   <Text style={styles.messageText} numberOfLines={1}>
-                    {displayMessage}
+                    {chat.messageType === 'text' ? (chat.lastMessage || '') : `📁 Attached ${chat.messageType || 'file'}`}
                   </Text>
                   {chat.unreadCount > 0 && (
                     <View style={styles.unreadBadge}>
@@ -331,12 +338,12 @@ const MessageScreen = () => {
             style={styles.chatItem}
             onPress={() => handleFriendPress(parseInt(friend.id), friend.displayname || friend.username)}
           >
-            <View style={styles.avatarWrapper}>
-              <Image 
-                source={friend.profilePhoto ? { uri: getFullImageUrl(friend.profilePhoto)! } : require('../../assets/circle_profile.png')} 
-                style={styles.avatar} 
-              />
-            </View>
+            <Avatar 
+              imagePath={friend.profilePhoto} 
+              name={friend.displayname || friend.username}
+              size={65}
+              textSize={24}
+            />
             
             <View style={styles.textContainer}>
               <View style={styles.nameRow}>
@@ -396,10 +403,18 @@ const MessageScreen = () => {
             >
               <View style={styles.groupHeader}>
                 <View style={styles.groupAvatarWrapper}>
-                  <Image 
-                    source={group.logo ? { uri: getFullImageUrl(group.logo)! } : require('../../assets/group_avatar.png')} 
-                    style={[styles.groupAvatar, !isMember && styles.disabledAvatar]} 
-                  />
+                  {group.logo ? (
+                    <Image 
+                      source={{ uri: getFullImageUrl(group.logo)! }} 
+                      style={[styles.groupAvatar, !isMember && styles.disabledAvatar]} 
+                    />
+                  ) : (
+                    <View style={[styles.groupAvatarPlaceholder, !isMember && styles.disabledAvatar]}>
+                      <Text style={styles.groupAvatarText}>
+                        {group.name?.charAt(0)?.toUpperCase() || 'G'}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <View style={styles.groupInfo}>
                   <Text style={[styles.groupName, !isMember && styles.disabledText]}>
@@ -596,7 +611,6 @@ const MessageScreen = () => {
   );
 };
 
-// Styles remain unchanged
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -742,6 +756,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: '#F0F0F0',
   },
+  avatar: {
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    borderWidth: 1,
+    borderColor: '#0E713E',
+  },
+  avatarPlaceholder: {
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    backgroundColor: '#0E713E',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#0E713E',
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
   groupCard: {
     paddingHorizontal: 25,
     paddingVertical: 15,
@@ -762,6 +797,21 @@ const styles = StyleSheet.create({
     borderRadius: 27.5,
     borderWidth: 1,
     borderColor: '#0E713E',
+  },
+  groupAvatarPlaceholder: {
+    width: 55,
+    height: 55,
+    borderRadius: 27.5,
+    backgroundColor: '#0E713E',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#0E713E',
+  },
+  groupAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: 'bold',
   },
   groupInfo: {
     flex: 1,
@@ -784,28 +834,8 @@ const styles = StyleSheet.create({
   unreadChatBackground: {
     backgroundColor: '#AACEBC',
   },
-  avatarWrapper: {
-    position: 'relative',
-  },
-  avatar: {
-    width: 65,
-    height: 65,
-    borderRadius: 32.5,
-    borderWidth: 1,
-    borderColor: '#0E713E',
-  },
   disabledAvatar: {
     opacity: 0.6,
-  },
-  statusDot: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 2,
-    borderColor: '#FFF',
   },
   textContainer: {
     flex: 1,

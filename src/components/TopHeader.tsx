@@ -54,21 +54,26 @@ const TopHeader: React.FC<TopHeaderProps> = ({
   // -------------------------------
   // LOCATION NAME (OpenStreetMap)
   // -------------------------------
-  const getLocationName = async (lat: number, lon: number) => {
+  const getLocationName = async (lat: number|undefined, lon: number|undefined): Promise<string> => {
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
+        `https://us1.locationiq.com/v1/reverse?key=pk.eb856481a602e04547d84550365ccece&lat=${lat}&lon=${lon}&format=json`
       );
+
       const data = await res.json();
+      const a = data?.address || {};
 
-      const a = data?.address;
+      const city = a.city || a.town || a.village || a.suburb || a.county || '';
+      const country = a.country || '';
 
-      const city = a?.city || a?.town || a?.village || a?.suburb;
-      const country = a?.country;
+      const locationName = city && country
+        ? `${city}, ${country}`
+        : data?.display_name || `${lat?.toFixed(4) || '0'}, ${lon?.toFixed(4) || '0'}`;
 
-      return city && country ? `${city}, ${country}` : data?.display_name || 'Unknown';
-    } catch {
-      return 'Unknown Location';
+      return locationName;
+    } catch (error) {
+      console.warn('Failed to get location name:', error);
+      return `${lat?.toFixed(4) || '0'}, ${lon?.toFixed(4) || '0'}`;
     }
   };
 

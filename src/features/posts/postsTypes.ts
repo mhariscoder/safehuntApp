@@ -72,6 +72,7 @@ export interface CreatePostData {
   tags?: string;
   latitude?: number;
   longitude?: number;
+  location?: string;
   groupId?: number;
 }
 
@@ -82,6 +83,7 @@ export interface UpdatePostData {
   tags?: string;
   latitude?: number;
   longitude?: number;
+  location?: string;
   groupId?: number;
 }
 

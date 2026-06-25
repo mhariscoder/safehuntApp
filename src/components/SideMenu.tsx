@@ -18,6 +18,7 @@ import { useAppDispatch, useAppSelector } from '../app/store/hooks';
 import { logout } from '../features/auth/authActions';
 import { resetAndNavigate } from '../navigation/navigationRef';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../constants/config';
 
 const { width } = Dimensions.get('window');
 const DRAWER_WIDTH = width;
@@ -40,6 +41,16 @@ interface SideMenuProps {
   onClose: () => void;
   userName?: string;
 }
+
+const getFullImageUrl = (imagePath: string | null | undefined, size?: string): string | null => {
+  if (!imagePath) return null;
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  const cleanPath = imagePath.replace('./public/uploads/', '').replace('public/uploads/', '');
+  const sizeParam = size ? `?size=${size}` : '';
+  return `${API_BASE_URL}/public/uploads/${cleanPath}${sizeParam}`;
+};
 
 const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, userName = "Display Name" }) => {
   const navigation = useNavigation<any>();
@@ -177,7 +188,20 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, userName = "Displa
         <View style={styles.drawerContent}>
           <View style={styles.drawerHeader}>
             <View style={styles.profileCircle}>
-              <Text style={styles.profileInitial}>{userName.charAt(0)}</Text>
+              {user?.profilePhoto ? (
+                <Image 
+                  source={{ uri: getFullImageUrl(user.profilePhoto) || undefined }} 
+                  style={{
+                    width: 50,
+                    height: 50,
+                    borderRadius: 25,
+                  }} 
+                />
+              ) : (
+                <Text style={styles.profileInitial}>
+                  {user?.displayname?.charAt(0) || user?.username?.charAt(0) || 'U'}
+                </Text>
+              )}
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
               <Text style={styles.closeIcon}>✕</Text>

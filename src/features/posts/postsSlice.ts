@@ -83,8 +83,8 @@ const postsSlice = createSlice({
     });
     builder.addCase(createPost.fulfilled, (state, action) => {
       state.isLoading = false;
-      state.posts.unshift(action.payload);
-      state.myPosts.unshift(action.payload);
+      state.posts.unshift(action.payload.data);
+      state.myPosts.unshift(action.payload.data);
       state.error = null;
     });
     builder.addCase(createPost.rejected, (state, action) => {

@@ -19,7 +19,7 @@ import MapView, {
   LatLng,
 } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Geolocation from '@react-native-community/geolocation';
 import Slider from '@react-native-community/slider';
 
@@ -270,6 +270,13 @@ const HomeScreen = () => {
     };
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      console.log('📍 HomeScreen focused - fetching journals...');
+      fetchMyJournalsData();
+    }, [])
+  );
+
   // Debounced location update
   const debouncedLocationUpdate = useCallback((location: LatLng) => {
     if (locationUpdateTimeoutRef.current) {
@@ -465,7 +472,7 @@ const HomeScreen = () => {
         },
         title: user.displayname || user.username,
         description: distance
-          ? `${distance.toFixed(1)} km away`
+          ? `${(distance * 0.621371).toFixed(1)} mi away`
           : 'Distance unavailable',
         type: 'user',
         isJournal: false,
@@ -880,7 +887,8 @@ const HomeScreen = () => {
                 mode="DRIVING"
                 precision="high"
                 onReady={(result) => {
-                  setRouteDistance(`${result.distance.toFixed(1)} km`);
+                  const miles = result.distance * 0.621371;
+                  setRouteDistance(`${miles.toFixed(1)} mi`);
                   setRouteDuration(`${Math.ceil(result.duration)} mins`);
 
                   mapRef.current?.fitToCoordinates(result.coordinates, {
@@ -1004,7 +1012,7 @@ const HomeScreen = () => {
                   <Text style={styles.userDistanceText}>
                   📍 {(() => {
                     const d = getUserDistance(selectedNearbyUser);
-                    return d ? `${d.toFixed(1)} km away` : 'Distance unavailable';
+                    return d ? `${(d * 0.621371).toFixed(1)} mi away` : 'Distance unavailable';
                   })()}
                 </Text>
                   <Text style={styles.userLocationText}>

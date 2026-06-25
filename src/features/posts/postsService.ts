@@ -52,6 +52,7 @@ class PostsService {
       if (postData.latitude) formData.append('latitude', String(postData.latitude));
       if (postData.longitude) formData.append('longitude', String(postData.longitude));
       if (postData.groupId) formData.append('groupId', String(postData.groupId));
+      if (postData.location) formData.append('location', String(postData.location));
       
       if (postData.image) {
         formData.append('image', {
@@ -223,6 +224,7 @@ class PostsService {
       if (postData.latitude) formData.append('latitude', String(postData.latitude));
       if (postData.longitude) formData.append('longitude', String(postData.longitude));
       if (postData.groupId) formData.append('groupId', String(postData.groupId));
+      if (postData.location) formData.append('location', String(postData.location));
       
       if (postData.image) {
         formData.append('image', {

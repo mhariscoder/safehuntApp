@@ -463,7 +463,7 @@ const PostDetailScreen = () => {
                   {post.user?.displayname || post.user?.username || 'User'}
                 </Text>
                 <Text style={styles.location}>
-                  {formatTimeAgo(postDate)} • {post.location || 'Sierra National Forest'}
+                  {formatTimeAgo(postDate)} • {post.location || ''}
                 </Text>
               </View>
               <TouchableOpacity>

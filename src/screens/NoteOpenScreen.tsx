@@ -114,7 +114,7 @@ const NoteOpenScreen = () => {
         <View style={styles.metaSection}>
           <View style={styles.metaRow}>
             <Image source={ASSETS.locationIcon} style={styles.metaIcon} />
-            <Text style={styles.metaText}>Sierra National Forest</Text>
+            {/* <Text style={styles.metaText}>Sierra National Forest</Text> */}
           </View>
 
           <View style={styles.metaRow}>

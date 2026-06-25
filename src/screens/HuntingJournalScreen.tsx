@@ -482,10 +482,10 @@ const styles = StyleSheet.create({
     color: '#555',
   },
   moreIcon: {
-    width: 4,
+    width: 20,
     height: 20,
     tintColor: '#000',
-    resizeMode: 'contain',
+    resizeMode: 'contain'
   },
   dropdown: {
     position: 'absolute',
@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     width: '100%',
-    height: 60,
+    height: 80,
     backgroundColor: 'rgba(14, 113, 62, 0.8)',
     flexDirection: 'row',
     alignItems: 'center',

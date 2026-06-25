@@ -238,7 +238,7 @@ const UserScreen = () => {
           <View style={styles.postHeaderInfo}>
             <Text style={styles.postUserName}>{post.user?.displayname || post.user?.username || 'User'}</Text>
             <Text style={styles.postLocation}>
-              {formatTimeAgo(postDate)} • {post.location || 'Sierra National Forest'}
+              {formatTimeAgo(postDate)} • {post.location || ''}
             </Text>
           </View>
         </View>

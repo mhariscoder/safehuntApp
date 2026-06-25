@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
   dataIcon: { width: 18, height: 18, marginRight: 15, resizeMode: 'contain' },
   dataText: { fontSize: 10, color: '#333', fontWeight: '500' },
   coordsText: { fontSize: 9, color: '#777', marginTop: 2 },
-  footer: { flexDirection: 'row', paddingHorizontal: 25, paddingVertical: 20, backgroundColor: '#FFFFFF' },
+  footer: { flexDirection: 'row', paddingHorizontal: 25, paddingVertical: 25, backgroundColor: '#FFFFFF' },
   footerIcon: { width: 24, height: 24, tintColor: '#0E713E', resizeMode: 'contain' },
   modalOverlay: {
     flex: 1,

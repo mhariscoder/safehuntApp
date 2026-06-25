@@ -1,3 +1,4 @@
+// FeedScreen.js - Fixed z-index issue
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   StyleSheet,
@@ -37,6 +38,7 @@ const ASSETS = {
   greenShare: require('../../assets/green_share.png'),
   arrowDown: require('../../assets/arrow_down.png'),
   arrowUp: require('../../assets/arrow_up.png'),
+  moreIcon: require('../../assets/more_vert.png'),
 };
 
 // Helper function to get full image URL
@@ -47,14 +49,15 @@ const getFullImageUrl = (imagePath: string | null | undefined, size?: string): s
   }
   const cleanPath = imagePath.replace('./public/uploads/', '').replace('public/uploads/', '');
   const sizeParam = size ? `?size=${size}` : '';
-  return `${API_BASE_URL}/uploads/${cleanPath}${sizeParam}`;
+  return `${API_BASE_URL}/public/uploads/${cleanPath}${sizeParam}`;
 };
 
-// Memoized Post Component
+// Memoized Post Component with fixed dropdown positioning
 const PostCard = memo(({ 
   post, 
   onLike, 
   onCommentPress, 
+  onSharePress,
   onToggleComments, 
   showAllComments, 
   formatTimeAgo, 
@@ -68,37 +71,98 @@ const PostCard = memo(({
   replyText,
   showReplyInput,
   setReplyText,
-  navigation 
-}: any) => {
+  navigation,
+  onEditPost,
+  onDeletePost,
+  activeMenu,
+  onToggleMenu,
+}) => {
   const postDate = post.created_at || post.createdAt;
   const imageUrl = post.image ? getFullImageUrl(post.image) : null;
   const userAvatar = post.user?.profilePhoto ? getFullImageUrl(post.user.profilePhoto) : null;
   const displayComments = showAllComments ? post.comments : post.comments?.slice(0, 2);
+  const isOwner = user?.id === post.user?.id;
+  const isMenuVisible = activeMenu === post.id;
+
   const handlePostPress = () => {
     navigation.navigate('PostDetail', { postId: post.id, groupId: post.groupId });
   };
 
+  const handleEditPress = () => {
+    onToggleMenu(post.id);
+    onEditPost(post);
+  };
+
+  const handleDeletePress = () => {
+    onToggleMenu(post.id);
+    onDeletePost(post.id);
+  };
+
   return (
     <View style={styles.postCard}>
-      <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('User', { userId: post.user?.id })}>
-        <View style={styles.postHeader}>
-          <Image 
-            source={userAvatar ? { uri: userAvatar } : ASSETS.userHenry} 
-            style={styles.avatar} 
-          />
+      <View style={styles.postHeader}>
+        <TouchableOpacity 
+          activeOpacity={0.9} 
+          onPress={() => navigation.navigate('User', { userId: post.user?.id })}
+          style={styles.postHeaderTouchable}
+        >
+          <View style={styles.profileCircleSmall}>
+            {userAvatar ? (
+              <Image 
+                source={{ uri: getFullImageUrl(userAvatar) || undefined }} 
+                style={{
+                  width: 50,
+                  height: 50,
+                  borderRadius: 25,
+                }} 
+              />
+            ) : (
+              <Text style={styles.profileInitial}>
+                {post.user?.displayname?.charAt(0) || post.user?.username?.charAt(0) || 'U'}
+              </Text>
+            )}
+          </View>
+  
           <View style={styles.headerInfo}>
             <Text style={styles.userName}>{post.user?.displayname || post.user?.username || 'User'}</Text>
             <Text style={styles.location}>
-              {formatTimeAgo(postDate)} • {post.location || 'Sierra National Forest'}
+              {formatTimeAgo(postDate)} • {post.location || ''}
             </Text>
           </View>
-          <TouchableOpacity>
-            <Text style={styles.moreIcon}>⋮</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+        {isOwner && (
+          <View style={styles.moreButtonWrapper}>
+            <TouchableOpacity 
+              onPress={() => onToggleMenu(post.id)}
+              style={styles.moreButton}
+            >
+              <Image source={ASSETS.moreIcon} style={styles.moreIcon} />
+            </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => handlePostPress()}>
+            {isMenuVisible && (
+              <View style={styles.dropdown}>
+                <TouchableOpacity 
+                  style={styles.dropdownItem} 
+                  onPress={handleEditPress}
+                >
+                  <Text style={styles.dropdownText}>Edit</Text>
+                </TouchableOpacity>
+
+                <View style={styles.dropdownDivider} />
+
+                <TouchableOpacity 
+                  style={styles.dropdownItem} 
+                  onPress={handleDeletePress}
+                >
+                  <Text style={styles.dropdownText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+
+      <TouchableOpacity onPress={handlePostPress}>
         <Text style={styles.postCaption}>
           {post.description}
           {post.tags && <Text style={styles.hashtag}> {post.tags}</Text>}
@@ -142,13 +206,17 @@ const PostCard = memo(({
           <Text style={styles.actionBtnText}>Comment</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.actionBtn}>
+        <TouchableOpacity 
+          style={styles.actionBtn}
+          onPress={() => onSharePress(post)}
+        >
           <Image source={ASSETS.greenShare} resizeMode='contain' style={styles.actionImage} />
           <Text style={styles.actionBtnText}>Share</Text>
         </TouchableOpacity>
       </View>
 
-      {post.comments && post.comments.length > 0 && (
+      {/* Comments section */}
+      {/* {post.comments && post.comments.length > 0 && (
         <View style={styles.commentsSection}>
           <TouchableOpacity 
             style={styles.commentDropdown}
@@ -197,7 +265,6 @@ const PostCard = memo(({
                     )}
                   </View>
 
-                  {/* Reply Input */}
                   {isReplyInputVisible && (
                     <View style={styles.replyInputContainer}>
                       <TextInput
@@ -214,7 +281,6 @@ const PostCard = memo(({
                     </View>
                   )}
 
-                  {/* Replies */}
                   {comment.replies && comment.replies.length > 0 && (
                     <View style={styles.repliesContainer}>
                       {comment.replies.map((reply: any) => {
@@ -256,7 +322,7 @@ const PostCard = memo(({
             );
           })}
         </View>
-      )}
+      )} */}
     </View>
   );
 });
@@ -273,8 +339,8 @@ const FeedScreen = () => {
   const [isCommentModalVisible, setIsCommentModalVisible] = useState(false);
   const [modalComments, setModalComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
+  const [activeMenu, setActiveMenu] = useState<number | null>(null);
   
-  // Track continuous pages and bounds checks safely
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -286,6 +352,8 @@ const FeedScreen = () => {
     isLoading,
     getAllPosts,
     toggleLike,
+    deletePost,
+    updatePost,
   } = usePosts();
   
   const {
@@ -302,9 +370,6 @@ const FeedScreen = () => {
 
   const flatListRef = useRef<FlatList>(null);
 
-  // useEffect(() => {
-  //   loadInitialPosts();
-  // }, []);
   useFocusEffect(
     useCallback(() => {
       if (posts.length === 0) {
@@ -319,7 +384,6 @@ const FeedScreen = () => {
       setPage(1);
       setHasMore(true);
       const result = await getAllPosts({ page: 1, limit: 20 });
-      // Guard against final data sets if your API structure returns total items/pages
       if (result && result.posts && result.posts.length < 20) {
         setHasMore(false);
       }
@@ -329,7 +393,6 @@ const FeedScreen = () => {
   };
 
   const loadMorePosts = async () => {
-    // Prevent execution if already querying, refreshing, or out of database entities
     if (isLoadingMore || isLoading || !hasMore || posts.length === 0) return;
     
     setIsLoadingMore(true);
@@ -338,7 +401,6 @@ const FeedScreen = () => {
     try {
       const result = await getAllPosts({ page: nextPage, limit: 20 });
       
-      // If the backend returned fewer items than the limit, we hit the end of the collection
       if (result && (!result.posts || result.posts.length < 20)) {
         setHasMore(false);
       }
@@ -354,6 +416,10 @@ const FeedScreen = () => {
     setRefreshing(true);
     await loadInitialPosts();
     setRefreshing(false);
+  };
+
+  const handleToggleMenu = (postId: number) => {
+    setActiveMenu(prev => (prev === postId ? null : postId));
   };
 
   const handleLike = useCallback(async (postId: number) => {
@@ -379,6 +445,56 @@ const FeedScreen = () => {
     }
   };
 
+  const handleSharePress = async (post: any) => {
+    setSelectedPost(post);
+    setIsCommentModalVisible(true);
+    setLoadingComments(true);
+    try {
+      const commentsData = await getCommentsByPost(post.id);
+      setModalComments(commentsData.comments || []);
+    } catch (error) {
+      console.error('Error loading comments:', error);
+      setModalComments([]);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  const handleEditPost = (post: any) => {
+    navigation.navigate('CreatePost', { 
+      postId: post.id,
+      description: post.description,
+      image: post.image,
+      latitude: post.latitude,
+      longitude: post.longitude,
+      tags: post.tags ? JSON.parse(post.tags) : [],
+      isEditing: true
+    });
+  };
+
+  const handleDeletePost = async (postId: number) => {
+    Alert.alert(
+      'Delete Post',
+      'Are you sure you want to delete this post? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deletePost(postId);
+              Alert.alert('Success', 'Post deleted successfully');
+              await loadInitialPosts();
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to delete post');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleAddComment = async () => {
     if (!commentText.trim() || !selectedPost) {
       Alert.alert('Error', 'Please enter a comment');
@@ -393,14 +509,12 @@ const FeedScreen = () => {
       setCommentText('');
       const commentsData = await getCommentsByPost(selectedPost.id);
       setModalComments(commentsData.comments || []);
-      // Instead of sweeping back to page 1 entirely, keep current layout or silently update
       Alert.alert('Success', 'Comment added successfully');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to add comment');
     }
   };
 
-  // Comment handlers
   const handleLikeComment = async (commentId: number) => {
     try {
       await likeComment(commentId);
@@ -529,6 +643,7 @@ const FeedScreen = () => {
       post={item}
       onLike={handleLike}
       onCommentPress={handleCommentPress}
+      onSharePress={handleSharePress}
       onToggleComments={toggleShowAllComments}
       showAllComments={showAllComments[item.id]}
       formatTimeAgo={formatTimeAgo}
@@ -543,8 +658,12 @@ const FeedScreen = () => {
       showReplyInput={showReplyInput}
       setReplyText={setReplyText}
       navigation={navigation}
+      onEditPost={handleEditPost}
+      onDeletePost={handleDeletePost}
+      activeMenu={activeMenu}
+      onToggleMenu={handleToggleMenu}
     />
-  ), [showAllComments, handleLike, handleCommentPress, toggleShowAllComments, formatTimeAgo, user, handleLikeComment, handleReplyPress, handleDeleteComment, handleAddReply, handleDeleteReply, handleLikeReply, replyText, showReplyInput]);
+  ), [showAllComments, handleLike, handleCommentPress, toggleShowAllComments, formatTimeAgo, user, handleLikeComment, handleReplyPress, handleDeleteComment, handleAddReply, handleDeleteReply, handleLikeReply, replyText, showReplyInput, activeMenu]);
 
   const renderFooter = () => {
     if (!isLoadingMore) return null;
@@ -583,8 +702,8 @@ const FeedScreen = () => {
       <View style={styles.header}>
         <TopHeader 
           onMenuPress={() => setMenuOpen(true)}
-            onSearchPress={() => navigation.navigate('HuntingJournal')}
-            containerStyle={{ marginTop: 40, backgroundColor: 'transparent' }}
+          onSearchPress={() => navigation.navigate('HuntingJournal')}
+          containerStyle={{ marginTop: 40, backgroundColor: 'transparent' }}
         />
 
         <TouchableOpacity 
@@ -593,9 +712,20 @@ const FeedScreen = () => {
         >
           <View style={styles.inputContainer}>
             <View style={styles.profileCircleSmall}>
-              <Text style={styles.profileInitial}>
-                {user?.displayname?.charAt(0) || user?.username?.charAt(0) || 'U'}
-              </Text>
+              {user?.profilePhoto ? (
+                <Image 
+                  source={{ uri: getFullImageUrl(user.profilePhoto) || undefined }} 
+                  style={{
+                    width: 50,
+                    height: 50,
+                    borderRadius: 25,
+                  }} 
+                />
+              ) : (
+                <Text style={styles.profileInitial}>
+                  {user?.displayname?.charAt(0) || user?.username?.charAt(0) || 'U'}
+                </Text>
+              )}
             </View>
             <TextInput 
               placeholder="What Are You Thinking About?" 
@@ -614,20 +744,19 @@ const FeedScreen = () => {
         ref={flatListRef}
         data={posts}
         renderItem={renderPostItem}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item, index) => item?.id?.toString() || index.toString()}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0E713E"]} />
         }
         onEndReached={loadMorePosts}
-        onEndReachedThreshold={0.2} // Decreased threshold to avoid premature firing
+        onEndReachedThreshold={0.2}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={renderEmpty}
         initialNumToRender={5}
         maxToRenderPerBatch={5}
         windowSize={5}
         removeClippedSubviews={Platform.OS === 'android'}
-        // REMOVED fixed getItemLayout structure since heights are dynamic
       />
 
       <View style={styles.bottomNavContainer}>
@@ -796,13 +925,58 @@ const styles = StyleSheet.create({
   profileInitial: { color: '#FFF', fontWeight: 'bold' },
   textInput: { flex: 1, marginHorizontal: 10, fontSize: 12 },
   imagePickerIcon: { width: 24, height: 24 },
-  postCard: { backgroundColor: '#FFF', marginTop: 10, paddingVertical: 15, marginBottom: 5 },
-  postHeader: { flexDirection: 'row', paddingHorizontal: 25, alignItems: 'center', marginBottom: 10 },
+  postCard: { backgroundColor: '#FFF', paddingVertical: 15 },
+  postHeader: { 
+    flexDirection: 'row', 
+    paddingHorizontal: 25, 
+    alignItems: 'center', 
+    marginBottom: 10,
+    justifyContent: 'space-between'
+  },
+  postHeaderTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
   avatar: { width: 45, height: 45, borderRadius: 22.5 },
   headerInfo: { flex: 1, marginLeft: 10 },
   userName: { fontWeight: '900', fontSize: 16 },
   location: { color: '#666', fontSize: 10 },
-  moreIcon: { fontSize: 20, color: '#666' },
+  moreButtonWrapper: {
+    position: 'relative',
+    zIndex: 10,
+  },
+  moreButton: {
+    padding: 5,
+  },
+  moreIcon: { width: 20, height: 20, tintColor: '#666', resizeMode: 'contain' },
+  dropdown: {
+    position: 'absolute',
+    top: 30,
+    right: 0,
+    backgroundColor: '#0E713E',
+    borderRadius: 10,
+    width: 130,
+    zIndex: 9999,
+    elevation: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  dropdownText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
   postCaption: { paddingHorizontal: 25, marginBottom: 10, fontSize: 12, lineHeight: 20 },
   hashtag: { fontWeight: 'bold', color: '#0E713E' },
   mainPostImage: { width: '100%', height: POST_IMAGE_HEIGHT, resizeMode: 'cover' },
@@ -815,7 +989,7 @@ const styles = StyleSheet.create({
   actionImage: { width: 14, height: 14, marginRight: 5, resizeMode: 'contain', tintColor: '#0E713E' },
   actionImageActive: { tintColor: '#FF6B6B' },
   bottomTabContainer: { paddingHorizontal: 25, position: 'absolute', bottom: 30, left: 0, right: 0 },
-  bottomNavContainer: { position: 'absolute', bottom: 15, left: 20, right: 20,},
+  bottomNavContainer: { position: 'absolute', bottom: 15, left: 20, right: 20 },
   commentsSection: { paddingHorizontal: 25, marginTop: 10 },
   commentDropdown: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
   allCommentsText: { fontSize: 12, fontWeight: '700', color: '#333' },
