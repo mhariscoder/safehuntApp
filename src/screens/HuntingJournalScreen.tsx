@@ -515,12 +515,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
   cardFooter: {
-    flexDirection: 'row',
+    // flexDirection: 'row',
   },
   footerItem: {
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 20,
+    marginVertical: 5
   },
   footerIcon: {
     width: 14,

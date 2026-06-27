@@ -521,11 +521,24 @@ const ProfileScreen = () => {
             style={styles.coverImage} 
           />
 
-          <View style={styles.profilePicContainer}>
+          {/* <View style={styles.profilePicContainer}>
             <Image 
               source={profilePhotoUrl ? { uri: profilePhotoUrl } : ASSETS.profilePic}
               style={styles.profilePic} 
             />
+          </View> */}
+
+          <View style={styles.profilePicContainer}>
+            {user?.profilePhoto ? (
+              <Image 
+                source={{ uri: getFullImageUrl(user.profilePhoto) || undefined }} 
+                style={styles.profilePic}
+              />
+            ) : (
+              <Text style={styles.profileText}>
+                {user?.displayname?.charAt(0) || user?.username?.charAt(0) || 'U'}
+              </Text>
+            )}
           </View>
         </View>
         
@@ -558,7 +571,11 @@ const ProfileScreen = () => {
         </View>
 
         <View style={styles.tabBar}>
-          {['Posts', 'Photos', 'Details'].map((tab) => (
+          {[
+            'Posts', 
+            // 'Photos', 
+            'Details'
+          ].map((tab) => (
             <TouchableOpacity 
               key={tab}
               style={[styles.tabItem, activeTab === tab && styles.activeTab]}
@@ -627,12 +644,12 @@ const ProfileScreen = () => {
         {friends.length === 0 && !friendsLoading && (
           <View style={styles.noFriendsContainer}>
             <Text style={styles.noFriendsText}>No friends yet</Text>
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={styles.findFriendsButton}
               onPress={() => navigation.navigate('FindFriends')}
             >
               <Text style={styles.findFriendsText}>Find Friends</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         )}
 
@@ -889,7 +906,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#FFF'
   },
-  profilePic: { width: 130, height: 130, resizeMode: 'cover' },
+  profilePic: { width: 130, height: 130, resizeMode: 'cover',  },
+  profileText: { color: '#000', fontSize: 48, fontWeight: '800', width: 130, height: 130, textAlign: 'center', verticalAlign: 'middle' },
   infoSection: { paddingHorizontal: 25, marginTop: 30 },
   userName: { fontSize: 20, fontWeight: '900', color: '#000' },
   mutualFriends: { color: '#666', fontSize: 12, marginVertical: 4 },
