@@ -217,7 +217,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, userName = "Displa
             <MenuItem label="Messages" icon={ASSETS.messages} onPress={() => handlePress('Message')} />
             <MenuItem label="Map" icon={ASSETS.map} onPress={() => handlePress('Home')} />
             <MenuItem label="Setting" icon={ASSETS.setting} onPress={() => handlePress('Settings')} />
-            <MenuItem label="Clear Trial Status" icon={ASSETS.setting} onPress={() => handleClearTrial()} />
+            {/* <MenuItem label="Clear Trial Status" icon={ASSETS.setting} onPress={() => handleClearTrial()} /> */}
 
             <MenuItem label="Terms & conditions" icon={ASSETS.terms} onPress={() => handlePress('TermsConditions')} />
             <MenuItem label="Privacy policy" icon={ASSETS.privacy} onPress={() => handlePress('PrivacyPolicy')} />

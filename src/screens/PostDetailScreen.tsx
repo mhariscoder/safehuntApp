@@ -19,6 +19,7 @@ import { useAppSelector, useAppDispatch } from '../app/store/hooks';
 import { getPostById, toggleLike, toggleLikeLocally } from '../features/posts/postsActions';
 import { useComments } from '../hooks/useComments';
 import { API_BASE_URL } from '../constants/config';
+import axios from 'axios';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const POST_IMAGE_HEIGHT = SCREEN_WIDTH * 0.8;
@@ -42,7 +43,7 @@ const getFullImageUrl = (imagePath: string | null | undefined, size?: string): s
   }
   const cleanPath = imagePath.replace('./public/uploads/', '').replace('public/uploads/', '');
   const sizeParam = size ? `?size=${size}` : '';
-  return `${API_BASE_URL}/uploads/${cleanPath}${sizeParam}`;
+  return `${API_BASE_URL}/public/uploads/${cleanPath}${sizeParam}`;
 };
 
 const PostDetailScreen = () => {
@@ -51,7 +52,7 @@ const PostDetailScreen = () => {
   const dispatch = useAppDispatch();
   
   const { postId, groupId } = route.params || {};
-  const { user } = useAppSelector((state) => state.auth);
+  const { user, token } = useAppSelector((state) => state.auth);
   const { selectedPost, isLoading: postsLoading } = useAppSelector((state) => state.posts);
   
   const [isLiking, setIsLiking] = useState(false);
@@ -62,6 +63,9 @@ const PostDetailScreen = () => {
   const [showAllReplies, setShowAllReplies] = useState<{ [key: number]: boolean }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isShared, setIsShared] = useState(false);
+  const [shareCount, setShareCount] = useState(0);
+  const [isSharing, setIsSharing] = useState(false);
   
   const scrollViewRef = useRef<ScrollView>(null);
   
@@ -87,6 +91,9 @@ const PostDetailScreen = () => {
     setIsLoading(true);
     try {
       await dispatch(getPostById({ id: postId, groupId })).unwrap();
+      // Check share status after loading post
+      await checkShareStatus(postId);
+      await fetchShareCount(postId);
     } catch (error: any) {
       console.error('Error loading post:', error);
       Alert.alert('Error', error.message || 'Failed to load post');
@@ -102,6 +109,141 @@ const PostDetailScreen = () => {
 
   // Get the current post from Redux state
   const post = selectedPost;
+
+  // Share Post API calls
+  const sharePost = async (postId: number) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/shares/${postId}/${user?.id}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error sharing post:', error);
+      throw error;
+    }
+  };
+
+  const unsharePost = async (postId: number) => {
+    try {
+      const response = await axios.delete(
+        `${API_BASE_URL}/shares/${postId}/${user?.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error unsharing post:', error);
+      throw error;
+    }
+  };
+
+  const checkShareStatus = async (postId: number) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/shares/${postId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      const shares = response.data || [];
+      const hasShared = shares.some((share: any) => share.userId === user?.id);
+      setIsShared(hasShared);
+      
+      // Update share count
+      setShareCount(shares.length || 0);
+    } catch (error) {
+      console.error('Error checking share status:', error);
+    }
+  };
+
+  const fetchShareCount = async (postId: number) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/shares/${postId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const shares = response.data || [];
+      setShareCount(shares.length || 0);
+    } catch (error) {
+      console.error('Error fetching share count:', error);
+    }
+  };
+
+  const handleSharePress = async () => {
+    if (!user) {
+      Alert.alert('Error', 'Please login to share posts');
+      return;
+    }
+
+    setIsSharing(true);
+
+    const refreshPost = async () => {
+      await loadPost();
+    };
+
+    const handleShare = async () => {
+      try {
+        await sharePost(postId);
+        setIsShared(true);
+        await refreshPost();
+        Alert.alert('Success', 'Post shared successfully');
+      } catch (error: any) {
+        Alert.alert('Error', error?.message || 'Failed to share post');
+      } finally {
+        setIsSharing(false);
+      }
+    };
+
+    const handleUnshare = async () => {
+      try {
+        await unsharePost(postId);
+        setIsShared(false);
+        await refreshPost();
+        Alert.alert('Success', 'Post unshared successfully');
+      } catch (error: any) {
+        Alert.alert('Error', error?.message || 'Failed to unshare post');
+      } finally {
+        setIsSharing(false);
+      }
+    };
+
+    if (isShared) {
+      Alert.alert(
+        'Unshare Post',
+        'Are you sure you want to remove your share of this post?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => setIsSharing(false),
+          },
+          {
+            text: 'Unshare',
+            style: 'destructive',
+            onPress: handleUnshare,
+          },
+        ]
+      );
+    } else {
+      await handleShare();
+    }
+  };
 
   // Handle like/unlike with optimistic update
   const handleLike = async () => {
@@ -471,6 +613,13 @@ const PostDetailScreen = () => {
               </TouchableOpacity>
             </View>
 
+            {/* Show shared indicator if post is shared */}
+            {isShared && (
+              <View style={styles.sharedIndicator}>
+                <Text style={styles.sharedIndicatorText}>🔁 You shared this post</Text>
+              </View>
+            )}
+
             <Text style={styles.postCaption}>
               {post.description}
               {post.tags && <Text style={styles.hashtag}> {post.tags}</Text>}
@@ -488,8 +637,11 @@ const PostDetailScreen = () => {
               <Text style={styles.statsText}>
                 ❤️ {post.likesCount || 0} {(post.likesCount === 1 ? 'Like' : 'Likes')}
               </Text>
+              {/* <Text style={styles.statsText}>
+                🔁 {shareCount || 0} {shareCount === 1 ? 'Share' : 'Shares'}
+              </Text> */}
               <Text style={styles.statsText}>
-                {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
+                💬 {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
               </Text>
             </View>
 
@@ -514,9 +666,26 @@ const PostDetailScreen = () => {
                 <Text style={styles.actionBtnText}>Comment</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.actionBtn}>
-                <Image source={ASSETS.greenShare} resizeMode='contain' style={styles.actionImage} />
-                <Text style={styles.actionBtnText}>Share</Text>
+              <TouchableOpacity 
+                style={styles.actionBtn}
+                onPress={handleSharePress}
+                disabled={isSharing}
+              >
+                {isSharing ? (
+                  <ActivityIndicator size="small" color="#0E713E" />
+                ) : (
+                  <>
+                    <Image 
+                      source={ASSETS.greenShare} 
+                      resizeMode='contain' 
+                      style={[styles.actionImage, isShared && styles.actionImageActive]} 
+                    />
+                    <Text style={[styles.actionBtnText, isShared && styles.actionBtnTextActive]}>
+                      {isShared ? 'Shared' : 'Share'} 
+                      {/* ({shareCount}) */}
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -609,7 +778,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 25, 
     paddingVertical: 10, 
     borderBottomWidth: 0.5, 
-    borderBottomColor: '#EEE' 
+    borderBottomColor: '#EEE',
+    flexWrap: 'wrap',
   },
   statsText: { color: '#666', fontSize: 12 },
   actionButtons: { 
@@ -626,12 +796,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     borderRadius: 20, 
-    justifyContent: 'center' 
+    justifyContent: 'center',
+    minHeight: 36,
   },
   actionBtnText: { color: '#0E713E', fontWeight: 'bold', fontSize: 12 },
   actionBtnTextActive: { color: '#FF6B6B' },
   actionImage: { width: 16, height: 16, marginRight: 5, resizeMode: 'contain', tintColor: '#0E713E' },
   actionImageActive: { tintColor: '#FF6B6B' },
+  
+  // Shared Indicator
+  sharedIndicator: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 25,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  sharedIndicatorText: {
+    fontSize: 12,
+    color: '#0E713E',
+    fontWeight: '600',
+  },
   
   // Comments Section
   commentsSection: { padding: 20, paddingBottom: 80 },

@@ -1,4 +1,4 @@
-// GroupPostsScreen.js - Updated with dropdown menu
+// GroupPostsScreen.js - Updated with group share functionality
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
@@ -30,6 +30,7 @@ import {
   addMember,
 } from '../features/groups/groupsActions';
 import { clearPosts } from '../features/posts/postsSlice';
+import axios from 'axios';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const POST_IMAGE_HEIGHT = SCREEN_WIDTH * 0.8;
@@ -301,8 +302,24 @@ const GroupMembersModal = ({ visible, onClose, groupId, groupName, currentUserId
   );
 };
 
-// Post Card Component with Dropdown
-const PostCard = ({ post, user, onLike, onCommentPress, onEditPost, onDeletePost, activeMenu, onToggleMenu, loadGroupPosts }: any) => {
+// Post Card Component with Group Share Functionality
+const PostCard = ({ 
+  post, 
+  user, 
+  token,
+  groupId,
+  onLike, 
+  onCommentPress, 
+  onEditPost, 
+  onDeletePost, 
+  activeMenu, 
+  onToggleMenu, 
+  loadGroupPosts,
+  onSharePress,
+  isShared,
+  shareCount,
+  isSharing,
+}: any) => {
   const postDate = post.created_at || post.createdAt;
   const imageUrl = post.image ? getFullImageUrl(post.image) : null;
   const userAvatar = post.user?.profilePhoto ? getFullImageUrl(post.user.profilePhoto) : null;
@@ -373,6 +390,13 @@ const PostCard = ({ post, user, onLike, onCommentPress, onEditPost, onDeletePost
         )}
       </View>
 
+      {/* Show shared indicator if post is shared */}
+      {isShared && (
+        <View style={styles.sharedIndicator}>
+          <Text style={styles.sharedIndicatorText}>🔁 You shared this post</Text>
+        </View>
+      )}
+
       <Text style={styles.postCaption}>
         {post.description}
         {post.tags && <Text style={styles.hashtag}> {post.tags}</Text>}
@@ -384,6 +408,7 @@ const PostCard = ({ post, user, onLike, onCommentPress, onEditPost, onDeletePost
 
       <View style={styles.statsRow}>
         <Text style={styles.statsText}>❤️ {post.likesCount || 0} {(post.likesCount === 1 ? 'Like' : 'Likes')}</Text>
+        <Text style={styles.statsText}>🔁 {shareCount || 0} {shareCount === 1 ? 'Share' : 'Shares'}</Text>
         <Text style={styles.statsText}>{post.comments?.length || 0} Comments</Text>
       </View>
 
@@ -410,9 +435,25 @@ const PostCard = ({ post, user, onLike, onCommentPress, onEditPost, onDeletePost
           <Text style={styles.actionBtnText}>Comment</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.actionBtn}>
-          <Image source={ASSETS.greenShare} resizeMode='contain' style={styles.actionImage} />
-          <Text style={styles.actionBtnText}>Share</Text>
+        <TouchableOpacity 
+          style={styles.actionBtn}
+          onPress={() => onSharePress(post)}
+          disabled={isSharing}
+        >
+          {isSharing ? (
+            <ActivityIndicator size="small" color="#0E713E" />
+          ) : (
+            <>
+              <Image 
+                source={ASSETS.greenShare} 
+                resizeMode='contain' 
+                style={[styles.actionImage, isShared && styles.actionImageActive]} 
+              />
+              <Text style={[styles.actionBtnText, isShared && styles.actionBtnTextActive]}>
+                {isShared ? 'Shared' : 'Share'}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -423,7 +464,7 @@ const GroupPostsScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const { groupId, groupName, groupLogo, groupCover, groupDescription } = route.params as any;
-  const { user } = useAppSelector((state) => state.auth);
+  const { user, token } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
   
   const {
@@ -459,6 +500,11 @@ const GroupPostsScreen = () => {
   const [loadingComments, setLoadingComments] = useState(false);
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
   
+  // Share related states
+  const [sharedPosts, setSharedPosts] = useState<Set<number>>(new Set());
+  const [shareCounts, setShareCounts] = useState<{ [key: number]: number }>({});
+  const [isSharing, setIsSharing] = useState<{ [key: number]: boolean }>({});
+  
   // Member management states
   const [isMembersModalVisible, setIsMembersModalVisible] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -469,9 +515,173 @@ const GroupPostsScreen = () => {
   const loadGroupPosts = async () => {
     console.log('loadGroupPosts', groupId)
     try {
-      if(groupId) await getAllPosts({ page: 1, limit: 20, groupId: groupId });
+      if(groupId) {
+        const result = await getAllPosts({ page: 1, limit: 20, groupId: groupId });
+        // Check share status for each post
+        if (result && result.posts) {
+          for (const post of result.posts) {
+            await checkShareStatus(post.id);
+            await fetchShareCount(post.id);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error loading group posts:', error);
+    }
+  };
+
+  // Share Post API calls with groupId
+  const sharePost = async (postId: number) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/shares/${postId}/${user?.id}`,
+        { groupId: groupId }, // Pass groupId in the request body
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error sharing post:', error);
+      throw error;
+    }
+  };
+
+  const unsharePost = async (postId: number) => {
+    try {
+      const response = await axios.delete(
+        `${API_BASE_URL}/shares/${postId}/${user?.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          data: { groupId: groupId }, // Pass groupId in the request body for DELETE
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error unsharing post:', error);
+      throw error;
+    }
+  };
+
+  const checkShareStatus = async (postId: number) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/shares/${postId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          params: { groupId: groupId }, // Pass groupId as query param
+        }
+      );
+      
+      const shares = response.data || [];
+      const hasShared = shares.some((share: any) => share.userId === user?.id);
+      
+      setSharedPosts(prev => {
+        const newSet = new Set(prev);
+        if (hasShared) {
+          newSet.add(postId);
+        } else {
+          newSet.delete(postId);
+        }
+        return newSet;
+      });
+      
+      // Update share count
+      setShareCounts(prev => ({
+        ...prev,
+        [postId]: shares.length || 0,
+      }));
+    } catch (error) {
+      console.error('Error checking share status:', error);
+    }
+  };
+
+  const fetchShareCount = async (postId: number) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/shares/${postId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          params: { groupId: groupId }, // Pass groupId as query param
+        }
+      );
+      const shares = response.data || [];
+      setShareCounts(prev => ({
+        ...prev,
+        [postId]: shares.length || 0,
+      }));
+    } catch (error) {
+      console.error('Error fetching share count:', error);
+    }
+  };
+
+  const handleSharePress = async (post: any) => {
+    if (!user) {
+      Alert.alert('Error', 'Please login to share posts');
+      return;
+    }
+
+    const postId = post.id;
+    const isShared = sharedPosts.has(postId);
+
+    setIsSharing(prev => ({ ...prev, [postId]: true }));
+
+    const refreshPosts = async () => {
+      await loadGroupPosts();
+    };
+
+    const handleShare = async () => {
+      try {
+        await sharePost(postId);
+        await refreshPosts();
+        Alert.alert('Success', 'Post shared successfully in this group');
+      } catch (error: any) {
+        Alert.alert('Error', error?.message || 'Failed to share post');
+      } finally {
+        setIsSharing(prev => ({ ...prev, [postId]: false }));
+      }
+    };
+
+    const handleUnshare = async () => {
+      try {
+        await unsharePost(postId);
+        await refreshPosts();
+        Alert.alert('Success', 'Post unshared successfully');
+      } catch (error: any) {
+        Alert.alert('Error', error?.message || 'Failed to unshare post');
+      } finally {
+        setIsSharing(prev => ({ ...prev, [postId]: false }));
+      }
+    };
+
+    if (isShared) {
+      Alert.alert(
+        'Unshare Post',
+        'Are you sure you want to remove your share of this post from the group?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => setIsSharing(prev => ({ ...prev, [postId]: false })),
+          },
+          {
+            text: 'Unshare',
+            style: 'destructive',
+            onPress: handleUnshare,
+          },
+        ]
+      );
+    } else {
+      await handleShare();
     }
   };
 
@@ -576,7 +786,7 @@ const GroupPostsScreen = () => {
       longitude: post.longitude,
       tags: post.tags ? JSON.parse(post.tags) : [],
       isEditing: true,
-      groupId: groupId // Pass groupId for group posts
+      groupId: groupId
     });
   };
 
@@ -789,10 +999,16 @@ const GroupPostsScreen = () => {
   const renderPost = ({ item: post }: { item: any }) => {
     if (!post) return null;
     
+    const isShared = sharedPosts.has(post.id);
+    const shareCount = shareCounts[post.id] || 0;
+    const isSharingPost = isSharing[post.id] || false;
+    
     return (
       <PostCard
         post={post}
         user={user}
+        token={token}
+        groupId={groupId}
         onLike={handleLike}
         onCommentPress={handleCommentPress}
         onEditPost={handleEditPost}
@@ -800,6 +1016,10 @@ const GroupPostsScreen = () => {
         activeMenu={activeMenu}
         onToggleMenu={handleToggleMenu}
         loadGroupPosts={loadGroupPosts}
+        onSharePress={handleSharePress}
+        isShared={isShared}
+        shareCount={shareCount}
+        isSharing={isSharingPost}
       />
     );
   };
@@ -1198,14 +1418,33 @@ const styles = StyleSheet.create({
   postCaption: { paddingHorizontal: 25, marginBottom: 10, fontSize: 12, lineHeight: 20 },
   hashtag: { fontWeight: 'bold', color: '#0E713E' },
   mainPostImage: { width: '100%', height: POST_IMAGE_HEIGHT, resizeMode: 'cover' },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#EEE' },
+  statsRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    paddingHorizontal: 25, 
+    paddingVertical: 10, 
+    borderBottomWidth: 0.5, 
+    borderBottomColor: '#EEE',
+    flexWrap: 'wrap',
+  },
   statsText: { color: '#666', fontSize: 12 },
   actionButtons: { backgroundColor: '#0E713E', flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 25, gap: 10 },
-  actionBtn: { backgroundColor: '#FFFFFF', flex: 1, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', borderRadius: 20, justifyContent: 'center' },
+  actionBtn: { backgroundColor: '#FFFFFF', flex: 1, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', borderRadius: 20, justifyContent: 'center', minHeight: 36 },
   actionBtnText: { color: '#0E713E', fontWeight: 'bold', fontSize: 10 },
   actionBtnTextActive: { color: '#FF6B6B' },
   actionImage: { width: 14, height: 14, marginRight: 5, resizeMode: 'contain', tintColor: '#0E713E' },
   actionImageActive: { tintColor: '#FF6B6B' },
+  sharedIndicator: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 25,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  sharedIndicatorText: {
+    fontSize: 12,
+    color: '#0E713E',
+    fontWeight: '600',
+  },
   listContent: { paddingBottom: 30 },
   emptyContainer: { alignItems: 'center', paddingTop: 50, paddingBottom: 50 },
   emptyText: { color: '#666', fontSize: 14, marginBottom: 8 },
@@ -1224,6 +1463,28 @@ const styles = StyleSheet.create({
   loaderContainer: { padding: 40, alignItems: 'center' },
   noCommentsContainer: { alignItems: 'center', paddingVertical: 40 },
   noCommentsText: { color: '#666', fontSize: 14, textAlign: 'center' },
+  
+  // Comment Styles
+  commentAvatar: { width: 35, height: 35, borderRadius: 17.5, marginRight: 10 },
+  commentContent: { flex: 1 },
+  commentBubble: { backgroundColor: '#AACEBC', padding: 10, borderRadius: 14 },
+  commentUser: { fontWeight: 'bold', fontSize: 12, marginBottom: 2 },
+  commentText: { fontSize: 11, color: '#444', lineHeight: 16 },
+  commentFooter: { flexDirection: 'row', gap: 15, marginTop: 5, paddingLeft: 5, flexWrap: 'wrap' },
+  footerActionText: { fontSize: 10, color: '#888' },
+  deleteText: { color: '#FF6B6B' },
+  replyInputContainer: { flexDirection: 'row', marginTop: 10, alignItems: 'center' },
+  replyInput: { flex: 1, backgroundColor: '#F0F0F0', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, fontSize: 12, marginRight: 10 },
+  replyButton: { backgroundColor: '#0E713E', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20 },
+  replyButtonText: { color: '#FFF', fontSize: 12, fontWeight: '600' },
+  repliesContainer: { marginTop: 10, marginLeft: 20 },
+  replyItem: { flexDirection: 'row', marginBottom: 10 },
+  replyAvatar: { width: 25, height: 25, borderRadius: 12.5, marginRight: 8 },
+  replyContent: { flex: 1 },
+  replyBubble: { backgroundColor: '#E8E8E8', padding: 8, borderRadius: 12 },
+  replyUser: { fontWeight: 'bold', fontSize: 11, marginBottom: 2 },
+  replyText: { fontSize: 10, color: '#444', lineHeight: 14 },
+  replyFooter: { flexDirection: 'row', gap: 12, marginTop: 4, paddingLeft: 5 },
   
   // Member Modal Styles
   modalContainerFull: { flex: 1, backgroundColor: '#FFF' },

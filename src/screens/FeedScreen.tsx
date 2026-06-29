@@ -1,4 +1,4 @@
-// FeedScreen.js - Fixed z-index issue
+// FeedScreen.js - With Share Functionality
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   StyleSheet,
@@ -26,6 +26,7 @@ import SideMenu from '../components/SideMenu';
 import BottomTabNav from '../components/BottomTabNav';
 import { API_BASE_URL } from '../constants/config';
 import { Post } from '../features/posts/postsTypes';
+import axios from 'axios';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const POST_IMAGE_HEIGHT = SCREEN_WIDTH * 0.8;
@@ -76,6 +77,8 @@ const PostCard = memo(({
   onDeletePost,
   activeMenu,
   onToggleMenu,
+  isShared,
+  shareCount,
 }) => {
   const postDate = post.created_at || post.createdAt;
   const imageUrl = post.image ? getFullImageUrl(post.image) : null;
@@ -162,6 +165,13 @@ const PostCard = memo(({
         )}
       </View>
 
+      {/* Show shared indicator if post is shared */}
+      {isShared && (
+        <View style={styles.sharedIndicator}>
+          <Text style={styles.sharedIndicatorText}>🔁 Shared Post</Text>
+        </View>
+      )}
+
       <TouchableOpacity onPress={handlePostPress}>
         <Text style={styles.postCaption}>
           {post.description}
@@ -210,119 +220,16 @@ const PostCard = memo(({
           style={styles.actionBtn}
           onPress={() => onSharePress(post)}
         >
-          <Image source={ASSETS.greenShare} resizeMode='contain' style={styles.actionImage} />
-          <Text style={styles.actionBtnText}>Share</Text>
+          <Image 
+            source={ASSETS.greenShare} 
+            resizeMode='contain' 
+            style={[styles.actionImage, isShared && styles.actionImageActive]} 
+          />
+          <Text style={[styles.actionBtnText, isShared && styles.actionBtnTextActive]}>
+            {isShared ? 'Shared' : 'Share'}
+          </Text>
         </TouchableOpacity>
       </View>
-
-      {/* Comments section */}
-      {/* {post.comments && post.comments.length > 0 && (
-        <View style={styles.commentsSection}>
-          <TouchableOpacity 
-            style={styles.commentDropdown}
-            onPress={() => onToggleComments(post.id)}
-          >
-            <Text style={styles.allCommentsText}>
-              {showAllComments ? 'Hide Comments' : `View Comments (${post.comments.length})`}
-            </Text>
-            <Image 
-              source={showAllComments ? ASSETS.arrowUp : ASSETS.arrowDown} 
-              resizeMode='contain' 
-              style={styles.dropdownArrow} 
-            />
-          </TouchableOpacity>
-
-          {showAllComments && displayComments?.map((comment: any) => {
-            const commentDate = comment.created_at || comment.createdAt;
-            const commentAvatar = comment.user?.profilePhoto ? getFullImageUrl(comment.user.profilePhoto) : null;
-            const isReplyInputVisible = showReplyInput?.[comment.id] || false;
-            
-            return (
-              <View key={comment.id} style={styles.commentItem}>
-                <Image 
-                  source={commentAvatar ? { uri: commentAvatar } : ASSETS.userHenry} 
-                  style={styles.commentAvatar} 
-                />
-                <View style={styles.commentContent}>
-                  <View style={styles.commentBubble}>
-                    <Text style={styles.commentUser}>{comment.user?.displayname || comment.user?.username || 'User'}</Text>
-                    <Text style={styles.commentText}>{comment.content}</Text>
-                  </View>
-                  <View style={styles.commentFooter}>
-                    <Text style={styles.footerActionText}>{formatTimeAgo(commentDate)}</Text>
-                    <TouchableOpacity onPress={() => onLikeComment(comment.id)}>
-                      <Text style={styles.footerActionText}>
-                        {comment.commentLiked ? 'Unlike' : 'Like'} ({comment.likeCount || 0})
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => onReplyPress(comment.id)}>
-                      <Text style={styles.footerActionText}>Reply</Text>
-                    </TouchableOpacity>
-                    {comment.user?.id === user?.id && (
-                      <TouchableOpacity onPress={() => onDeleteComment(comment.id)}>
-                        <Text style={[styles.footerActionText, styles.deleteText]}>Delete</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {isReplyInputVisible && (
-                    <View style={styles.replyInputContainer}>
-                      <TextInput
-                        style={styles.replyInput}
-                        placeholder="Write a reply..."
-                        placeholderTextColor="#999"
-                        value={replyText || ''}
-                        onChangeText={setReplyText}
-                        multiline
-                      />
-                      <TouchableOpacity style={styles.replyButton} onPress={() => onAddReply(comment.id)}>
-                        <Text style={styles.replyButtonText}>Post</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-
-                  {comment.replies && comment.replies.length > 0 && (
-                    <View style={styles.repliesContainer}>
-                      {comment.replies.map((reply: any) => {
-                        const replyDate = reply.created_at || reply.createdAt;
-                        const replyAvatar = reply.user?.profilePhoto ? getFullImageUrl(reply.user.profilePhoto) : null;
-                        
-                        return (
-                          <View key={reply.id} style={styles.replyItem}>
-                            <Image 
-                              source={replyAvatar ? { uri: replyAvatar } : ASSETS.userHenry} 
-                              style={styles.replyAvatar} 
-                            />
-                            <View style={styles.replyContent}>
-                              <View style={styles.replyBubble}>
-                                <Text style={styles.replyUser}>{reply.user?.displayname || reply.user?.username || 'User'}</Text>
-                                <Text style={styles.replyText}>{reply.content}</Text>
-                              </View>
-                              <View style={styles.replyFooter}>
-                                <Text style={styles.footerActionText}>{formatTimeAgo(replyDate)}</Text>
-                                <TouchableOpacity onPress={() => onLikeReply(reply.id)}>
-                                  <Text style={styles.footerActionText}>
-                                    {reply.replyLiked ? 'Unlike' : 'Like'} ({reply.likeCount || 0})
-                                  </Text>
-                                </TouchableOpacity>
-                                {reply.user?.id === user?.id && (
-                                  <TouchableOpacity onPress={() => onDeleteReply(reply.id)}>
-                                    <Text style={[styles.footerActionText, styles.deleteText]}>Delete</Text>
-                                  </TouchableOpacity>
-                                )}
-                              </View>
-                            </View>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  )}
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      )} */}
     </View>
   );
 });
@@ -340,13 +247,15 @@ const FeedScreen = () => {
   const [modalComments, setModalComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
+  const [sharedPosts, setSharedPosts] = useState<Set<number>>(new Set());
+  const [shareCounts, setShareCounts] = useState<{ [key: number]: number }>({});
   
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   const navigation = useNavigation<any>();
-  const { user } = useAppSelector((state) => state.auth);
+  const { user, token } = useAppSelector((state) => state.auth);
   const {
     posts,
     isLoading,
@@ -387,6 +296,13 @@ const FeedScreen = () => {
       if (result && result.posts && result.posts.length < 20) {
         setHasMore(false);
       }
+      // Check share status for each post
+      if (result && result.posts) {
+        result.posts.forEach((post: any) => {
+          checkShareStatus(post.id);
+          fetchShareCount(post.id);
+        });
+      }
     } catch (error) {
       console.error('Error loading posts:', error);
     }
@@ -405,6 +321,14 @@ const FeedScreen = () => {
         setHasMore(false);
       }
       setPage(nextPage);
+      
+      // Check share status for each new post
+      if (result && result.posts) {
+        result.posts.forEach((post: any) => {
+          checkShareStatus(post.id);
+          fetchShareCount(post.id);
+        });
+      }
     } catch (error) {
       console.error('Error loading more posts:', error);
     } finally {
@@ -430,22 +354,153 @@ const FeedScreen = () => {
     }
   }, [toggleLike]);
 
-  const handleCommentPress = async (post: any) => {
-    setSelectedPost(post);
-    setIsCommentModalVisible(true);
-    setLoadingComments(true);
+  // Share Post API calls
+  const sharePost = async (postId: number) => {
     try {
-      const commentsData = await getCommentsByPost(post.id);
-      setModalComments(commentsData.comments || []);
+      const response = await axios.post(
+        `${API_BASE_URL}/shares/${postId}/${user?.id}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      return response.data;
     } catch (error) {
-      console.error('Error loading comments:', error);
-      setModalComments([]);
-    } finally {
-      setLoadingComments(false);
+      console.error('Error sharing post:', error);
+      throw error;
+    }
+  };
+
+  const unsharePost = async (postId: number) => {
+    try {
+      const response = await axios.delete(
+        `${API_BASE_URL}/shares/${postId}/${user?.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error unsharing post:', error);
+      throw error;
+    }
+  };
+
+  const checkShareStatus = async (postId: number) => {
+    try {
+      // Check if user has shared this post
+      const response = await axios.get(
+        `${API_BASE_URL}/shares/${postId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      // Check if current user's ID is in the shares list
+      const shares = response.data || [];
+      const hasShared = shares.some((share: any) => share.userId === user?.id);
+      
+      setSharedPosts(prev => {
+        const newSet = new Set(prev);
+        if (hasShared) {
+          newSet.add(postId);
+        } else {
+          newSet.delete(postId);
+        }
+        return newSet;
+      });
+      
+      // Update share count
+      setShareCounts(prev => ({
+        ...prev,
+        [postId]: shares.length || 0,
+      }));
+    } catch (error) {
+      console.error('Error checking share status:', error);
+    }
+  };
+
+  const fetchShareCount = async (postId: number) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/shares/${postId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const shares = response.data || [];
+      setShareCounts(prev => ({
+        ...prev,
+        [postId]: shares.length || 0,
+      }));
+    } catch (error) {
+      console.error('Error fetching share count:', error);
     }
   };
 
   const handleSharePress = async (post: any) => {
+    if (!user) {
+      Alert.alert('Error', 'Please login to share posts');
+      return;
+    }
+
+    const postId = post.id;
+    const isShared = sharedPosts.has(postId);
+
+    const refreshFeed = async () => {
+      await loadInitialPosts();
+    };
+
+    const handleShare = async () => {
+      try {
+        await sharePost(postId);
+        await refreshFeed();
+        Alert.alert('Success', 'Post shared successfully');
+      } catch (error: any) {
+        Alert.alert('Error', error?.message || 'Failed to share post');
+      }
+    };
+
+    const handleUnshare = async () => {
+      try {
+        await unsharePost(postId);
+        await refreshFeed();
+        Alert.alert('Success', 'Post unshared successfully');
+      } catch (error: any) {
+        Alert.alert('Error', error?.message || 'Failed to unshare post');
+      }
+    };
+
+    if (isShared) {
+      Alert.alert(
+        'Unshare Post',
+        'Are you sure you want to remove your share of this post?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Unshare',
+            style: 'destructive',
+            onPress: handleUnshare,
+          },
+        ]
+      );
+    } else {
+      await handleShare();
+    }
+  };
+
+  const handleCommentPress = async (post: any) => {
     setSelectedPost(post);
     setIsCommentModalVisible(true);
     setLoadingComments(true);
@@ -638,32 +693,39 @@ const FeedScreen = () => {
     return `${diffDays}d`;
   }, []);
 
-  const renderPostItem = useCallback(({ item }: { item: Post }) => (
-    <PostCard
-      post={item}
-      onLike={handleLike}
-      onCommentPress={handleCommentPress}
-      onSharePress={handleSharePress}
-      onToggleComments={toggleShowAllComments}
-      showAllComments={showAllComments[item.id]}
-      formatTimeAgo={formatTimeAgo}
-      user={user}
-      onLikeComment={handleLikeComment}
-      onReplyPress={handleReplyPress}
-      onDeleteComment={handleDeleteComment}
-      onAddReply={handleAddReply}
-      onDeleteReply={handleDeleteReply}
-      onLikeReply={handleLikeReply}
-      replyText={replyText}
-      showReplyInput={showReplyInput}
-      setReplyText={setReplyText}
-      navigation={navigation}
-      onEditPost={handleEditPost}
-      onDeletePost={handleDeletePost}
-      activeMenu={activeMenu}
-      onToggleMenu={handleToggleMenu}
-    />
-  ), [showAllComments, handleLike, handleCommentPress, toggleShowAllComments, formatTimeAgo, user, handleLikeComment, handleReplyPress, handleDeleteComment, handleAddReply, handleDeleteReply, handleLikeReply, replyText, showReplyInput, activeMenu]);
+  const renderPostItem = useCallback(({ item }: { item: Post }) => {
+    const isShared = sharedPosts.has(item.id);
+    const shareCount = shareCounts[item.id] || 0;
+    
+    return (
+      <PostCard
+        post={item}
+        onLike={handleLike}
+        onCommentPress={handleCommentPress}
+        onSharePress={handleSharePress}
+        onToggleComments={toggleShowAllComments}
+        showAllComments={showAllComments[item.id]}
+        formatTimeAgo={formatTimeAgo}
+        user={user}
+        onLikeComment={handleLikeComment}
+        onReplyPress={handleReplyPress}
+        onDeleteComment={handleDeleteComment}
+        onAddReply={handleAddReply}
+        onDeleteReply={handleDeleteReply}
+        onLikeReply={handleLikeReply}
+        replyText={replyText}
+        showReplyInput={showReplyInput}
+        setReplyText={setReplyText}
+        navigation={navigation}
+        onEditPost={handleEditPost}
+        onDeletePost={handleDeletePost}
+        activeMenu={activeMenu}
+        onToggleMenu={handleToggleMenu}
+        isShared={isShared}
+        shareCount={shareCount}
+      />
+    );
+  }, [showAllComments, handleLike, handleCommentPress, toggleShowAllComments, formatTimeAgo, user, handleLikeComment, handleReplyPress, handleDeleteComment, handleAddReply, handleDeleteReply, handleLikeReply, replyText, showReplyInput, activeMenu, sharedPosts, shareCounts]);
 
   const renderFooter = () => {
     if (!isLoadingMore) return null;
@@ -980,7 +1042,14 @@ const styles = StyleSheet.create({
   postCaption: { paddingHorizontal: 25, marginBottom: 10, fontSize: 12, lineHeight: 20 },
   hashtag: { fontWeight: 'bold', color: '#0E713E' },
   mainPostImage: { width: '100%', height: POST_IMAGE_HEIGHT, resizeMode: 'cover' },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#EEE' },
+  statsRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    paddingHorizontal: 25, 
+    paddingVertical: 10, 
+    borderBottomWidth: 0.5, 
+    borderBottomColor: '#EEE' 
+  },
   statsText: { color: '#666', fontSize: 12 },
   actionButtons: { backgroundColor: '#0E713E', flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 25, gap: 10 },
   actionBtn: { backgroundColor: '#FFFFFF', flex: 1, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', borderRadius: 20, justifyContent: 'center' },
@@ -988,6 +1057,20 @@ const styles = StyleSheet.create({
   actionBtnTextActive: { color: '#FF6B6B' },
   actionImage: { width: 14, height: 14, marginRight: 5, resizeMode: 'contain', tintColor: '#0E713E' },
   actionImageActive: { tintColor: '#FF6B6B' },
+  sharedIndicator: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginHorizontal: 25,
+    marginBottom: 8,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  sharedIndicatorText: {
+    fontSize: 10,
+    color: '#0E713E',
+    fontWeight: '600',
+  },
   bottomTabContainer: { paddingHorizontal: 25, position: 'absolute', bottom: 30, left: 0, right: 0 },
   bottomNavContainer: { position: 'absolute', bottom: 15, left: 20, right: 20 },
   commentsSection: { paddingHorizontal: 25, marginTop: 10 },
