@@ -793,7 +793,7 @@ const HomeScreen = () => {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#0E713E" />
-        <Text style={styles.loadingText}>Syncing hunt data & positions...</Text>
+        {/* <Text style={styles.loadingText}>Syncing hunt data & positions...</Text> */}
       </View>
     );
   }
@@ -1071,8 +1071,8 @@ const HomeScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a1a' },
-  loadingText: { color: '#FFF', marginTop: 10, fontSize: 14 },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { color: '#0E713E', marginTop: 10, fontSize: 14 },
   mapContainer: { flex: 1, position: 'relative' },
   map: { flex: 1 },
   overlayContainer: { 

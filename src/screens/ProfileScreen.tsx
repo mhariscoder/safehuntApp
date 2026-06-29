@@ -55,9 +55,9 @@ interface EditFormData {
   username: string;
   bio: string;
   huntingExperience: string;
-  skills: string;
-  email: string;
-  phonenumber: string;
+  // skills: string;
+  // email: string;
+  // phonenumber: string;
 }
 
 interface ImageFile {
@@ -102,9 +102,9 @@ const ProfileScreen = () => {
     username: '',
     bio: '',
     huntingExperience: '',
-    skills: '',
-    email: '',
-    phonenumber: '',
+    // skills: '',
+    // email: '',
+    // phonenumber: '',
   });
   
   const navigation = useNavigation<any>();
@@ -142,9 +142,9 @@ const ProfileScreen = () => {
         username: user.username || '',
         bio: user.bio || '',
         huntingExperience: user.huntingExperience || '',
-        skills: Array.isArray(user.skills) ? user.skills.join(', ') : (user.skills || ''),
-        email: user.email || '',
-        phonenumber: user.phonenumber || '',
+        // skills: Array.isArray(user.skills) ? user.skills.join(', ') : (user.skills || ''),
+        // email: user.email || '',
+        // phonenumber: user.phonenumber || '',
       });
     }
   }, [user]);
@@ -180,9 +180,9 @@ const ProfileScreen = () => {
       username: user?.username || '',
       bio: user?.bio || '',
       huntingExperience: user?.huntingExperience || '',
-      skills: Array.isArray(user?.skills) ? user.skills.join(', ') : (user?.skills || ''),
-      email: user?.email || '',
-      phonenumber: user?.phonenumber || '',
+      // skills: Array.isArray(user?.skills) ? user.skills.join(', ') : (user?.skills || ''),
+      // email: user?.email || '',
+      // phonenumber: user?.phonenumber || '',
     });
     setProfileImage(null);
     setCoverImage(null);
@@ -229,13 +229,13 @@ const ProfileScreen = () => {
         username: editFormData.username,
         bio: editFormData.bio,
         huntingExperience: editFormData.huntingExperience,
-        email: editFormData.email,
-        phonenumber: editFormData.phonenumber,
+        // email: editFormData.email,
+        // phonenumber: editFormData.phonenumber,
       };
       
-      if (editFormData.skills.trim()) {
-        updateData.skills = editFormData.skills.split(',').map(skill => skill.trim());
-      }
+      // if (editFormData.skills.trim()) {
+      //   updateData.skills = editFormData.skills.split(',').map(skill => skill.trim());
+      // }
       
       const files: any = {};
       if (profileImage) {
@@ -251,9 +251,9 @@ const ProfileScreen = () => {
         username: updateData.username,
         bio: updateData.bio,
         huntingExperience: updateData.huntingExperience,
-        email: updateData.email,
-        phonenumber: updateData.phonenumber,
-        skills: updateData.skills,
+        // email: updateData.email,
+        // phonenumber: updateData.phonenumber,
+        // skills: updateData.skills,
         // If you have profilePhoto and coverPhoto in user state
         ...(profileImage && { profilePhoto: profileImage.uri }),
         ...(coverImage && { coverPhoto: coverImage.uri }),
@@ -430,7 +430,7 @@ const ProfileScreen = () => {
               <Text style={styles.detailValue}>{user?.username || 'Not specified'}</Text>
             </View>
 
-            <View style={styles.detailItem}>
+            {/* <View style={styles.detailItem}>
               <Text style={styles.detailLabel}>Email</Text>
               <Text style={styles.detailValue}>{user?.email || 'Not specified'}</Text>
             </View>
@@ -438,7 +438,7 @@ const ProfileScreen = () => {
             <View style={styles.detailItem}>
               <Text style={styles.detailLabel}>Phone Number</Text>
               <Text style={styles.detailValue}>{user?.phonenumber || 'Not specified'}</Text>
-            </View>
+            </View> */}
 
             <View style={styles.detailItem}>
               <Text style={styles.detailLabel}>Bio</Text>
@@ -450,12 +450,12 @@ const ProfileScreen = () => {
               <Text style={styles.detailValue}>{user?.huntingExperience || 'Not specified'}</Text>
             </View>
 
-            <View style={styles.detailItem}>
+            {/* <View style={styles.detailItem}>
               <Text style={styles.detailLabel}>Skills</Text>
               <Text style={styles.skillsValue}>
                 {Array.isArray(user?.skills) ? user.skills.join(', ') : (user?.skills || 'Not specified')}
               </Text>
-            </View>
+            </View> */}
 
             {/* <View style={styles.detailItem}>
               <View style={styles.detailHeader}>
@@ -748,7 +748,7 @@ const ProfileScreen = () => {
                   />
                 </View>
 
-                <View style={styles.inputGroup}>
+                {/* <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Email</Text>
                   <TextInput
                     style={styles.modalInput}
@@ -771,7 +771,7 @@ const ProfileScreen = () => {
                     placeholderTextColor="#999"
                     keyboardType="phone-pad"
                   />
-                </View>
+                </View> */}
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Bio</Text>
@@ -797,7 +797,7 @@ const ProfileScreen = () => {
                   />
                 </View>
 
-                <View style={styles.inputGroup}>
+                {/* <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Skills (comma separated)</Text>
                   <TextInput
                     style={[styles.modalInput, styles.textArea]}
@@ -808,7 +808,7 @@ const ProfileScreen = () => {
                     multiline
                     numberOfLines={2}
                   />
-                </View>
+                </View> */}
               </View>
             </ScrollView>
             

@@ -748,7 +748,7 @@ const FeedScreen = () => {
     </View>
   );
 
-  if (isLoading && posts.length === 0) {
+  if (isLoading) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#0E713E" />

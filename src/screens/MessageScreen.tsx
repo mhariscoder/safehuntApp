@@ -247,13 +247,13 @@ const MessageScreen = () => {
   };
 
   const renderRecentChats = () => {
-    if (recentChatsLoading && recentChats.length === 0) {
-      return (
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color="#0E713E" />
-        </View>
-      );
-    }
+    // if (recentChatsLoading && recentChats.length === 0) {
+    //   return (
+    //     <View style={styles.loaderContainer}>
+    //       <ActivityIndicator size="large" color="#0E713E" />
+    //     </View>
+    //   );
+    // }
 
     if (filteredRecentChats.length === 0) {
       return (
