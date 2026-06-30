@@ -30,6 +30,15 @@ const getFullImageUrl = (imagePath: string | null | undefined): string | null =>
   return `${API_BASE_URL}/public/uploads/${cleanPath}`;
 };
 
+const getFullImageUrl2 = (imagePath: string | null | undefined): string | null => {
+  if (!imagePath) return null;
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  const cleanPath = imagePath.replace('./public/uploads/', '').replace('/public/uploads/', '');
+  return `${API_BASE_URL}/public/uploads/${cleanPath}`;
+};
+
 const formatTime = (dateString: string) => {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -41,7 +50,7 @@ const MessageDetailScreen = () => {
   const route = useRoute<any>();
   const dispatch = useAppDispatch();
   
-  const { userId, displayname, chatId } = route.params || {};
+  const { userId, displayname, chatId, profilePic } = route.params || {};
   
   const { user } = useAppSelector((state) => state.auth);
   const { messages, isLoading, isConnected } = useAppSelector((state) => state.chat);
@@ -307,10 +316,23 @@ const MessageDetailScreen = () => {
         isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer
       ]}>
         {!isMyMessage && (
-          <Image 
-            source={require('../../assets/circle_profile.png')} 
-            style={styles.miniAvatar} 
-          />
+          // <Image 
+          //   source={require('../../assets/circle_profile.png')} 
+          //   style={styles.miniAvatar} 
+          // />
+
+          profilePic ? (
+            <Image 
+              source={{ uri: getFullImageUrl2(profilePic) || undefined }} 
+              style={styles.avatar}
+            />
+          ) : (
+            <View style={styles.profileTextContainer}>
+              <Text style={styles.profileText}>
+                {displayname?.charAt(0)}
+              </Text>
+            </View>
+          )
         )}
         <View style={[
           styles.messageBubble,
@@ -387,10 +409,23 @@ const MessageDetailScreen = () => {
             <Image source={require('../../assets/back_white.png')} style={styles.headerIcon} />
           </TouchableOpacity>
           <View style={styles.headerProfile}>
-            <Image 
+            {/* <Image 
               source={require('../../assets/circle_profile.png')} 
               style={styles.avatar} 
-            />
+            /> */}
+            {profilePic ? (
+              <Image 
+                source={{ uri: getFullImageUrl2(profilePic) || undefined }} 
+                style={styles.avatar}
+              />
+            ) : (
+              <View style={styles.profileTextContainer}>
+                <Text style={styles.profileText}>
+                  {displayname?.charAt(0)}
+                </Text>
+              </View>
+            )}
+
             <View style={[styles.onlineDot, isConnected && styles.onlineActive]} />
           </View>
           <View>
@@ -400,12 +435,12 @@ const MessageDetailScreen = () => {
             </Text>
           </View>
         </View>
-        <TouchableOpacity>
+        {/* <TouchableOpacity>
           <Image 
             source={require('../../assets/more_vert.png')} 
             style={styles.moreIcon} 
           />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       {selectedImage && (
@@ -481,6 +516,8 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
   headerProfile: { position: 'relative', marginRight: 12 },
   avatar: { width: 45, height: 45, borderRadius: 22.5, borderWidth: 1, borderColor: '#FFF' },
+  profileTextContainer: {width: 45, height: 45, borderRadius: 50, borderWidth: 1, borderColor: '#FFF', backgroundColor: '#dfdfdf', alignItems: 'center', justifyContent: 'center'},
+  profileText: { color: '#000', fontSize: 18, fontWeight: '800', textAlign: 'center', verticalAlign: 'middle' },
   onlineDot: { position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: '#999', borderWidth: 2, borderColor: '#0E713E' },
   onlineActive: { backgroundColor: '#4CAF50' },
   headerName: { color: '#FFF', fontSize: 16, fontWeight: '900' },

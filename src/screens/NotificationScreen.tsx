@@ -185,10 +185,18 @@ const NotificationScreen = () => {
         activeOpacity={0.7}
       >
         <View style={styles.avatarContainer}>
-          <Image 
-            source={avatarUrl ? { uri: avatarUrl } : require('../../assets/circle_profile.png')} 
-            style={styles.avatar} 
-          />
+          {avatarUrl ? (
+            <Image 
+              source={{ uri: avatarUrl || undefined }} 
+              style={styles.avatar}
+            />
+          ) : (
+            <View style={styles.profileTextContainer}>
+              <Text style={styles.profileText}>
+                {item?.title?.charAt(0)}
+              </Text>
+            </View>
+          )}
           <View style={styles.typeIconBadge}>
             <Image 
               source={getNotificationIcon(item.type)} 
@@ -464,6 +472,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#0E713E',
   },
+  profileTextContainer: {width: 45, height: 45, borderRadius: 50, borderWidth: 1, borderColor: '#FFF', backgroundColor: '#dfdfdf', alignItems: 'center', justifyContent: 'center'},
+  profileText: { color: '#000', fontSize: 18, fontWeight: '800', textAlign: 'center', verticalAlign: 'middle' },
   typeIconBadge: {
     position: 'absolute',
     bottom: 0,
