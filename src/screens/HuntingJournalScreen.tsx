@@ -59,62 +59,65 @@ const JournalEntry = ({
   };
 
   return (
-    <View style={styles.entryCard}>
-      <View style={styles.cardHeader}>
-        <View style={styles.cardBody}>
-          <Text style={styles.entryTitle}>{title || 'Untitled'}</Text>
-          <Text style={styles.entryDate}>
-            {formatDate(date)}{' '}
-            <Text style={styles.entryDescSnippet}>
-              {description?.length > 50 ? description.substring(0, 50) + '...' : description || ''}
+    <TouchableOpacity onPress={() => onEdit(id)}>
+      <View style={styles.entryCard}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardBody}>
+            <Text style={styles.entryTitle}>{title || 'Untitled'}</Text>
+            <Text style={styles.entryDate}>
+              {formatDate(date)}{' '}
+              <Text style={styles.entryDescSnippet}>
+                {description?.length > 50 ? description.substring(0, 50) + '...' : description || ''}
+              </Text>
             </Text>
-          </Text>
+          </View>
+
+          <View style={{ position: 'relative' }}>
+            <TouchableOpacity onPress={() => onToggleMenu(id)}>
+              <Image source={ASSETS.moreIcon} style={styles.moreIcon} />
+            </TouchableOpacity>
+
+            {isMenuVisible && (
+              <View style={styles.dropdown}>
+                <TouchableOpacity 
+                  style={styles.dropdownItem} 
+                  onPress={() => {
+                    onToggleMenu(id);
+                    onEdit(id);
+                  }}
+                >
+                  <Text style={styles.dropdownText}>Edit</Text>
+                </TouchableOpacity>
+
+                <View style={styles.dropdownDivider} />
+
+                <TouchableOpacity 
+                  style={styles.dropdownItem} 
+                  onPress={() => {
+                    onToggleMenu(id);
+                    onDelete(id);
+                  }}
+                >
+                  <Text style={styles.dropdownText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
 
-        <View style={{ position: 'relative' }}>
-          <TouchableOpacity onPress={() => onToggleMenu(id)}>
-            <Image source={ASSETS.moreIcon} style={styles.moreIcon} />
-          </TouchableOpacity>
-
-          {isMenuVisible && (
-            <View style={styles.dropdown}>
-              <TouchableOpacity 
-                style={styles.dropdownItem} 
-                onPress={() => {
-                  onToggleMenu(id);
-                  onEdit(id);
-                }}
-              >
-                <Text style={styles.dropdownText}>Edit</Text>
-              </TouchableOpacity>
-
-              <View style={styles.dropdownDivider} />
-
-              <TouchableOpacity 
-                style={styles.dropdownItem} 
-                onPress={() => {
-                  onToggleMenu(id);
-                  onDelete(id);
-                }}
-              >
-                <Text style={styles.dropdownText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+        <View style={styles.cardFooter}>
+          <View style={styles.footerItem}>
+            <Image source={ASSETS.locationIcon} style={styles.footerIcon} />
+            <Text style={styles.footerText}>{location || 'Unknown Location'}</Text>
+          </View>
+          <View style={styles.footerItem}>
+            <Image source={ASSETS.weatherIcon} style={styles.footerIcon} />
+            <Text style={styles.footerText}>{weather || 'Not specified'}</Text>
+          </View>
         </View>
       </View>
-
-      <View style={styles.cardFooter}>
-        <View style={styles.footerItem}>
-          <Image source={ASSETS.locationIcon} style={styles.footerIcon} />
-          <Text style={styles.footerText}>{location || 'Unknown Location'}</Text>
-        </View>
-        <View style={styles.footerItem}>
-          <Image source={ASSETS.weatherIcon} style={styles.footerIcon} />
-          <Text style={styles.footerText}>{weather || 'Not specified'}</Text>
-        </View>
-      </View>
-    </View>
+    </TouchableOpacity>
+    
   );
 };
 

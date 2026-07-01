@@ -821,7 +821,7 @@ const HomeScreen = () => {
             ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={styles.map}
-
+            mapType="terrain"
             initialRegion={{
               latitude: initialCamera.center.latitude,
               longitude: initialCamera.center.longitude,
@@ -832,10 +832,8 @@ const HomeScreen = () => {
             showsUserLocation={true}
             showsMyLocationButton={false}
             showsCompass={true}
-
             zoomEnabled={true}
             scrollEnabled={true}
-
             pitchEnabled={false}
             rotateEnabled={false}
           >
@@ -856,6 +854,7 @@ const HomeScreen = () => {
             )}
             
             {/* Render all markers (journals + nearby users) */}
+            {/* Render all markers (journals + nearby users) */}
             {getAllMarkers().map((location) => (
               <Marker
                 key={location.id}
@@ -865,15 +864,21 @@ const HomeScreen = () => {
                 onPress={() => handleMarkerPress(location)}
                 tracksViewChanges={true}
               >
-                <Image
-                  source={
-                    location.isJournal 
-                      ? require('../../assets/about_icon.png')
-                      : require('../../assets/about_icon.png')
-                  }
-                  style={{ width: 30, height: 30 }}
-                  resizeMode="contain"
-                />
+                {location.isJournal ? (
+                  // JOURNAL ICON
+                  <Image
+                    source={require('../../assets/about_icon.png')} // Your journal icon
+                    style={{ width: 35, height: 35 }}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  // NEARBY USER ICON
+                  <Image
+                    source={require('../../assets/people_hunt.png')} // Your user icon
+                    style={{ width: 35, height: 35 }}
+                    resizeMode="contain"
+                  />
+                )}
               </Marker>
             ))}
 
