@@ -7,6 +7,8 @@ import {
   updateJournal,
   deleteJournal,
   searchJournals,
+  shareJournal,
+  getSharedWithMeJournals,
 } from '../features/huntingJournal/huntingJournalActions';
 import {
   clearError,
@@ -53,6 +55,14 @@ export const useHuntingJournal = () => {
     return dispatch(searchJournals(params)).unwrap();
   };
 
+  const handleShareJournal = async (id: number, friendId: number) => {
+    return dispatch(shareJournal({ id, friendId })).unwrap();
+  };
+
+  const handleGetSharedWithMeJournals = async (page?: number, limit?: number) => {
+    return dispatch(getSharedWithMeJournals({ page, limit })).unwrap();
+  };
+
   const handleClearError = () => {
     dispatch(clearError());
   };
@@ -81,6 +91,8 @@ export const useHuntingJournal = () => {
     updateJournal: handleUpdateJournal,
     deleteJournal: handleDeleteJournal,
     searchJournals: handleSearchJournals,
+    shareJournal: handleShareJournal,                       
+    getSharedWithMeJournals: handleGetSharedWithMeJournals,
     clearError: handleClearError,
     clearJournals: handleClearJournals,
     setSelectedJournal: handleSetSelectedJournal,

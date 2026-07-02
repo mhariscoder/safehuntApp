@@ -8,6 +8,8 @@ import {
   updateJournal,
   deleteJournal,
   searchJournals,
+  shareJournal,
+  getSharedWithMeJournals
 } from './huntingJournalActions';
 
 const initialState: HuntingJournalState = {
@@ -153,6 +155,43 @@ const huntingJournalSlice = createSlice({
       state.error = null;
     });
     builder.addCase(searchJournals.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
+    });
+
+    // Share Journal
+    builder.addCase(shareJournal.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(shareJournal.fulfilled, (state, action) => {
+      state.isLoading = false;
+      const index = state.journals.findIndex(j => j.id === action.payload.id);
+      if (index !== -1) {
+        state.journals[index] = action.payload; // Update shared counts / ids inside state
+      }
+      if (state.selectedJournal?.id === action.payload.id) {
+        state.selectedJournal = action.payload;
+      }
+      state.error = null;
+    });
+    builder.addCase(shareJournal.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload as string;
+    });
+
+    // Get Shared With Me Journals
+    builder.addCase(getSharedWithMeJournals.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+    builder.addCase(getSharedWithMeJournals.fulfilled, (state, action) => {
+      state.isLoading = false;
+      state.journals = action.payload;
+      state.pagination.total = action.payload.length;
+      state.error = null;
+    });
+    builder.addCase(getSharedWithMeJournals.rejected, (state, action) => {
       state.isLoading = false;
       state.error = action.payload as string;
     });

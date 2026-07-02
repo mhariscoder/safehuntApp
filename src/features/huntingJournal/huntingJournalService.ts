@@ -114,6 +114,31 @@ class HuntingJournalService {
       throw error;
     }
   }
+
+  // Share journal with a friend
+  async shareJournal(id: number, friendId: number) {
+    try {
+      const response = await api.post(`/hunting-journal/${id}/share`, { friendId });
+      return this.processJournal(response.data);
+    } catch (error) {
+      console.error('Share journal error:', error);
+      throw error;
+    }
+  }
+
+  // Get journals shared with me
+  async getSharedWithMeJournals(page: number = 1, limit: number = 10) {
+    try {
+      const response = await api.get('/hunting-journal/shared-with-me', {
+        params: { page, limit }
+      });
+      const journals = response.data.data || response.data;
+      return journals.map((journal: any) => this.processJournal(journal));
+    } catch (error) {
+      console.error('Get shared journals error:', error);
+      throw error;
+    }
+  }
 }
 
 export default new HuntingJournalService();

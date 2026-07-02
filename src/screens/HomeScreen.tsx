@@ -24,7 +24,7 @@ import Geolocation from '@react-native-community/geolocation';
 import Slider from '@react-native-community/slider';
 
 import { useDispatch, useSelector } from 'react-redux';
-import { getMyJournals } from './../features/huntingJournal/huntingJournalActions';
+import { getMyJournals, getSharedWithMeJournals } from './../features/huntingJournal/huntingJournalActions';
 import { sendFriendRequest } from './../features/friends/friendsActions';
 import { updateLocation } from './../features/chat/chatActions';
 import { connectSocket, disconnectSocket } from './../features/chat/chatActions';
@@ -57,6 +57,7 @@ interface LocationMarker {
     huntingExperience: string;
     skills: string[];
   };
+  isSharedJournal: boolean
 }
 
 interface NearbyUser {
@@ -303,15 +304,17 @@ const HomeScreen = () => {
   }, [currentLocation, currentUserId, socketConnected, debouncedLocationUpdate]);
 
   // Fetch my journals
-  const fetchMyJournalsData = () => {
-    dispatch(getMyJournals({ page: 1, limit: 10 }))
-      .unwrap()
-      .then((res: any) => {
-        const backendData = res?.data || res || [];
-        console.log('✅ Synced My Journals:', backendData.length);
-        
-        const parsedMarkers: LocationMarker[] = backendData.map((item: any) => ({
-          id: String(item.id),
+  // Combined fetch for personal and shared journals
+  const fetchMyJournalsData = async () => {
+    try {
+      const parsedMarkers: LocationMarker[] = [];
+
+      // 1. Fetch My Journals
+      const myJournalsRes = await dispatch(getMyJournals({ page: 1, limit: 50 })).unwrap();
+      const myJournalsData = myJournalsRes?.data || myJournalsRes || [];
+      myJournalsData.forEach((item: any) => {
+        parsedMarkers.push({
+          id: `mine_${item.id}`,
           coordinate: {
             latitude: parseFloat(item.location?.latitude || item.latitude || '0'),
             longitude: parseFloat(item.location?.longitude || item.longitude || '0'),
@@ -321,23 +324,34 @@ const HomeScreen = () => {
           type: item.type || 'default',
           weather: item.weather,
           isJournal: true,
-          user: item.user ? {
-            id: String(item.user.id),
-            displayname: item.user.displayname,
-            username: item.user.username,
-            email: item.user.email,
-            profilePhoto: item.user.profilePhoto,
-            bio: item.user.bio,
-            huntingExperience: item.user.huntingExperience,
-            skills: item.user.skills || [],
-          } : undefined
-        }));
-        
-        setJournalMarkers(parsedMarkers);
-      })
-      .catch((err: any) => {
-        console.error('Error fetching journals:', err);
+          isSharedJournal: false,
+        });
       });
+
+      // 2. Fetch Shared With Me Journals
+      const sharedJournalsRes = await dispatch(getSharedWithMeJournals({ page: 1, limit: 50 })).unwrap();
+      const sharedJournalsData = sharedJournalsRes?.data || sharedJournalsRes || [];
+      sharedJournalsData.forEach((item: any) => {
+        parsedMarkers.push({
+          id: `shared_${item.id}`,
+          coordinate: {
+            latitude: parseFloat(item.location?.latitude || item.latitude || '0'),
+            longitude: parseFloat(item.location?.longitude || item.longitude || '0'),
+          },
+          title: item.title ? `🤝 ${item.title}` : 'Shared Hunting Spot',
+          description: item.description || '',
+          type: item.type || 'default',
+          weather: item.weather,
+          isJournal: true,
+          isSharedJournal: true,
+        });
+      });
+
+      setJournalMarkers(parsedMarkers);
+      console.log(`✅ Synced markers: Total: ${parsedMarkers.length}`);
+    } catch (err) {
+      console.error('Error fetching data logs:', err);
+    }
   };
 
   // Location permission and tracking

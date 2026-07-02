@@ -96,3 +96,29 @@ export const searchJournals = createAsyncThunk(
     }
   }
 );
+
+// Share a journal entry
+export const shareJournal = createAsyncThunk(
+  'huntingJournal/share',
+  async ({ id, friendId }: { id: number; friendId: number }, { rejectWithValue }) => {
+    try {
+      const response = await huntingJournalService.shareJournal(id, friendId);
+      return response;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to share journal');
+    }
+  }
+);
+
+// Get journals shared with me
+export const getSharedWithMeJournals = createAsyncThunk(
+  'huntingJournal/getSharedWithMe',
+  async ({ page, limit }: { page?: number; limit?: number } = {}, { rejectWithValue }) => {
+    try {
+      const response = await huntingJournalService.getSharedWithMeJournals(page, limit);
+      return response;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch shared journals');
+    }
+  }
+);

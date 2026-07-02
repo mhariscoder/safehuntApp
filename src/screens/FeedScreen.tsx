@@ -59,10 +59,17 @@ const PostCard = memo(({
   onLike, 
   onCommentPress, 
   onSharePress,
-  onToggleComments, 
   showAllComments, 
   formatTimeAgo, 
   user,
+  navigation,
+  onEditPost,
+  onDeletePost,
+  activeMenu,
+  onToggleMenu,
+  isShared,
+  shareCount,
+  onToggleComments,
   onLikeComment,
   onReplyPress,
   onDeleteComment,
@@ -72,20 +79,38 @@ const PostCard = memo(({
   replyText,
   showReplyInput,
   setReplyText,
-  navigation,
-  onEditPost,
-  onDeletePost,
-  activeMenu,
-  onToggleMenu,
-  isShared,
-  shareCount,
+}: {
+  post: any, 
+  onLike: any, 
+  onCommentPress: any, 
+  onSharePress: any,
+  showAllComments: any, 
+  formatTimeAgo: any, 
+  user: any,
+  navigation: any,
+  onEditPost: any,
+  onDeletePost: any,
+  activeMenu: any,
+  onToggleMenu: any,
+  isShared: any,
+  shareCount: any,
+  onToggleComments: any,
+  onLikeComment: any,
+  onReplyPress: any,
+  onDeleteComment: any,
+  onAddReply: any,
+  onDeleteReply: any,
+  onLikeReply: any,
+  replyText: any,
+  showReplyInput: any,
+  setReplyText: any,
 }) => {
   const postDate = post.created_at || post.createdAt;
   const imageUrl = post.image ? getFullImageUrl(post.image) : null;
   const userAvatar = post.user?.profilePhoto ? getFullImageUrl(post.user.profilePhoto) : null;
-  const displayComments = showAllComments ? post.comments : post.comments?.slice(0, 2);
   const isOwner = user?.id === post.user?.id;
   const isMenuVisible = activeMenu === post.id;
+  const displayComments = showAllComments ? post.comments : post.comments?.slice(0, 2);
 
   const handlePostPress = () => {
     navigation.navigate('PostDetail', { postId: post.id, groupId: post.groupId });
@@ -272,8 +297,8 @@ const FeedScreen = () => {
     addReply,
     deleteReply,
     likeComment,
-    unlikeComment,
     likeReply,
+    unlikeComment,
     unlikeReply,
   } = useComments();
 
