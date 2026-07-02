@@ -108,6 +108,7 @@ const HomeScreen = () => {
 
   const [sendingRequestId, setSendingRequestId] = useState<string | null>(null);
   const [processingRequests, setProcessingRequests] = useState<Set<string>>(new Set());
+  const [routeOrigin, setRouteOrigin] = useState<any>(null);
 
   const mapRef = useRef<MapView>(null);
   const watchIdRef = useRef<number | null>(null);
@@ -490,6 +491,7 @@ const HomeScreen = () => {
           : 'Distance unavailable',
         type: 'user',
         isJournal: false,
+        isSharedJournal: false,
         user: {
           id: user.id,
           displayname: user.displayname,
@@ -716,6 +718,10 @@ const HomeScreen = () => {
   const handleMarkerPress = (location: LocationMarker) => {
     console.log('📍 Marker pressed:', location);
 
+    if (currentLocation) {
+      setRouteOrigin(currentLocation);
+    }
+
     if (location.isJournal) {
       setSelectedLocation(location);
       setSelectedNearbyUser(null);
@@ -736,6 +742,7 @@ const HomeScreen = () => {
           description: 'Nearby hunter',
           type: 'user',
           isJournal: false,
+          isSharedJournal: false, // Add this missing property
         });
 
         // Smooth camera focus
@@ -898,7 +905,7 @@ const HomeScreen = () => {
 
             {currentLocation && selectedLocation && (
               <MapViewDirections
-                origin={currentLocation}
+                origin={routeOrigin}
                 destination={selectedLocation.coordinate}
                 apikey={GOOGLE_MAPS_APIKEY}
                 strokeWidth={4}
