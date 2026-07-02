@@ -109,6 +109,7 @@ const HomeScreen = () => {
   const [sendingRequestId, setSendingRequestId] = useState<string | null>(null);
   const [processingRequests, setProcessingRequests] = useState<Set<string>>(new Set());
   const [routeOrigin, setRouteOrigin] = useState<any>(null);
+  const [showMyLocationButton, setShowMyLocationButton] = useState(true);
 
   const mapRef = useRef<MapView>(null);
   const watchIdRef = useRef<number | null>(null);
@@ -810,6 +811,17 @@ const HomeScreen = () => {
     return null;
   };
 
+  const handleMyLocationPress = () => {
+    if (currentLocation && mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 500);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -851,7 +863,7 @@ const HomeScreen = () => {
             }}
 
             showsUserLocation={false}
-            showsMyLocationButton={false}
+            showsMyLocationButton={true}
             showsCompass={true}
             zoomEnabled={true}
             scrollEnabled={true}
@@ -1087,6 +1099,16 @@ const HomeScreen = () => {
               ))}
             </View>
           </View>
+
+          <TouchableOpacity 
+            style={styles.myLocationButton}
+            onPress={handleMyLocationPress}
+          >
+            <Image 
+              source={require('../../assets/location_green.png')} // Add your own icon
+              style={styles.myLocationIcon}
+            />
+          </TouchableOpacity>
 
           <BottomTabNav containerStyle={{ marginBottom: 15 }} />
         </View>
@@ -1365,6 +1387,28 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 24,
     fontWeight: 'bold',
+  },
+  myLocationButton: {
+    position: 'absolute',
+    right: 20,
+    bottom: 180, // Adjust based on your layout
+    backgroundColor: '#FFF',
+    borderRadius: 30,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 10,
+  },
+  myLocationIcon: {
+    width: 24,
+    height: 24,
+    tintColor: '#0E713E',
   },
 });
 

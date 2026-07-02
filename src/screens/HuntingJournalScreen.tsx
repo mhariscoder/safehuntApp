@@ -15,6 +15,7 @@ import {
   Platform,
   Modal,
   FlatList,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useHuntingJournal } from '../hooks/useHuntingJournal';
 import { useAppSelector } from '../app/store/hooks';
@@ -196,6 +197,7 @@ const JournalEntry = ({
   onShareDelete,
   activeMenu,
   onToggleMenu,
+  onCloseMenu,
 }: {
   id: number;
   title: string;
@@ -211,6 +213,7 @@ const JournalEntry = ({
   onShareDelete: (id: number) => void;
   activeMenu: number | null;
   onToggleMenu: (id: number) => void;
+  onCloseMenu: () => void;
 }) => {
   const isMenuVisible = activeMenu === id;
 
@@ -221,7 +224,15 @@ const JournalEntry = ({
   };
 
   return (
-    <TouchableOpacity onPress={() => !isSharedView && onEdit(id)} disabled={isSharedView}>
+    <TouchableOpacity
+      onPress={() => {
+        if (!isSharedView && onEdit) {
+          onEdit(id);
+        }
+        onCloseMenu(); // ✅ Close menu when card is pressed
+      }} 
+      disabled={isSharedView}
+    >
       <View style={[styles.entryCard, { zIndex: id }]}>
         <View style={styles.cardHeader}>
           <View style={styles.cardBody}>
@@ -337,6 +348,17 @@ const HuntingJournalScreen = () => {
   // Modal tracking states
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
   const [selectedJournalId, setSelectedJournalId] = useState<number | null>(null);
+
+  const handleCloseMenu = () => {
+    setActiveMenu(null);
+  };
+
+  useEffect(() => {
+    // Close menu when component unmounts or tab changes
+    return () => {
+      setActiveMenu(null);
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -494,137 +516,144 @@ const HuntingJournalScreen = () => {
   const hasFilteredResults = Object.keys(groupedJournals).length > 0;
 
   return (
-    <View style={styles.container}>
-      {/* HEADER */}
-      <View style={styles.header}>
-        <View style={styles.topRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Image source={ASSETS.backIcon} style={styles.headerIcon} />
-            <Text style={styles.headerTitle}>Hunting Journal</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.searchToggleButton}
-            onPress={() => {
-              setShowSearch(!showSearch);
-              if (!showSearch) setSearchQuery('');
-            }}
-          >
-            <Image source={ASSETS.searchIcon} style={styles.headerSearchIcon} />
-          </TouchableOpacity>
+    <TouchableWithoutFeedback
+      onPress={handleCloseMenu}
+      accessible={false}
+    >
+      <View style={styles.container}>
+        {/* HEADER */}
+        <View style={styles.header}>
+          <View style={styles.topRow}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Image source={ASSETS.backIcon} style={styles.headerIcon} />
+              <Text style={styles.headerTitle}>Hunting Journal</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.searchToggleButton}
+              onPress={() => {
+                setShowSearch(!showSearch);
+                if (!showSearch) setSearchQuery('');
+              }}
+            >
+              <Image source={ASSETS.searchIcon} style={styles.headerSearchIcon} />
+            </TouchableOpacity>
+          </View>
+
+          {showSearch && (
+            <View style={styles.searchContainer}>
+              <Image source={ASSETS.searchIcon} style={styles.inlineSearchIcon} />
+              <TextInput
+                placeholder="Search journals..."
+                placeholderTextColor="#999"
+                style={styles.searchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus={true}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={handleClearSearch}>
+                  <Image source={ASSETS.closeIcon} style={styles.clearIcon} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* TABS CONTAINER */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === 'mine' && styles.activeTabButton]} 
+              onPress={() => handleTabChange('mine')}
+            >
+              <Text style={[styles.tabText, activeTab === 'mine' && styles.activeTabText]}>My Journals</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === 'shared' && styles.activeTabButton]} 
+              onPress={() => handleTabChange('shared')}
+            >
+              <Text style={[styles.tabText, activeTab === 'shared' && styles.activeTabText]}>Shared With Me</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {showSearch && (
-          <View style={styles.searchContainer}>
-            <Image source={ASSETS.searchIcon} style={styles.inlineSearchIcon} />
-            <TextInput
-              placeholder="Search journals..."
-              placeholderTextColor="#999"
-              style={styles.searchInput}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus={true}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={handleClearSearch}>
-                <Image source={ASSETS.closeIcon} style={styles.clearIcon} />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* TABS CONTAINER */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity 
-            style={[styles.tabButton, activeTab === 'mine' && styles.activeTabButton]} 
-            onPress={() => handleTabChange('mine')}
-          >
-            <Text style={[styles.tabText, activeTab === 'mine' && styles.activeTabText]}>My Journals</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tabButton, activeTab === 'shared' && styles.activeTabButton]} 
-            onPress={() => handleTabChange('shared')}
-          >
-            <Text style={[styles.tabText, activeTab === 'shared' && styles.activeTabText]}>Shared With Me</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0E713E"]} />
-        }
-      >
-        {showLoadingInList ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#0E713E" />
-            <Text style={styles.loadingText}>Loading journals...</Text>
-          </View>
-        ) : journals && journals.length > 0 ? (
-          hasFilteredResults ? (
-            Object.entries(groupedJournals).map(([month, monthJournals]) => (
-              <View key={month}>
-                <Text style={styles.sectionTitle}>{month}</Text>
-                {monthJournals.map((journal) => (
-                  <JournalEntry
-                    key={journal?.id?.toString() || Math.random().toString()}
-                    id={journal?.id || 0}
-                    title={journal?.title || 'Untitled'}
-                    date={journal?.date || journal?.createdAt || new Date().toISOString()}
-                    description={journal?.description || ''}
-                    location={journal?.location?.locationText || 'Unknown Location'}
-                    weather={journal?.weather || 'Not specified'}
-                    shareCount={journal?.shareCount}
-                    isSharedView={activeTab === 'shared'}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    onShare={handleShareTrigger}
-                    onShareDelete={handleRemoveShared}
-                    activeMenu={activeMenu}
-                    onToggleMenu={handleToggleMenu}
-                  />
-                ))}
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0E713E"]} />
+          }
+          onScrollBeginDrag={handleCloseMenu}
+        >
+          {showLoadingInList ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#0E713E" />
+              <Text style={styles.loadingText}>Loading journals...</Text>
+            </View>
+          ) : journals && journals.length > 0 ? (
+            hasFilteredResults ? (
+              Object.entries(groupedJournals).map(([month, monthJournals]) => (
+                <View key={month}>
+                  <Text style={styles.sectionTitle}>{month}</Text>
+                  {monthJournals.map((journal) => (
+                    <JournalEntry
+                      key={journal?.id?.toString() || Math.random().toString()}
+                      id={journal?.id || 0}
+                      title={journal?.title || 'Untitled'}
+                      date={journal?.date || journal?.createdAt || new Date().toISOString()}
+                      description={journal?.description || ''}
+                      location={journal?.location?.locationText || 'Unknown Location'}
+                      weather={journal?.weather || 'Not specified'}
+                      shareCount={journal?.shareCount}
+                      isSharedView={activeTab === 'shared'}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      onShare={handleShareTrigger}
+                      onShareDelete={handleRemoveShared}
+                      activeMenu={activeMenu}
+                      onToggleMenu={handleToggleMenu}
+                      onCloseMenu={handleCloseMenu}
+                    />
+                  ))}
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Image source={ASSETS.searchIcon} style={[styles.emptyIcon, { tintColor: '#CCC' }]} />
+                <Text style={styles.emptyText}>No entries found</Text>
               </View>
-            ))
+            )
           ) : (
             <View style={styles.emptyContainer}>
-              <Image source={ASSETS.searchIcon} style={[styles.emptyIcon, { tintColor: '#CCC' }]} />
-              <Text style={styles.emptyText}>No entries found</Text>
+              <Text style={styles.emptyText}>
+                {activeTab === 'mine' ? 'No journal entries yet' : 'No shared journals found'}
+              </Text>
             </View>
-          )
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {activeTab === 'mine' ? 'No journal entries yet' : 'No shared journals found'}
-            </Text>
-          </View>
-        )}
-        <View style={{ height: 100 }} />
-      </ScrollView>
+          )}
+          <View style={{ height: 100 }} />
+        </ScrollView>
 
-      {/* FLOATING BOTTOM BAR */}
-      <View style={styles.bottomBar}>
-        <Text style={styles.notesCount}>{journals?.length || 0} Notes</Text>
-        {activeTab === 'mine' && (
-          <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('NewNote')}>
-            <Image source={ASSETS.addNoteIcon} style={styles.addIcon} />
-          </TouchableOpacity>
-        )}
+        {/* FLOATING BOTTOM BAR */}
+        <View style={styles.bottomBar}>
+          <Text style={styles.notesCount}>{journals?.length || 0} Notes</Text>
+          {activeTab === 'mine' && (
+            <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('NewNote')}>
+              <Image source={ASSETS.addNoteIcon} style={styles.addIcon} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* SHARE MODAL ATTACHMENT */}
+        <ShareJournalModal
+          visible={isShareModalVisible}
+          journalId={selectedJournalId}
+          onClose={() => {
+            setIsShareModalVisible(false);
+            setSelectedJournalId(null);
+          }}
+          onShareConfirm={handleExecuteShare}
+        />
       </View>
-
-      {/* SHARE MODAL ATTACHMENT */}
-      <ShareJournalModal
-        visible={isShareModalVisible}
-        journalId={selectedJournalId}
-        onClose={() => {
-          setIsShareModalVisible(false);
-          setSelectedJournalId(null);
-        }}
-        onShareConfirm={handleExecuteShare}
-      />
-    </View>
+    </TouchableWithoutFeedback>
   );
 };
 
