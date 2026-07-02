@@ -222,7 +222,7 @@ const JournalEntry = ({
 
   return (
     <TouchableOpacity onPress={() => !isSharedView && onEdit(id)} disabled={isSharedView}>
-      <View style={styles.entryCard}>
+      <View style={[styles.entryCard, { zIndex: id }]}>
         <View style={styles.cardHeader}>
           <View style={styles.cardBody}>
             <Text style={styles.entryTitle}>{title || 'Untitled'}</Text>
@@ -234,7 +234,7 @@ const JournalEntry = ({
             </Text>
           </View>
 
-          <View style={{ position: 'relative' }}>
+          <View style={{ position: 'relative', zIndex: 999 }}>
             <TouchableOpacity onPress={() => onToggleMenu(id)}>
               <Image source={ASSETS.moreIcon} style={styles.moreIcon} />
             </TouchableOpacity>
@@ -243,7 +243,7 @@ const JournalEntry = ({
               <View style={styles.dropdown}>
                 {!isSharedView ? (
                   <>
-                    <TouchableOpacity 
+                    {/* <TouchableOpacity 
                       style={styles.dropdownItem} 
                       onPress={() => {
                         onToggleMenu(id);
@@ -251,7 +251,7 @@ const JournalEntry = ({
                       }}
                     >
                       <Text style={styles.dropdownText}>Edit</Text>
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
 
                     <View style={styles.dropdownDivider} />
 

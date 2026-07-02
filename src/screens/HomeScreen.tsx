@@ -850,7 +850,7 @@ const HomeScreen = () => {
               longitudeDelta: 0.01,
             }}
 
-            showsUserLocation={true}
+            showsUserLocation={false}
             showsMyLocationButton={false}
             showsCompass={true}
             zoomEnabled={true}
