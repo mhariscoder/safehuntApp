@@ -879,7 +879,7 @@ const HomeScreen = () => {
                 tracksViewChanges={true}
               >
                 <Image
-                  source={require('../../assets/tab_0.png')}
+                  source={require('../../assets/about_icon.png')}
                   style={{ width: 30, height: 30 }}
                   resizeMode="contain"
                 />
@@ -900,15 +900,15 @@ const HomeScreen = () => {
                 {location.isJournal ? (
                   // JOURNAL ICON
                   <Image
-                    source={require('../../assets/about_icon.png')} // Your journal icon
-                    style={{ width: 35, height: 35 }}
+                    source={require('../../assets/tab_0.png')} // Your journal icon
+                    style={{ width: 30, height: 30 }}
                     resizeMode="contain"
                   />
                 ) : (
                   // NEARBY USER ICON
                   <Image
                     source={require('../../assets/people_hunt.png')} // Your user icon
-                    style={{ width: 35, height: 35 }}
+                    style={{ width: 30, height: 30 }}
                     resizeMode="contain"
                   />
                 )}
