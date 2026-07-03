@@ -68,6 +68,7 @@ interface NearbyUser {
   currentLatitude: number;
   currentLongitude: number;
   distance?: number;
+  weather?: string;
   friendRequestStatus?: 'pending' | 'accepted' | 'none';
 }
 
@@ -117,6 +118,7 @@ const HomeScreen = () => {
 
   const { isConnected: socketConnected } = useSelector((state: any) => state.chat || { isConnected: false });
   const currentUserId = useSelector((state: any) => state.auth?.user?.id);
+  const listenersRegisteredRef = useRef(false);
 
   // Initialize socket connection
   // useEffect(() => {
@@ -139,26 +141,42 @@ const HomeScreen = () => {
   // }, [currentUserId, dispatch]);
 
   useEffect(() => {
-    if (currentUserId) {
-      console.log('🏠 HomeScreen: Initializing socket connection for user:', currentUserId);
-      dispatch(connectSocket({ receiverUserId: currentUserId.toString() }));
-
-      // Set up socket listeners for nearby users and friend requests
-      setupSocketListeners();
-    }
+    setupSocketListeners();
 
     return () => {
-      console.log('🏠 HomeScreen: Cleaning up screen layout variables');
+      cleanupSocketListeners();
+
       if (locationUpdateTimeoutRef.current) {
         clearTimeout(locationUpdateTimeoutRef.current);
       }
-      // 1. Remove layout event listeners so we don't handle map updates when screen is gone
-      cleanupSocketListeners();
-      
-      // 2. 🚨 REMOVED dispatch(disconnectSocket()) FROM HERE!
-      // Keeping connection alive globally across layout variations.
     };
-  }, [currentUserId, dispatch]);
+  }, []);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    console.log('🏠 HomeScreen: Initializing socket connection for user:', currentUserId);
+
+    dispatch(connectSocket({ receiverUserId: currentUserId.toString() }));
+
+    if (!listenersRegisteredRef.current) {
+      setupSocketListeners();
+      listenersRegisteredRef.current = true;
+    }
+
+    return () => {
+      console.log('🏠 HomeScreen: Cleaning up HomeScreen');
+
+      if (locationUpdateTimeoutRef.current) {
+        clearTimeout(locationUpdateTimeoutRef.current);
+      }
+
+      cleanupSocketListeners();
+      listenersRegisteredRef.current = false;
+
+      // Don't disconnect here.
+    };
+  }, [currentUserId]);
 
   // Set up socket listeners
   const setupSocketListeners = () => {
@@ -633,18 +651,27 @@ const HomeScreen = () => {
   const getFriendStatus = (userId: string): 'accepted' | 'pending' | 'none' => {
     if (!currentUser) return 'none';
 
-    const isFriend = currentUser.receivedFriendRequests?.some(
-      (req: any) => req.requester.id === userId && req.status === 'accepted'
+    // Check if user is in sentFriendRequests (as sender)
+    const isSentAccepted = currentUser.sentFriendRequests?.some(
+      (req: any) => req.recipient?.id === userId && req.status === 'accepted'
     );
-    if (isFriend) return 'accepted';
+    if (isSentAccepted) return 'accepted';
 
+    // Check if user is in receivedFriendRequests (as receiver)
+    const isReceivedAccepted = currentUser.receivedFriendRequests?.some(
+      (req: any) => req.requester?.id === userId && req.status === 'accepted'
+    );
+    if (isReceivedAccepted) return 'accepted';
+
+    // Check if request is sent (pending)
     const isRequestSent = currentUser.sentFriendRequests?.some(
-      (req: any) => req.receiverId === userId && req.status === 'pending'
+      (req: any) => req.recipient?.id === userId && req.status === 'pending'
     );
     if (isRequestSent) return 'pending';
 
+    // Check if request is received (pending)
     const isRequestReceived = currentUser.receivedFriendRequests?.some(
-      (req: any) => req.requester.id === userId && req.status === 'pending'
+      (req: any) => req.requester?.id === userId && req.status === 'pending'
     );
     if (isRequestReceived) return 'pending';
 
@@ -822,6 +849,71 @@ const HomeScreen = () => {
     }
   };
 
+  const getCompassDirection = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ) => {
+    const bearing = getBearing(lat1, lon1, lat2, lon2);
+
+    const directions = [
+      "N",
+      "NE",
+      "E",
+      "SE",
+      "S",
+      "SW",
+      "W",
+      "NW",
+    ];
+
+    return directions[Math.round(bearing / 45) % 8];
+  };
+
+  const getBearing = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ) => {
+    const toRad = (deg: number) => deg * Math.PI / 180;
+    const toDeg = (rad: number) => rad * 180 / Math.PI;
+
+    const φ1 = toRad(lat1);
+    const φ2 = toRad(lat2);
+    const Δλ = toRad(lon2 - lon1);
+
+    const y = Math.sin(Δλ) * Math.cos(φ2);
+    const x =
+      Math.cos(φ1) * Math.sin(φ2) -
+      Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+  };
+
+  const isUser = !!selectedNearbyUser;
+
+  const title = isUser
+    ? selectedNearbyUser.displayname || selectedNearbyUser.username
+    : selectedLocation?.title;
+
+  const latitude = isUser
+    ? selectedNearbyUser.currentLatitude
+    : selectedLocation?.coordinate.latitude;
+
+  const longitude = isUser
+    ? selectedNearbyUser.currentLongitude
+    : selectedLocation?.coordinate.longitude;
+
+  const description = isUser
+    ? null
+    : selectedLocation?.description;
+
+  const weather = isUser
+    ? selectedNearbyUser.weather || "Unknown"
+    : selectedLocation?.weather || "Unknown";
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -956,6 +1048,10 @@ const HomeScreen = () => {
                       // heading: 0,
                     }, { duration: 600 });
                   }, 60);
+
+                  console.log('distance', result.distance);
+                  console.log('duration', result.duration);
+                  console.log(result.coordinates);
                 }}
                 onError={(errorMessage) => {
                   console.error('Google Directions API Error: ', errorMessage);
@@ -989,31 +1085,72 @@ const HomeScreen = () => {
 
               <View style={styles.profileRow}>
                 <View style={styles.profileTextContainer}>
-                  <Text style={styles.journalSpotTitle}>
-                    📍 {selectedLocation.title}
+
+                  <Text style={isUser ? styles.locationInfoTitle : styles.journalSpotTitle}>
+                    {isUser ? "👤" : "📍"} {title}
                   </Text>
-                  
-                  {routeDistance && routeDuration && (
-                    <Text style={styles.routeDistanceBadge}>
-                      🚗 {routeDistance} ({routeDuration}) away via road
-                    </Text>
+
+                  {currentLocation && latitude && longitude && (
+                    <View style={styles.infoBadge}>
+                      <Text style={styles.infoBadgeText}>
+                        {isUser ? "📍" : "🚗"}{" "}
+                        {routeDistance || isUser ? `${routeDistance} • ${routeDuration} • ` : ""}
+                        {getCompassDirection(
+                          currentLocation.latitude,
+                          currentLocation.longitude,
+                          latitude,
+                          longitude
+                        )}{" "}
+                        of you
+                      </Text>
+                    </View>
                   )}
 
-                  <Text style={styles.locationInfoDesc} numberOfLines={2}>
-                    "{selectedLocation.description || 'No description recorded.'}"
-                  </Text>
-                  {selectedLocation.weather && (
-                    <Text style={styles.weatherInfoText}>
-                      🌤️ {selectedLocation.weather}
+                  <View style={styles.coordinateContainer}>
+                    <View style={styles.coordinateItem}>
+                      <Text style={styles.coordinateLabel}>Latitude</Text>
+                      <Text style={styles.coordinateValue}>
+                        {latitude?.toFixed(6)}
+                      </Text>
+                    </View>
+
+                    <View style={styles.coordinateDivider} />
+
+                    <View style={styles.coordinateItem}>
+                      <Text style={styles.coordinateLabel}>Longitude</Text>
+                      <Text style={styles.coordinateValue}>
+                        {longitude?.toFixed(6)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <>
+                    <Text style={styles.locationInfoDesc}>
+                      {description || "No description available."}
                     </Text>
-                  )}
+
+                    <View style={styles.bottomInfoRow}>
+                      {/* <View style={styles.weatherBadge}>
+                        <Text style={styles.weatherBadgeText}>
+                          🌤 {weather}
+                        </Text>
+                      </View> */}
+
+                      {isUser && (
+                        <View style={styles.friendActionContainer}>
+                          {renderFriendRequestButton(selectedNearbyUser.id)}
+                        </View>
+                      )}
+                    </View>
+                  </>
+
                 </View>
               </View>
             </View>
           )}
 
           {/* Nearby User Info Card - FIXED to show properly */}
-          {selectedNearbyUser && (
+          {/* {selectedNearbyUser && (
             <View style={[styles.locationInfoCard, styles.userInfoCard]}>
               <TouchableOpacity 
                 style={styles.cardCloseCornerBtn} 
@@ -1042,27 +1179,44 @@ const HomeScreen = () => {
                 </View>
                 <View style={styles.profileTextContainer}>
                   <Text style={styles.locationInfoTitle}>
-                    {selectedNearbyUser.displayname || selectedNearbyUser.username}
+                    👤 {selectedNearbyUser.displayname || selectedNearbyUser.username}
                   </Text>
-                  {/* <Text style={styles.userDistanceText}>
-                    📍 {selectedNearbyUser.distance?.toFixed(1)}km away
-                  </Text> */}
-                  <Text style={styles.userDistanceText}>
-                  📍 {(() => {
-                    const d = getUserDistance(selectedNearbyUser);
-                    return d ? `${(d * 0.621371).toFixed(1)} mi away` : 'Distance unavailable';
-                  })()}
-                </Text>
-                  <Text style={styles.userLocationText}>
-                    Lat: {selectedNearbyUser.currentLatitude.toFixed(4)}, Lng: {selectedNearbyUser.currentLongitude.toFixed(4)}
-                  </Text>
+
+                  {currentLocation && (
+                    <View style={styles.infoBadge}>
+                      <Text style={styles.infoBadgeText}>
+                        📍 {(() => {
+                          const d = getUserDistance(selectedNearbyUser);
+
+                          const direction = getCompassDirection(
+                            currentLocation.latitude,
+                            currentLocation.longitude,
+                            selectedNearbyUser.currentLatitude,
+                            selectedNearbyUser.currentLongitude
+                          );
+
+                          return d
+                            ? `${(d * 0.621371).toFixed(1)} mi • ${direction} of you`
+                            : `${direction} of you`;
+                        })()}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.coordinateSingleContainer}>
+                    <Text style={styles.coordinateSingleText}>
+                      📍 {selectedNearbyUser.currentLatitude.toFixed(6)},{" "}
+                      {selectedNearbyUser.currentLongitude.toFixed(6)}
+                    </Text>
+                  </View>
+
                   <View style={styles.friendActionContainer}>
                     {renderFriendRequestButton(selectedNearbyUser.id)}
                   </View>
                 </View>
               </View>
             </View>
-          )}
+          )} */}
 
           <View style={{ marginTop: 'auto', marginBottom: 10, width: '100%' }}>
             <View style={styles.sliderContainer}>
@@ -1402,13 +1556,93 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
-    elevation: 5,
-    zIndex: 10,
+    // elevation: 5,
+    // zIndex: 0,
   },
   myLocationIcon: {
     width: 24,
     height: 24,
     tintColor: '#0E713E',
+  },
+  infoBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#0E713E",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+
+  infoBadgeText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  coordinateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+
+  coordinateItem: {
+    flex: 1,
+  },
+
+  coordinateLabel: {
+    color: "#999",
+    fontSize: 11,
+  },
+
+  coordinateValue: {
+    color: "#FFF",
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+
+  coordinateDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    marginHorizontal: 10,
+  },
+
+  weatherBadge: {
+    alignSelf: "flex-start",
+    marginTop: 8,
+  },
+
+  weatherBadgeText: {
+    color: "#FFD54F",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  coordinateSingleContainer: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+
+  coordinateSingleText: {
+    color: "#FFF",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  bottomInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
   },
 });
 

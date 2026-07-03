@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: DRAWER_WIDTH,
-    zIndex: 1000,
+    zIndex: 999999999,
   },
   drawerContent: { 
     flex: 1,
