@@ -22,6 +22,8 @@ import { useAppSelector } from '../app/store/hooks';
 import { useFriends } from '../hooks/useFriends';
 import { API_BASE_URL } from '../constants/config';
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 
 const ASSETS = {
   backIcon: require('../../assets/back_white.png'),
@@ -31,8 +33,12 @@ const ASSETS = {
   moreIcon: require('../../assets/more_vert.png'),
   addNoteIcon: require('../../assets/add_note_icon.png'),
   closeIcon: require('../../assets/close_icon.png'),
-  iconCheck: require('./../../assets/accept_icon.png'), // Added from your assets
+  iconCheck: require('./../../assets/accept_icon.png'),
 };
+
+// Cache keys - separate for each tab
+const MY_JOURNALS_CACHE_KEY = '@my_journals_cache';
+const SHARED_JOURNALS_CACHE_KEY = '@shared_journals_cache';
 
 const getFullImageUrl = (imagePath: string | null | undefined): string | null => {
   if (!imagePath) return null;
@@ -43,7 +49,7 @@ const getFullImageUrl = (imagePath: string | null | undefined): string | null =>
   return `${API_BASE_URL}/public/uploads/${cleanPath}`;
 };
 
-// --- NEW SINGLE-SELECT SHARE MODAL ---
+// --- SHARE MODAL ---
 const ShareJournalModal = ({ visible, onClose, onShareConfirm, journalId }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -191,6 +197,7 @@ const JournalEntry = ({
   weather,
   shareCount = 0,
   isSharedView,
+  isOfflineMode = false,
   onEdit,
   onDelete,
   onShare,
@@ -207,6 +214,7 @@ const JournalEntry = ({
   weather: string;
   shareCount?: number;
   isSharedView: boolean;
+  isOfflineMode?: boolean;
   onEdit: (id: number) => void;
   onDelete: (id: number) => void;
   onShare: (id: number) => void;
@@ -223,17 +231,24 @@ const JournalEntry = ({
     return date.toLocaleDateString('en-GB');
   };
 
+  // Don't show menu in offline mode
+  const showMenu = !isOfflineMode;
+
   return (
     <TouchableOpacity
       onPress={() => {
-        if (!isSharedView && onEdit) {
+        if (!isSharedView && onEdit && !isOfflineMode) {
           onEdit(id);
         }
-        onCloseMenu(); // ✅ Close menu when card is pressed
+        onCloseMenu();
       }} 
-      disabled={isSharedView}
+      disabled={isSharedView || isOfflineMode}
     >
-      <View style={[styles.entryCard, { zIndex: id }]}>
+      <View style={[
+        styles.entryCard, 
+        { zIndex: id },
+        isOfflineMode && styles.offlineEntryCard
+      ]}>
         <View style={styles.cardHeader}>
           <View style={styles.cardBody}>
             <Text style={styles.entryTitle}>{title || 'Untitled'}</Text>
@@ -243,65 +258,57 @@ const JournalEntry = ({
                 {description?.length > 50 ? description.substring(0, 50) + '...' : description || ''}
               </Text>
             </Text>
-          </View>
-
-          <View style={{ position: 'relative', zIndex: 999 }}>
-            <TouchableOpacity onPress={() => onToggleMenu(id)}>
-              <Image source={ASSETS.moreIcon} style={styles.moreIcon} />
-            </TouchableOpacity>
-
-            {isMenuVisible && (
-              <View style={styles.dropdown}>
-                {!isSharedView ? (
-                  <>
-                    {/* <TouchableOpacity 
-                      style={styles.dropdownItem} 
-                      onPress={() => {
-                        onToggleMenu(id);
-                        onEdit(id);
-                      }}
-                    >
-                      <Text style={styles.dropdownText}>Edit</Text>
-                    </TouchableOpacity> */}
-
-                    <View style={styles.dropdownDivider} />
-
-                    <TouchableOpacity 
-                      style={styles.dropdownItem} 
-                      onPress={() => {
-                        onToggleMenu(id);
-                        onShare(id);
-                      }}
-                    >
-                      <Text style={styles.dropdownText}>Share</Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.dropdownDivider} />
-
-                    <TouchableOpacity 
-                      style={styles.dropdownItem} 
-                      onPress={() => {
-                        onToggleMenu(id);
-                        onDelete(id);
-                      }}
-                    >
-                      <Text style={styles.dropdownText}>Delete</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <View style={styles.dropdownItem}>
-                    <TouchableOpacity 
-                      style={styles.dropdownItem} 
-                      onPress={() => {onToggleMenu(id);onShareDelete(id);}}
-                    >
-                      <Text style={styles.dropdownText}>Delete</Text>
-                    </TouchableOpacity>
-                  </View>
-                  // <></>
-                )}
+            {isOfflineMode && (
+              <View style={styles.offlineBadge}>
+                <Text style={styles.offlineBadgeText}>📶 Offline</Text>
               </View>
             )}
           </View>
+
+          {showMenu && (
+            <View style={{ position: 'relative', zIndex: 999 }}>
+              <TouchableOpacity onPress={() => onToggleMenu(id)}>
+                <Image source={ASSETS.moreIcon} style={styles.moreIcon} />
+              </TouchableOpacity>
+
+              {isMenuVisible && (
+                <View style={styles.dropdown}>
+                  {!isSharedView ? (
+                    <>
+                      <TouchableOpacity 
+                        style={styles.dropdownItem} 
+                        onPress={() => {
+                          onToggleMenu(id);
+                          onShare(id);
+                        }}
+                      >
+                        <Text style={styles.dropdownText}>Share</Text>
+                      </TouchableOpacity>
+
+                      <View style={styles.dropdownDivider} />
+
+                      <TouchableOpacity 
+                        style={styles.dropdownItem} 
+                        onPress={() => {
+                          onToggleMenu(id);
+                          onDelete(id);
+                        }}
+                      >
+                        <Text style={styles.dropdownText}>Delete</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <TouchableOpacity 
+                      style={styles.dropdownItem} 
+                      onPress={() => {onToggleMenu(id); onShareDelete(id);}}
+                    >
+                      <Text style={styles.dropdownText}>Remove</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
         <View style={styles.cardFooter}>
@@ -335,6 +342,7 @@ const HuntingJournalScreen = () => {
     deleteJournal,
     shareJournal,
     getSharedWithMeJournals,
+    clearJournals
   } = useHuntingJournal();
 
   const [activeTab, setActiveTab] = useState<'mine' | 'shared'>('mine');
@@ -344,6 +352,11 @@ const HuntingJournalScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [groupedJournals, setGroupedJournals] = useState<{ [key: string]: any[] }>({});
   const [tabSwitchLoading, setTabSwitchLoading] = useState(false);
+  const [isLoadingJournals, setIsLoadingJournals] = useState(true);
+  const [cachedJournals, setCachedJournals] = useState<any[]>([]);
+  const [hasLoadedTabCache, setHasLoadedTabCache] = useState(false);
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [currentTabCache, setCurrentTabCache] = useState<any[]>([]);
   
   // Modal tracking states
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
@@ -354,12 +367,183 @@ const HuntingJournalScreen = () => {
   };
 
   useEffect(() => {
-    // Close menu when component unmounts or tab changes
     return () => {
       setActiveMenu(null);
     };
   }, []);
 
+  // Cache functions
+  const saveJournalsToCache = async (tab: 'mine' | 'shared', journalsData: any[]) => {
+    try {
+      const cacheKey = tab === 'mine' ? MY_JOURNALS_CACHE_KEY : SHARED_JOURNALS_CACHE_KEY;
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(journalsData));
+      console.log(`📦 Saved ${journalsData.length} ${tab} journals to cache`);
+    } catch (error) {
+      console.log('Failed to save journals cache', error);
+    }
+  };
+
+  const loadJournalsFromCache = async (tab: 'mine' | 'shared') => {
+    try {
+      const cacheKey = tab === 'mine' ? MY_JOURNALS_CACHE_KEY : SHARED_JOURNALS_CACHE_KEY;
+      const cache = await AsyncStorage.getItem(cacheKey);
+      
+      if (!cache) {
+        console.log(`📦 No cache found for ${tab} journals`);
+        return [];
+      }
+
+      const parsed = JSON.parse(cache);
+      console.log(`📦 Loaded ${parsed.length} ${tab} journals from cache`);
+      return parsed;
+    } catch (error) {
+      console.log('Failed to read journals cache', error);
+      return [];
+    }
+  };
+
+  // Load from cache for current tab - this sets the data directly
+  const loadFromCacheForTab = async (tab: 'mine' | 'shared') => {
+    try {
+      const cachedData = await loadJournalsFromCache(tab);
+      console.log(`📦 Setting ${cachedData.length} cached ${tab} journals to display`);
+      setCurrentTabCache(cachedData);
+      setCachedJournals(cachedData);
+      
+      if (cachedData.length > 0) {
+        setGroupedJournals(groupByMonth(cachedData));
+        console.log(`📦 Displaying ${cachedData.length} cached ${tab} journals`);
+      } else {
+        setGroupedJournals({});
+        console.log(`📦 No cached data for ${tab} journals`);
+      }
+      setHasLoadedTabCache(true);
+    } catch (error) {
+      console.log('Error loading cache for tab:', error);
+      setHasLoadedTabCache(true);
+    }
+  };
+
+  const loadJournals = async () => {
+    try {
+      setIsLoadingJournals(true);
+      setIsOfflineMode(false);
+      
+      // STEP 1: Load cached journals for current tab first
+      const cachedData = await loadJournalsFromCache(activeTab);
+      console.log(`📦 Loaded ${cachedData.length} cached ${activeTab} journals from storage`);
+      
+      setCurrentTabCache(cachedData);
+      setCachedJournals(cachedData);
+      
+      if (cachedData.length > 0) {
+        setGroupedJournals(groupByMonth(cachedData));
+        console.log(`📦 Displaying ${cachedData.length} cached ${activeTab} journals`);
+      } else {
+        setGroupedJournals({});
+        console.log(`📦 No cached data for ${activeTab} journals`);
+        // Clear any stale data
+        setCachedJournals([]);
+        setCurrentTabCache([]);
+      }
+
+      // STEP 2: Check internet
+      const network = await NetInfo.fetch();
+      
+      if (!network.isConnected) {
+        setIsOfflineMode(true);
+
+        const cached = await loadJournalsFromCache(activeTab);
+
+        setCurrentTabCache(cached);
+        setCachedJournals(cached);
+        setGroupedJournals(groupByMonth(cached));
+
+        setIsLoadingJournals(false);
+        return;
+    }
+
+      // STEP 3: Fetch latest journals from API based on active tab
+      let response;
+      if (activeTab === 'mine') {
+        response = await getMyJournals(1, 100);
+      } else {
+        response = await getSharedWithMeJournals(1, 100);
+      }
+
+      // STEP 4: Update cache with fresh data
+      if (response && response.length > 0) {
+        await saveJournalsToCache(activeTab, response);
+        setCurrentTabCache(response);
+        setCachedJournals(response);
+        setGroupedJournals(groupByMonth(response));
+        console.log(`✅ Synced ${response.length} ${activeTab} journals and cached them`);
+        setIsOfflineMode(false);
+      } else if (response && response.length === 0) {
+        // If API returns empty, clear the cache for this tab
+        const cacheKey = activeTab === 'mine' ? MY_JOURNALS_CACHE_KEY : SHARED_JOURNALS_CACHE_KEY;
+        await AsyncStorage.removeItem(cacheKey);
+        setCurrentTabCache([]);
+        setCachedJournals([]);
+        setGroupedJournals({});
+        console.log(`🗑️ Cleared ${activeTab} journals cache (API returned empty)`);
+      }
+
+    } catch (error) {
+      console.error('Error loading journals:', error);
+      // Keep showing cached data on error, but disable interactions
+      if (currentTabCache.length > 0) {
+        setIsOfflineMode(true);
+      }
+    } finally {
+      setIsLoadingJournals(false);
+      setTabSwitchLoading(false);
+    }
+  };
+
+  // Refresh function with cache update
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadJournals();
+    setRefreshing(false);
+  };
+
+  // Tab change handler - completely clear data and load new tab
+  const handleTabChange = (tab: 'mine' | 'shared') => {
+    if (tab !== activeTab) {
+      console.log(`🔄 Switching tab to: ${tab}`);
+      setTabSwitchLoading(true);
+      // Clear ALL data before switching
+      clearJournals();
+      setGroupedJournals({});
+      setCachedJournals([]);
+      setCurrentTabCache([]);
+      setHasLoadedTabCache(false);
+      setIsOfflineMode(false);
+      setActiveTab(tab);
+    }
+  };
+
+  // Load cached data when tab changes - this runs after setActiveTab
+  useEffect(() => {
+    if (user?.id && activeTab) {
+      console.log(`🔄 Tab changed to ${activeTab}, loading cache...`);
+      // Load cache for the new tab immediately
+      loadFromCacheForTab(activeTab);
+      // Then fetch fresh data
+      loadJournals();
+    }
+  }, [activeTab]);
+
+  // Load cached data on mount for initial tab
+  useEffect(() => {
+    if (user?.id) {
+      console.log(`📱 Component mounted, loading cache for ${activeTab}...`);
+      loadFromCacheForTab(activeTab);
+    }
+  }, []);
+
+  // Load journals on focus
   useFocusEffect(
     useCallback(() => {
       if (user?.id) {
@@ -368,49 +552,30 @@ const HuntingJournalScreen = () => {
     }, [user?.id, activeTab])
   );
 
-  const loadJournals = async () => {
-    try {
-      if (activeTab === 'mine') {
-        await getMyJournals(1, 100);
-      } else {
-        await getSharedWithMeJournals(1, 100);
-      }
-    } catch (error) {
-      console.error('Error loading journals:', error);
-    } finally {
-      setTabSwitchLoading(false); 
-    }
-  };
-
-  const handleTabChange = (tab: 'mine' | 'shared') => {
-    if (tab !== activeTab) {
-      setTabSwitchLoading(true);
-      setGroupedJournals({});
-      setActiveTab(tab);
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadJournals();
-    setRefreshing(false);
-  };
-
   const handleClearSearch = () => {
     setSearchQuery('');
     setShowSearch(false);
   };
 
   const handleToggleMenu = (id: number) => {
+    if (isOfflineMode) return;
     setActiveMenu(prev => (prev === id ? null : id));
   };
 
   const handleEdit = (id: number) => {
+    if (isOfflineMode) {
+      Alert.alert('Offline Mode', 'You are offline. Please connect to the internet to edit journals.');
+      return;
+    }
     const journal = journals.find(j => j?.id === id);
     navigation.navigate('NewNote', { journal });
   };
 
   const handleShareTrigger = (id: number) => {
+    if (isOfflineMode) {
+      Alert.alert('Offline Mode', 'You are offline. Please connect to the internet to share journals.');
+      return;
+    }
     setSelectedJournalId(id);
     setIsShareModalVisible(true);
   };
@@ -419,13 +584,17 @@ const HuntingJournalScreen = () => {
     try {
       await shareJournal(journalId, friendId);
       Alert.alert('Success', 'Journal entry shared successfully!');
-      loadJournals();
+      await loadJournals();
     } catch (error: any) {
       Alert.alert('Error', error || 'Failed to share journal entry');
     }
   };
 
   const handleDelete = (id: number) => {
+    if (isOfflineMode) {
+      Alert.alert('Offline Mode', 'You are offline. Please connect to the internet to delete journals.');
+      return;
+    }
     Alert.alert(
       'Delete Journal',
       'Are you sure you want to delete this journal entry?',
@@ -437,10 +606,44 @@ const HuntingJournalScreen = () => {
           onPress: async () => {
             try {
               await deleteJournal(id);
-              loadJournals();
+              await loadJournals();
               Alert.alert('Success', 'Journal entry deleted successfully');
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete journal');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRemoveShared = (id: number) => {
+    if (isOfflineMode) {
+      Alert.alert('Offline Mode', 'You are offline. Please connect to the internet to remove shared entries.');
+      return;
+    }
+    Alert.alert(
+      'Remove Shared Entry',
+      'Are you sure you want to remove this shared entry from your list?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await axios.delete(
+                `${API_BASE_URL}/hunting-journal/${id}/share`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                }
+              );
+              await loadJournals();
+              Alert.alert('Removed', 'Shared journal entry removed from your view.');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to remove shared entry');
             }
           },
         },
@@ -474,45 +677,23 @@ const HuntingJournalScreen = () => {
     return grouped;
   };
 
-  const handleRemoveShared = (id: number) => {
-    Alert.alert(
-      'Remove Shared Entry',
-      'Are you sure you want to remove this shared entry from your list?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await axios.delete(
-                `${API_BASE_URL}/hunting-journal/${id}/share`,
-                {
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                  },
-                }
-              );
-              loadJournals(); // Reload the UI to instantly wipe the card element
-              Alert.alert('Removed', 'Shared journal entry removed from your view.');
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to remove shared entry');
-            }
-          },
-        },
-      ]
-    );
-  };
+  // Use the correct data source - prioritize currentTabCache which is tab-specific
+  const displayJournals = isOfflineMode
+  ? currentTabCache
+  : journals;
 
+  // Update grouped journals when display journals change
   React.useEffect(() => {
-    if (!tabSwitchLoading && journals && journals.length > 0) {
-      setGroupedJournals(groupByMonth(journals));
-    } else {
+    if (!isLoadingJournals && displayJournals.length > 0) {
+      const grouped = groupByMonth(displayJournals);
+      setGroupedJournals(grouped);
+      console.log(`📊 Grouped ${displayJournals.length} journals into ${Object.keys(grouped).length} months`);
+    } else if (!isLoadingJournals && displayJournals.length === 0 && hasLoadedTabCache) {
       setGroupedJournals({});
     }
-  }, [journals, searchQuery, activeTab, tabSwitchLoading]);
+  }, [displayJournals, searchQuery, activeTab, isLoadingJournals, hasLoadedTabCache]);
 
-  const showLoadingInList = tabSwitchLoading || (isLoading && journals.length === 0);
+  const showLoadingInList = isLoadingJournals && displayJournals.length === 0 && !hasLoadedTabCache;
   const hasFilteredResults = Object.keys(groupedJournals).length > 0;
 
   return (
@@ -574,6 +755,15 @@ const HuntingJournalScreen = () => {
               <Text style={[styles.tabText, activeTab === 'shared' && styles.activeTabText]}>Shared With Me</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Offline mode banner */}
+          {isOfflineMode && displayJournals.length > 0 && (
+            <View style={styles.offlineBanner}>
+              <Text style={styles.offlineBannerText}>
+                ⚠️ You are offline. Viewing cached entries only.
+              </Text>
+            </View>
+          )}
         </View>
 
         <ScrollView
@@ -589,7 +779,7 @@ const HuntingJournalScreen = () => {
               <ActivityIndicator size="large" color="#0E713E" />
               <Text style={styles.loadingText}>Loading journals...</Text>
             </View>
-          ) : journals && journals.length > 0 ? (
+          ) : displayJournals && displayJournals.length > 0 ? (
             hasFilteredResults ? (
               Object.entries(groupedJournals).map(([month, monthJournals]) => (
                 <View key={month}>
@@ -605,6 +795,7 @@ const HuntingJournalScreen = () => {
                       weather={journal?.weather || 'Not specified'}
                       shareCount={journal?.shareCount}
                       isSharedView={activeTab === 'shared'}
+                      isOfflineMode={isOfflineMode}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
                       onShare={handleShareTrigger}
@@ -634,15 +825,20 @@ const HuntingJournalScreen = () => {
 
         {/* FLOATING BOTTOM BAR */}
         <View style={styles.bottomBar}>
-          <Text style={styles.notesCount}>{journals?.length || 0} Notes</Text>
-          {activeTab === 'mine' && (
+          <Text style={styles.notesCount}>{displayJournals?.length || 0} Notes</Text>
+          {activeTab === 'mine' && !isOfflineMode && (
             <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('NewNote')}>
               <Image source={ASSETS.addNoteIcon} style={styles.addIcon} />
             </TouchableOpacity>
           )}
+          {activeTab === 'mine' && isOfflineMode && (
+            <View style={styles.addButtonDisabled}>
+              <Image source={ASSETS.addNoteIcon} style={[styles.addIcon, { opacity: 0.5 }]} />
+            </View>
+          )}
         </View>
 
-        {/* SHARE MODAL ATTACHMENT */}
+        {/* SHARE MODAL */}
         <ShareJournalModal
           visible={isShareModalVisible}
           journalId={selectedJournalId}
@@ -657,7 +853,7 @@ const HuntingJournalScreen = () => {
   );
 };
 
-// --- STYLES INTEGRATION ---
+// --- STYLES ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FCFAF0' },
   header: {
@@ -685,6 +881,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 20 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#000', marginBottom: 15 },
   entryCard: { backgroundColor: '#AACEBC', borderRadius: 12, paddingVertical: 20, paddingHorizontal: 20, marginBottom: 15 },
+  offlineEntryCard: { opacity: 0.8, backgroundColor: '#C8D8D0' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 18 },
   cardBody: { flex: 1, paddingRight: 20 },
   entryTitle: { fontSize: 14, fontWeight: 'bold', color: '#000' },
@@ -702,12 +899,42 @@ const styles = StyleSheet.create({
   bottomBar: { position: 'absolute', bottom: 0, width: '100%', height: 80, backgroundColor: 'rgba(14, 113, 62, 0.9)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   notesCount: { color: '#FFF', fontSize: 14, fontWeight: '500' },
   addButton: { position: 'absolute', right: 20 },
+  addButtonDisabled: { position: 'absolute', right: 20, opacity: 0.5 },
   addIcon: { width: 24, height: 24 },
   emptyContainer: { alignItems: 'center', paddingTop: 50 },
   emptyIcon: { width: 40, height: 40, marginBottom: 15 },
   emptyText: { fontSize: 16, color: '#999', marginBottom: 8 },
   
-  // --- POPUP MODAL STYLES ADDED FROM CREATE POST ---
+  // Offline mode styles
+  offlineBanner: {
+    backgroundColor: '#FF6B35',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+    marginTop: 5,
+  },
+  offlineBannerText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  offlineBadge: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  offlineBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  
+  // Modal styles
   modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   tagModalContent: { height: '80%' },

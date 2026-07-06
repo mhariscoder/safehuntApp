@@ -22,8 +22,10 @@ import MapViewDirections from 'react-native-maps-directions';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Geolocation from '@react-native-community/geolocation';
 import Slider from '@react-native-community/slider';
-
 import { useDispatch, useSelector } from 'react-redux';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
+
 import { getMyJournals, getSharedWithMeJournals } from './../features/huntingJournal/huntingJournalActions';
 import { sendFriendRequest } from './../features/friends/friendsActions';
 import { updateLocation } from './../features/chat/chatActions';
@@ -38,6 +40,7 @@ const { width, height } = Dimensions.get('window');
 
 const IMAGE_SERVER_BASE_URL = 'https://your-api-domain.com';
 const GOOGLE_MAPS_APIKEY = 'AIzaSyDfERDiOAjbLmRs1XZYleJhmr7GJQ6lPaM';
+const JOURNAL_CACHE_KEY = '@journal_markers_cache';
 
 interface LocationMarker {
   id: string;
@@ -119,64 +122,6 @@ const HomeScreen = () => {
   const { isConnected: socketConnected } = useSelector((state: any) => state.chat || { isConnected: false });
   const currentUserId = useSelector((state: any) => state.auth?.user?.id);
   const listenersRegisteredRef = useRef(false);
-
-  // Initialize socket connection
-  // useEffect(() => {
-  //   if (currentUserId) {
-  //     console.log('🏠 HomeScreen: Initializing socket connection for user:', currentUserId);
-  //     dispatch(connectSocket({ receiverUserId: currentUserId.toString() }));
-
-  //     // Set up socket listeners for nearby users and friend requests
-  //     setupSocketListeners();
-  //   }
-
-  //   return () => {
-  //     console.log('🏠 HomeScreen: Cleaning up socket connection');
-  //     if (locationUpdateTimeoutRef.current) {
-  //       clearTimeout(locationUpdateTimeoutRef.current);
-  //     }
-  //     cleanupSocketListeners();
-  //     dispatch(disconnectSocket());
-  //   };
-  // }, [currentUserId, dispatch]);
-
-  useEffect(() => {
-    setupSocketListeners();
-
-    return () => {
-      cleanupSocketListeners();
-
-      if (locationUpdateTimeoutRef.current) {
-        clearTimeout(locationUpdateTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!currentUserId) return;
-
-    console.log('🏠 HomeScreen: Initializing socket connection for user:', currentUserId);
-
-    dispatch(connectSocket({ receiverUserId: currentUserId.toString() }));
-
-    if (!listenersRegisteredRef.current) {
-      setupSocketListeners();
-      listenersRegisteredRef.current = true;
-    }
-
-    return () => {
-      console.log('🏠 HomeScreen: Cleaning up HomeScreen');
-
-      if (locationUpdateTimeoutRef.current) {
-        clearTimeout(locationUpdateTimeoutRef.current);
-      }
-
-      cleanupSocketListeners();
-      listenersRegisteredRef.current = false;
-
-      // Don't disconnect here.
-    };
-  }, [currentUserId]);
 
   // Set up socket listeners
   const setupSocketListeners = () => {
@@ -276,20 +221,57 @@ const HomeScreen = () => {
     chatService.off('friendRequestRejected');
   };
 
-  // Initialize app and fetch data
+  // Initialize socket connection
+  // useEffect(() => {
+  //   if (currentUserId) {
+  //     console.log('🏠 HomeScreen: Initializing socket connection for user:', currentUserId);
+  //     dispatch(connectSocket({ receiverUserId: currentUserId.toString() }));
+
+  //     // Set up socket listeners for nearby users and friend requests
+  //     setupSocketListeners();
+  //   }
+
+  //   return () => {
+  //     console.log('🏠 HomeScreen: Cleaning up socket connection');
+  //     if (locationUpdateTimeoutRef.current) {
+  //       clearTimeout(locationUpdateTimeoutRef.current);
+  //     }
+  //     cleanupSocketListeners();
+  //     dispatch(disconnectSocket());
+  //   };
+  // }, [currentUserId, dispatch]);
+
   useEffect(() => {
     const initializeApp = async () => {
       await requestLocationPermission();
       fetchMyJournalsData();
     };
+
+    const unsubscribe = NetInfo.addEventListener(state => {
+      if (state.isConnected) {
+        console.log('🌐 Internet restored. Refreshing journals...');
+        fetchMyJournalsData();
+      }
+    });
+
     initializeApp();
+    setupSocketListeners();
 
     return () => {
+      cleanupSocketListeners();
+
+      if (locationUpdateTimeoutRef.current) {
+        clearTimeout(locationUpdateTimeoutRef.current);
+      }
+      
       if (watchIdRef.current !== null) {
         Geolocation.clearWatch(watchIdRef.current);
       }
+
+      unsubscribe();
     };
   }, []);
+
 
   useFocusEffect(
     useCallback(() => {
@@ -297,6 +279,32 @@ const HomeScreen = () => {
       fetchMyJournalsData();
     }, [])
   );
+
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    console.log('🏠 HomeScreen: Initializing socket connection for user:', currentUserId);
+
+    dispatch(connectSocket({ receiverUserId: currentUserId.toString() }));
+
+    if (!listenersRegisteredRef.current) {
+      setupSocketListeners();
+      listenersRegisteredRef.current = true;
+    }
+
+    return () => {
+      console.log('🏠 HomeScreen: Cleaning up HomeScreen');
+
+      if (locationUpdateTimeoutRef.current) {
+        clearTimeout(locationUpdateTimeoutRef.current);
+      }
+
+      cleanupSocketListeners();
+      listenersRegisteredRef.current = false;
+
+      // Don't disconnect here.
+    };
+  }, [currentUserId]);
 
   // Debounced location update
   const debouncedLocationUpdate = useCallback((location: LatLng) => {
@@ -323,21 +331,85 @@ const HomeScreen = () => {
     }
   }, [currentLocation, currentUserId, socketConnected, debouncedLocationUpdate]);
 
-  // Fetch my journals
-  // Combined fetch for personal and shared journals
+  
+  const saveJournalMarkersToCache = async (markers: LocationMarker[]) => {
+    try {
+      await AsyncStorage.setItem(
+        JOURNAL_CACHE_KEY,
+        JSON.stringify(markers),
+      );
+    } catch (error) {
+      console.log('Failed to save journal cache', error);
+    }
+  };
+
+  const loadJournalMarkersFromCache = async () => {
+    try {
+      const cache = await AsyncStorage.getItem(JOURNAL_CACHE_KEY);
+
+      if (!cache) {
+        return [];
+      }
+
+      return JSON.parse(cache) as LocationMarker[];
+    } catch (error) {
+      console.log('Failed to read journal cache', error);
+      return [];
+    }
+  };
+
   const fetchMyJournalsData = async () => {
     try {
+      //
+      // STEP 1
+      // Load cached journals first
+      //
+      const cachedMarkers = await loadJournalMarkersFromCache();
+
+      if (cachedMarkers.length > 0) {
+        console.log(
+          `📦 Loaded ${cachedMarkers.length} journal markers from cache`
+        );
+        setJournalMarkers(cachedMarkers);
+      }
+
+      //
+      // STEP 2
+      // Check internet
+      //
+      const network = await NetInfo.fetch();
+
+      if (!network.isConnected) {
+        console.log('📴 Offline Mode - Using cached journal markers');
+        return;
+      }
+
+      //
+      // STEP 3
+      // Fetch latest journals
+      //
       const parsedMarkers: LocationMarker[] = [];
 
-      // 1. Fetch My Journals
-      const myJournalsRes = await dispatch(getMyJournals({ page: 1, limit: 50 })).unwrap();
+      // My Journals
+      const myJournalsRes = await dispatch(
+        getMyJournals({
+          page: 1,
+          limit: 50,
+        }),
+      ).unwrap();
+
       const myJournalsData = myJournalsRes?.data || myJournalsRes || [];
+
       myJournalsData.forEach((item: any) => {
         parsedMarkers.push({
           id: `mine_${item.id}`,
           coordinate: {
-            latitude: parseFloat(item.location?.latitude || item.latitude || '0'),
-            longitude: parseFloat(item.location?.longitude || item.longitude || '0'),
+            latitude: parseFloat(
+              item.location?.latitude || item.latitude || '0',
+            ),
+            longitude: parseFloat(
+              item.location?.longitude || item.longitude || '0',
+            ),
           },
           title: item.title || 'My Hunting Spot',
           description: item.description || '',
@@ -348,17 +420,30 @@ const HomeScreen = () => {
         });
       });
 
-      // 2. Fetch Shared With Me Journals
-      const sharedJournalsRes = await dispatch(getSharedWithMeJournals({ page: 1, limit: 50 })).unwrap();
-      const sharedJournalsData = sharedJournalsRes?.data || sharedJournalsRes || [];
-      sharedJournalsData.forEach((item: any) => {
+      // Shared Journals
+      const sharedRes = await dispatch(
+        getSharedWithMeJournals({
+          page: 1,
+          limit: 50,
+        }),
+      ).unwrap();
+
+      const sharedData = sharedRes?.data || sharedRes || [];
+
+      sharedData.forEach((item: any) => {
         parsedMarkers.push({
           id: `shared_${item.id}`,
           coordinate: {
-            latitude: parseFloat(item.location?.latitude || item.latitude || '0'),
-            longitude: parseFloat(item.location?.longitude || item.longitude || '0'),
+            latitude: parseFloat(
+              item.location?.latitude || item.latitude || '0',
+            ),
+            longitude: parseFloat(
+              item.location?.longitude || item.longitude || '0',
+            ),
           },
-          title: item.title ? `🤝 ${item.title}` : 'Shared Hunting Spot',
+          title: item.title
+            ? `🤝 ${item.title}`
+            : 'Shared Hunting Spot',
           description: item.description || '',
           type: item.type || 'default',
           weather: item.weather,
@@ -367,10 +452,26 @@ const HomeScreen = () => {
         });
       });
 
+      //
+      // STEP 4
+      // Update UI
+      //
       setJournalMarkers(parsedMarkers);
-      console.log(`✅ Synced markers: Total: ${parsedMarkers.length}`);
-    } catch (err) {
-      console.error('Error fetching data logs:', err);
+
+      //
+      // STEP 5
+      // Save latest data
+      //
+      await saveJournalMarkersToCache(parsedMarkers);
+
+      console.log(
+        `✅ Synced ${parsedMarkers.length} journal markers and cached them`
+      );
+    } catch (error) {
+      console.log(
+        '⚠ API failed. Using cached journal markers.',
+        error,
+      );
     }
   };
 
