@@ -160,7 +160,7 @@ class ChatService {
       this.bindSocketEvent(event);
     }
   }
-
+  
   public off(event: string, callback?: Function): void {
     const callbacks = this.listeners.get(event);
     if (!callbacks) return;
@@ -170,18 +170,20 @@ class ChatService {
       if (index !== -1) {
         callbacks.splice(index, 1);
       }
+      // If no callbacks are left for this event, clean up completely
       if (callbacks.length === 0) {
         this.listeners.delete(event);
         this.registeredSocketEvents.delete(event);
         if (this._socket) {
-          this._socket.off(event);
+          this._socket.removeAllListeners(event); // ✅ Use removeAllListeners
         }
       }
     } else {
+      // No specific callback passed, destroy everything for this event channel
       this.listeners.delete(event);
       this.registeredSocketEvents.delete(event);
       if (this._socket) {
-        this._socket.off(event);
+        this._socket.removeAllListeners(event); // ✅ Wipes out all anonymous handlers bound to this channel
       }
     }
   }
