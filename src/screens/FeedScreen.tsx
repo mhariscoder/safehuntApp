@@ -278,6 +278,7 @@ const FeedScreen = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   
   const navigation = useNavigation<any>();
   const { user, token } = useAppSelector((state) => state.auth);
@@ -308,6 +309,8 @@ const FeedScreen = () => {
     useCallback(() => {
       if (posts.length === 0) {
         loadInitialPosts();
+      } else {
+        setIsInitialLoading(false);
       }
     }, [posts.length])
   );
@@ -315,6 +318,7 @@ const FeedScreen = () => {
   const loadInitialPosts = async () => {
     if (isLoading) return;
     try {
+      setIsInitialLoading(true);
       setPage(1);
       setHasMore(true);
       const result = await getAllPosts({ page: 1, limit: 20 });
@@ -330,6 +334,8 @@ const FeedScreen = () => {
       }
     } catch (error) {
       console.error('Error loading posts:', error);
+    } finally {
+      setIsInitialLoading(false);
     }
   };
 
@@ -773,7 +779,7 @@ const FeedScreen = () => {
     </View>
   );
 
-  if (isLoading) {
+  if (isInitialLoading) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#0E713E" />

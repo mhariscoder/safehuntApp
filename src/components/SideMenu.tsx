@@ -115,38 +115,23 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, userName = "Displa
   };
 
   const handleClearTrial = async () => {
-    Alert.alert(
-      'Clear Trial',
-      'This will reset your trial status. Are you sure?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await AsyncStorage.removeItem('HAS_STARTED_TRIAL');
-              
-              // Force navigation refresh
-              // @ts-ignore
-              if (global.refreshNavigation) {
-                // @ts-ignore
-                global.refreshNavigation();
-              }
-              
-              Alert.alert('Success', 'Trial status cleared. Please restart the app to see changes.');
-              onClose();
-            } catch (error) {
-              console.error('Clear trial error:', error);
-              Alert.alert('Error', 'Failed to clear trial status.');
-            }
-          },
-        },
-      ],
-    );
+    try {
+      await AsyncStorage.removeItem('HAS_STARTED_TRIAL');
+      
+      // Force navigation refresh
+      // @ts-ignore
+      if (global.refreshNavigation) {
+        // @ts-ignore
+        global.refreshNavigation();
+        navigation.navigate('Subscription');
+      }
+      
+      // Alert.alert('Success', 'Trial status cleared. Please restart the app to see changes.');
+      onClose();
+    } catch (error) {
+      console.error('Clear trial error:', error);
+      Alert.alert('Error', 'Failed to clear trial status.');
+    }
   };
 
   const MenuItem = ({ 
@@ -217,7 +202,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, userName = "Displa
             <MenuItem label="Messages" icon={ASSETS.messages} onPress={() => handlePress('Message')} />
             <MenuItem label="Map" icon={ASSETS.map} onPress={() => handlePress('Home')} />
             <MenuItem label="Setting" icon={ASSETS.setting} onPress={() => handlePress('Settings')} />
-            {/* <MenuItem label="Clear Trial Status" icon={ASSETS.setting} onPress={() => handleClearTrial()} /> */}
+            <MenuItem label="Subscription" icon={ASSETS.setting} onPress={() => handleClearTrial()} />
 
             <MenuItem label="Terms & conditions" icon={ASSETS.terms} onPress={() => handlePress('TermsConditions')} />
             <MenuItem label="Privacy policy" icon={ASSETS.privacy} onPress={() => handlePress('PrivacyPolicy')} />

@@ -750,6 +750,7 @@ const HomeScreen = () => {
 
   // Check friend status for a user
   const getFriendStatus = (userId: string): 'accepted' | 'pending' | 'none' => {
+    console.log('currentUser', currentUser)
     if (!currentUser) return 'none';
 
     // Check if user is in sentFriendRequests (as sender)

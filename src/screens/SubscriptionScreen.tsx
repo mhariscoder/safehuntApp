@@ -374,9 +374,6 @@ const SubscriptionScreen = ({ navigation }: any) => {
           style={StyleSheet.absoluteFill}
         />
         <ActivityIndicator size="large" color="#0E713E" />
-        <Text style={styles.loaderText}>
-          {!connected ? 'Connecting to billing service...' : 'Loading subscription options...'}
-        </Text>
       </View>
     );
   }
@@ -396,7 +393,7 @@ const SubscriptionScreen = ({ navigation }: any) => {
           {/* Header Section */}
           <View style={styles.header}>
             <TouchableOpacity 
-              onPress={() => navigation.goBack()} 
+              onPress={handleContinueTrial} 
               style={styles.backButton}
               disabled={isPurchasing}
             >
@@ -406,29 +403,45 @@ const SubscriptionScreen = ({ navigation }: any) => {
             <View style={{ width: 40 }} /> 
           </View>
 
+          <View style={styles.heroWrapper}>
+            <Image
+              source={require('../../assets/hunter_hero.png')} 
+              style={styles.heroImage}
+            />
+          </View>
+
           <ScrollView 
             showsVerticalScrollIndicator={false} 
             contentContainerStyle={styles.scrollContent}
           >
             {/* Hero Image */}
-            <View style={styles.heroWrapper}>
-              <Image
-                source={require('../../assets/hunter_hero.png')} 
-                style={styles.heroImage}
-              />
-            </View>
+            
 
             {/* White Card Content */}
             <View style={styles.whiteCard}>
+              <Text style={styles.title}>
+                Hunter Pro Pack
+              </Text>
+
               <Text style={styles.mainTitle}>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore 
+                Stay Connected without linits! Start your FREE 7 day trail today.
+              </Text>
+
+              <Text style={styles.mainDesc}>
+                SafeHuntPro not only eases your mind in the outdoors but also when trying to choose the right features for you . We hve simplified our options to an all inclusive subscription package that allows each user to get the full Safe Hunt Pro experience.
               </Text>
 
               {/* Feature List */}
               <View style={styles.featureContainer}>
-                <FeatureRow text="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua." />
-                <FeatureRow text="Lorem ipsum dolor sit amet, consectetur adipiscing elit," />
-                <FeatureRow text="Lorem ipsum dolor sit amet" />
+                <Text style={styles.mainTitle}>
+                  Premier Features
+                </Text>
+                
+                <FeatureRow text="User location and notification" />
+                <FeatureRow text="Social Media interaction" />
+                <FeatureRow text="Offline mapping" />
+                <FeatureRow text="Weather" />
+                <FeatureRow text="Hunting Journal" />
               </View>
 
               {/* Error Message */}
@@ -591,32 +604,43 @@ const styles = StyleSheet.create({
   },
   backArrow: { width: 21, height: 21, resizeMode: 'contain' },
   headerTitle: { color: '#FFF', fontSize: 20, fontWeight: '700' },
-  scrollContent: { paddingBottom: 40 },
+  scrollContent: { paddingBottom: 40, position: 'relative' },
   heroWrapper: {
     alignItems: 'center',
-    marginTop: 20,
-    zIndex: 10,
-    elevation: 10,
   },
   heroImage: {
-    // width: width,
-    height: 300,
-    borderRadius: 30,
-    resizeMode: 'contain'
+    height: 250,
+    backgroundColor: 'transparent',
+    resizeMode: 'contain',
   },
   whiteCard: {
     backgroundColor: '#FFF',
-    marginTop: -20,
+    position: 'relative',
     borderRadius: 30,
     paddingHorizontal: 25,
     paddingBottom: 30,
     paddingTop: 30,
     width: '100%'
   },
+  title: {
+    fontFamily: 'Montserrat-Regular',
+    fontWeight: '900',
+    fontSize: 24,
+    color: '#000000',
+    marginBottom: 20,
+  },
   mainTitle: {
     fontFamily: 'Montserrat-Bold',
-    fontWeight: '700',
+    fontWeight: '800',
     fontSize: 14,
+    lineHeight: 17,
+    color: '#000000',
+    marginBottom: 20,
+  },
+  mainDesc: {
+    fontFamily: 'Montserrat-Bold',
+    fontWeight: '500',
+    fontSize: 12,
     lineHeight: 17,
     color: '#000000',
     marginBottom: 20,
