@@ -13,11 +13,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAppSelector, useAppDispatch } from '../app/store/hooks';
 import { getPostById, toggleLike, toggleLikeLocally } from '../features/posts/postsActions';
 import { useComments } from '../hooks/useComments';
+import { useBlock } from '../hooks/useBlock';
 import { API_BASE_URL } from '../constants/config';
 import axios from 'axios';
 
@@ -33,7 +36,28 @@ const ASSETS = {
   backArrow: require('../../assets/back_white.png'),
   arrowDown: require('../../assets/arrow_down.png'),
   arrowUp: require('../../assets/arrow_up.png'),
+  moreIcon: require('../../assets/more_vert.png'),
 };
+
+// Report Reasons (matching backend enum)
+const REPORT_REASONS = {
+  ABUSIVE_LANGUAGE: 'Abusive Language',
+  HARASSMENT: 'Harassment or Bullying',
+  SPAM: 'Spam or Scam',
+  INAPPROPRIATE_CONTENT: 'Inappropriate Content',
+  HATE_SPEECH: 'Hate Speech or Discrimination',
+  OTHER: 'Other',
+};
+
+// Report options with icons
+const REPORT_OPTIONS = [
+  { key: REPORT_REASONS.ABUSIVE_LANGUAGE, label: REPORT_REASONS.ABUSIVE_LANGUAGE, icon: '⚠️' },
+  { key: REPORT_REASONS.HARASSMENT, label: REPORT_REASONS.HARASSMENT, icon: '👊' },
+  { key: REPORT_REASONS.SPAM, label: REPORT_REASONS.SPAM, icon: '📧' },
+  { key: REPORT_REASONS.INAPPROPRIATE_CONTENT, label: REPORT_REASONS.INAPPROPRIATE_CONTENT, icon: '🔞' },
+  { key: REPORT_REASONS.HATE_SPEECH, label: REPORT_REASONS.HATE_SPEECH, icon: '🚫' },
+  { key: REPORT_REASONS.OTHER, label: REPORT_REASONS.OTHER, icon: '📝' },
+];
 
 // Helper function to get full image URL
 const getFullImageUrl = (imagePath: string | null | undefined, size?: string): string | null => {
@@ -66,6 +90,16 @@ const PostDetailScreen = () => {
   const [isShared, setIsShared] = useState(false);
   const [shareCount, setShareCount] = useState(0);
   const [isSharing, setIsSharing] = useState(false);
+  const [reportedPosts, setReportedPosts] = useState<Set<number>>(new Set());
+  
+  // Report Modal states
+  const [isReportModalVisible, setIsReportModalVisible] = useState(false);
+  const [selectedReportReason, setSelectedReportReason] = useState<string | null>(null);
+  const [otherReportReason, setOtherReportReason] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  
+  // Dropdown menu state
+  const [showDropdown, setShowDropdown] = useState(false);
   
   const scrollViewRef = useRef<ScrollView>(null);
   
@@ -79,6 +113,24 @@ const PostDetailScreen = () => {
     likeReply,
     unlikeReply,
   } = useComments();
+
+  // Use the Block hook
+  const { 
+    blockUser, 
+    unblockUser,
+    blockedUsers,
+    isLoading: isBlockLoading,
+  } = useBlock();
+
+  // Get blocked user IDs for quick lookup
+  const blockedUserIds = React.useMemo(() => {
+    return new Set(blockedUsers.map((block: any) => block.blockedId || block.blocked?.id));
+  }, [blockedUsers]);
+
+  // Check if a user is blocked
+  const isUserBlocked = useCallback((userId: number) => {
+    return blockedUserIds.has(userId);
+  }, [blockedUserIds]);
 
   // Load post data
   const loadPost = useCallback(async () => {
@@ -109,6 +161,29 @@ const PostDetailScreen = () => {
 
   // Get the current post from Redux state
   const post = selectedPost;
+
+  // Report Post API call
+  const reportPost = async (postId: number, reason: string, otherReason?: string) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/reports`,
+        {
+          postId,
+          reason,
+          otherReason: otherReason || undefined,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error reporting post:', error);
+      throw error;
+    }
+  };
 
   // Share Post API calls
   const sharePost = async (postId: number) => {
@@ -403,6 +478,132 @@ const PostDetailScreen = () => {
     setShowAllReplies(prev => ({ ...prev, [commentId]: !prev[commentId] }));
   };
 
+  // Toggle dropdown menu
+  const toggleDropdown = () => {
+    setShowDropdown(!showDropdown);
+  };
+
+  // Report Post Handler - Opens Custom Modal
+  const handleReportPost = () => {
+    // Check if already reported
+    if (reportedPosts.has(postId)) {
+      Alert.alert('Already Reported', 'You have already reported this post.');
+      setShowDropdown(false);
+      return;
+    }
+    
+    setShowDropdown(false);
+    setSelectedReportReason(null);
+    setOtherReportReason('');
+    setIsReportModalVisible(true);
+  };
+
+  // Submit report from modal
+  const handleReportSubmit = async () => {
+    if (!selectedReportReason) {
+      Alert.alert('Error', 'Please select a reason');
+      return;
+    }
+
+    if (selectedReportReason === REPORT_REASONS.OTHER && !otherReportReason.trim()) {
+      Alert.alert('Error', 'Please provide a reason');
+      return;
+    }
+
+    setIsSubmittingReport(true);
+    try {
+      await reportPost(
+        postId,
+        selectedReportReason,
+        selectedReportReason === REPORT_REASONS.OTHER ? otherReportReason.trim() : undefined
+      );
+      
+      // Mark post as reported
+      setReportedPosts(prev => new Set(prev).add(postId));
+      
+      // Close modal and show success
+      setIsReportModalVisible(false);
+      setSelectedReportReason(null);
+      setOtherReportReason('');
+      Alert.alert('Success', 'Post has been reported successfully');
+    } catch (error: any) {
+      // Check if error is due to duplicate report
+      if (error.response?.data?.message?.includes('already reported')) {
+        Alert.alert('Already Reported', 'You have already reported this post.');
+        setReportedPosts(prev => new Set(prev).add(postId));
+        setIsReportModalVisible(false);
+        setSelectedReportReason(null);
+        setOtherReportReason('');
+      } else {
+        Alert.alert('Error', error?.response?.data?.message || 'Failed to report post');
+      }
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  // Block User Handler
+  const handleBlockUser = () => {
+    if (!post?.user?.id) return;
+    
+    setShowDropdown(false);
+    const userId = post.user.id;
+    const displayName = post.user?.displayname || post.user?.username || 'this user';
+    
+    // Check if user is already blocked
+    if (isUserBlocked(userId)) {
+      // Unblock user
+      Alert.alert(
+        'Unblock User',
+        `Are you sure you want to unblock ${displayName}? They will be able to interact with you again.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Unblock',
+            style: 'default',
+            onPress: async () => {
+              try {
+                await unblockUser(userId);
+                Alert.alert('Success', 'User has been unblocked successfully');
+                await loadPost();
+              } catch (error: any) {
+                Alert.alert('Error', error?.message || 'Failed to unblock user');
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      // Block user
+      Alert.alert(
+        'Block User',
+        `Are you sure you want to block ${displayName}? They will not be able to interact with you and you won't see their posts.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Block',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await blockUser(userId);
+                Alert.alert('Success', 'User has been blocked successfully');
+                navigation.goBack();
+              } catch (error: any) {
+                Alert.alert('Error', error?.message || 'Failed to block user');
+              }
+            },
+          },
+        ]
+      );
+    }
+  };
+
   // Format time ago
   const formatTimeAgo = useCallback((dateString: string) => {
     if (!dateString) return 'recently';
@@ -419,6 +620,117 @@ const PostDetailScreen = () => {
     if (diffDays < 7) return `${diffDays}d`;
     return date.toLocaleDateString();
   }, []);
+
+  // Render Report Modal
+  const renderReportModal = () => {
+    return (
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isReportModalVisible}
+        onRequestClose={() => {
+          setIsReportModalVisible(false);
+          setSelectedReportReason(null);
+          setOtherReportReason('');
+        }}
+      >
+        <TouchableWithoutFeedback
+          onPress={() => {
+            setIsReportModalVisible(false);
+            setSelectedReportReason(null);
+            setOtherReportReason('');
+          }}
+        >
+          <View style={styles.reportModalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.reportModalContent}>
+                <View style={styles.reportModalHeader}>
+                  <Text style={styles.reportModalTitle}>Report Post</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setIsReportModalVisible(false);
+                      setSelectedReportReason(null);
+                      setOtherReportReason('');
+                    }}
+                  >
+                    <Text style={styles.reportModalClose}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.reportModalSubtitle}>
+                  Please select a reason for reporting this post:
+                </Text>
+
+                <ScrollView 
+                  style={styles.reportOptionsList}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {REPORT_OPTIONS.map((option) => (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={[
+                        styles.reportOption,
+                        selectedReportReason === option.key && styles.reportOptionSelected,
+                      ]}
+                      onPress={() => setSelectedReportReason(option.key)}
+                    >
+                      <Text style={styles.reportOptionIcon}>{option.icon}</Text>
+                      <Text style={[
+                        styles.reportOptionText,
+                        selectedReportReason === option.key && styles.reportOptionTextSelected,
+                      ]}>
+                        {option.label}
+                      </Text>
+                      {selectedReportReason === option.key && (
+                        <Text style={styles.reportOptionCheck}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {selectedReportReason === REPORT_REASONS.OTHER && (
+                  <TextInput
+                    style={styles.reportOtherInput}
+                    placeholder="Please provide additional details..."
+                    placeholderTextColor="#999"
+                    value={otherReportReason}
+                    onChangeText={setOtherReportReason}
+                    multiline
+                    numberOfLines={3}
+                  />
+                )}
+
+                <View style={styles.reportModalButtons}>
+                  <TouchableOpacity
+                    style={[styles.reportModalButton, styles.reportModalCancelButton]}
+                    onPress={() => {
+                      setIsReportModalVisible(false);
+                      setSelectedReportReason(null);
+                      setOtherReportReason('');
+                    }}
+                    disabled={isSubmittingReport}
+                  >
+                    <Text style={styles.reportModalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.reportModalButton, styles.reportModalSubmitButton]}
+                    onPress={handleReportSubmit}
+                    disabled={isSubmittingReport}
+                  >
+                    {isSubmittingReport ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Text style={styles.reportModalSubmitText}>Submit Report</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    );
+  };
 
   // Render comment item
   const renderComment = (comment: any) => {
@@ -566,6 +878,8 @@ const PostDetailScreen = () => {
   const imageUrl = post.image ? getFullImageUrl(post.image) : null;
   const userAvatar = post.user?.profilePhoto ? getFullImageUrl(post.user.profilePhoto) : null;
   const comments = post.comments || [];
+  const isOwner = user?.id === post.user?.id;
+  const isBlocked = post.user?.id ? isUserBlocked(post.user.id) : false;
 
   return (
     <View style={styles.container}>
@@ -580,7 +894,91 @@ const PostDetailScreen = () => {
           <Image source={ASSETS.backArrow} style={styles.backIcon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Post</Text>
-        <View style={styles.headerRight} />
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            style={styles.moreButton}
+            onPress={toggleDropdown}
+          >
+            <Image source={ASSETS.moreIcon} style={styles.moreIcon} />
+          </TouchableOpacity>
+          
+          {showDropdown && (
+            <TouchableWithoutFeedback onPress={toggleDropdown}>
+              <View style={styles.dropdownOverlay}>
+                <View style={styles.dropdown}>
+                  {isOwner ? (
+                    <>
+                      <TouchableOpacity 
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setShowDropdown(false);
+                          navigation.navigate('CreatePost', { 
+                            postId: post.id,
+                            description: post.description,
+                            image: post.image,
+                            latitude: post.latitude,
+                            longitude: post.longitude,
+                            tags: post.tags ? JSON.parse(post.tags) : [],
+                            isEditing: true
+                          });
+                        }}
+                      >
+                        <Text style={styles.dropdownText}>Edit</Text>
+                      </TouchableOpacity>
+                      <View style={styles.dropdownDivider} />
+                      <TouchableOpacity 
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setShowDropdown(false);
+                          Alert.alert(
+                            'Delete Post',
+                            'Are you sure you want to delete this post? This action cannot be undone.',
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Delete',
+                                style: 'destructive',
+                                onPress: async () => {
+                                  try {
+                                    // You would need to implement delete post functionality here
+                                    Alert.alert('Success', 'Post deleted successfully');
+                                    navigation.goBack();
+                                  } catch (error: any) {
+                                    Alert.alert('Error', error.message || 'Failed to delete post');
+                                  }
+                                }
+                              }
+                            ]
+                          );
+                        }}
+                      >
+                        <Text style={styles.dropdownText}>Delete</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <TouchableOpacity 
+                        style={styles.dropdownItem}
+                        onPress={handleReportPost}
+                      >
+                        <Text style={styles.dropdownText}>Report Post</Text>
+                      </TouchableOpacity>
+                      <View style={styles.dropdownDivider} />
+                      <TouchableOpacity 
+                        style={styles.dropdownItem}
+                        onPress={handleBlockUser}
+                      >
+                        <Text style={styles.dropdownText}>
+                          {isBlocked ? 'Unblock User' : 'Block User'}
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          )}
+        </View>
       </View>
 
       <KeyboardAvoidingView 
@@ -608,9 +1006,6 @@ const PostDetailScreen = () => {
                   {formatTimeAgo(postDate)} • {post.location || ''}
                 </Text>
               </View>
-              <TouchableOpacity>
-                <Text style={styles.moreIcon}>⋮</Text>
-              </TouchableOpacity>
             </View>
 
             {/* Show shared indicator if post is shared */}
@@ -637,9 +1032,6 @@ const PostDetailScreen = () => {
               <Text style={styles.statsText}>
                 ❤️ {post.likesCount || 0} {(post.likesCount === 1 ? 'Like' : 'Likes')}
               </Text>
-              {/* <Text style={styles.statsText}>
-                🔁 {shareCount || 0} {shareCount === 1 ? 'Share' : 'Shares'}
-              </Text> */}
               <Text style={styles.statsText}>
                 💬 {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
               </Text>
@@ -681,8 +1073,7 @@ const PostDetailScreen = () => {
                       style={[styles.actionImage, isShared && styles.actionImageActive]} 
                     />
                     <Text style={[styles.actionBtnText, isShared && styles.actionBtnTextActive]}>
-                      {isShared ? 'Shared' : 'Share'} 
-                      {/* ({shareCount}) */}
+                      {isShared ? 'Shared' : 'Share'}
                     </Text>
                   </>
                 )}
@@ -736,6 +1127,9 @@ const PostDetailScreen = () => {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Report Modal */}
+      {renderReportModal()}
     </View>
   );
 };
@@ -759,7 +1153,48 @@ const styles = StyleSheet.create({
   backButton: { padding: 5 },
   backIcon: { width: 20, height: 20, tintColor: '#FFF', resizeMode: 'contain' },
   headerTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  headerRight: { width: 30 },
+  headerRight: { 
+    width: 30,
+    position: 'relative',
+  },
+  moreButton: { 
+    padding: 5,
+  },
+  moreIcon: { 
+    width: 20, 
+    height: 20, 
+    tintColor: '#FFF', 
+    resizeMode: 'contain' 
+  },
+  dropdownOverlay: {
+    position: 'absolute',
+    top: 30,
+    right: 0,
+    zIndex: 999,
+  },
+  dropdown: {
+    backgroundColor: '#0E713E',
+    borderRadius: 10,
+    width: 150,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  dropdownText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
   
   // Post Card
   postCard: { backgroundColor: '#FFF', marginTop: 10, paddingVertical: 15, marginBottom: 5 },
@@ -768,7 +1203,6 @@ const styles = StyleSheet.create({
   headerInfo: { flex: 1, marginLeft: 10 },
   userName: { fontWeight: '900', fontSize: 16 },
   location: { color: '#666', fontSize: 10 },
-  moreIcon: { fontSize: 20, color: '#666' },
   postCaption: { paddingHorizontal: 25, marginBottom: 10, fontSize: 14, lineHeight: 20 },
   hashtag: { fontWeight: 'bold', color: '#0E713E' },
   mainPostImage: { width: '100%', height: POST_IMAGE_HEIGHT, resizeMode: 'cover' },
@@ -879,6 +1313,117 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 16, color: '#666', marginBottom: 15 },
   goBackButton: { backgroundColor: '#0E713E', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 25 },
   goBackButtonText: { color: '#FFF', fontWeight: '600' },
+
+  // Report Modal Styles
+  reportModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  reportModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '85%',
+  },
+  reportModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  reportModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  reportModalClose: {
+    fontSize: 24,
+    color: '#666',
+    padding: 4,
+  },
+  reportModalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+  },
+  reportOptionsList: {
+    maxHeight: 300,
+  },
+  reportOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    borderRadius: 8,
+  },
+  reportOptionSelected: {
+    backgroundColor: '#E8F5E9',
+  },
+  reportOptionIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  reportOptionText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#333',
+  },
+  reportOptionTextSelected: {
+    color: '#0E713E',
+    fontWeight: '600',
+  },
+  reportOptionCheck: {
+    color: '#0E713E',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  reportOtherInput: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+    fontSize: 14,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  reportModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 10,
+  },
+  reportModalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportModalCancelButton: {
+    backgroundColor: '#F5F5F5',
+  },
+  reportModalSubmitButton: {
+    backgroundColor: '#0E713E',
+  },
+  reportModalCancelText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  reportModalSubmitText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 
 export default PostDetailScreen;

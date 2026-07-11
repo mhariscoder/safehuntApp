@@ -5,7 +5,7 @@ import { Provider as ReduxProvider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
-import { check, request, openSettings, PERMISSIONS, RESULTS } from 'react-native-permissions';
+// import { check, request, openSettings, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import Geolocation from '@react-native-community/geolocation';
 
 import { store, persistor } from './store';
@@ -36,13 +36,13 @@ const App = () => {
     const initApp = async () => {
       // Clear the splash screen first so alerts don't get blocked visually
       await BootSplash.hide({ fade: true });
-      await handleLocationChecks();
+      // await handleLocationChecks();
     };
     initApp();
 
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        handleLocationChecks();
+        // handleLocationChecks();
       }
       appState.current = nextAppState;
     });
@@ -75,34 +75,34 @@ const App = () => {
     };
   }, []);
 
-  const handleLocationChecks = async () => {
-    const locationPermission = Platform.select({
-      ios: PERMISSIONS.IOS.LOCATION_WHEN_IN_USE,
-      android: PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
-    });
+  // const handleLocationChecks = async () => {
+  //   const locationPermission = Platform.select({
+  //     ios: PERMISSIONS.IOS.LOCATION_WHEN_IN_USE,
+  //     android: PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
+  //   });
 
-    if (!locationPermission) return;
+  //   if (!locationPermission) return;
 
-    try {
-      const status = await check(locationPermission);
-      console.log("Current permission status:", status);
+  //   try {
+  //     const status = await check(locationPermission);
+  //     console.log("Current permission status:", status);
 
-      if (status === RESULTS.GRANTED) {
-        verifyDeviceLocationService();
-      } else if (status === RESULTS.DENIED || status === RESULTS.LIMITED) {
-        const requestResult = await request(locationPermission);
-        if (requestResult === RESULTS.GRANTED) {
-          verifyDeviceLocationService();
-        } else {
-          showPermissionDeniedAlert();
-        }
-      } else if (status === RESULTS.BLOCKED) {
-        showPermissionDeniedAlert();
-      }
-    } catch (error) {
-      console.warn("Location permission flow error:", error);
-    }
-  };
+  //     if (status === RESULTS.GRANTED) {
+  //       verifyDeviceLocationService();
+  //     } else if (status === RESULTS.DENIED || status === RESULTS.LIMITED) {
+  //       const requestResult = await request(locationPermission);
+  //       if (requestResult === RESULTS.GRANTED) {
+  //         verifyDeviceLocationService();
+  //       } else {
+  //         showPermissionDeniedAlert();
+  //       }
+  //     } else if (status === RESULTS.BLOCKED) {
+  //       showPermissionDeniedAlert();
+  //     }
+  //   } catch (error) {
+  //     console.warn("Location permission flow error:", error);
+  //   }
+  // };
 
   const verifyDeviceLocationService = async () => {
     if (Platform.OS === 'android') {
@@ -147,21 +147,21 @@ const App = () => {
     );
   };
 
-  const showPermissionDeniedAlert = () => {
-    Alert.alert(
-      "Permission Required",
-      "This app cannot function without location access. Please enable it in system settings.",
-      [
-        {
-          text: "Open Settings",
-          onPress: () => {
-            openSettings().catch(() => console.warn("Cannot open settings"));
-          }
-        }
-      ],
-      { cancelable: false }
-    );
-  };
+  // const showPermissionDeniedAlert = () => {
+  //   Alert.alert(
+  //     "Permission Required",
+  //     "This app cannot function without location access. Please enable it in system settings.",
+  //     [
+  //       {
+  //         text: "Open Settings",
+  //         onPress: () => {
+  //           openSettings().catch(() => console.warn("Cannot open settings"));
+  //         }
+  //       }
+  //     ],
+  //     { cancelable: false }
+  //   );
+  // };
 
   return (
     <ReduxProvider store={store}>

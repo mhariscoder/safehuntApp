@@ -1,4 +1,4 @@
-// FeedScreen.js - With Share Functionality
+// FeedScreen.js - With Share Functionality, Report, and Block
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   StyleSheet,
@@ -16,10 +16,13 @@ import {
   Platform,
   FlatList,
   Dimensions,
+  TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { usePosts } from '../hooks/usePosts';
 import { useComments } from '../hooks/useComments';
+import { useBlock } from '../hooks/useBlock';
 import { useAppSelector } from '../app/store/hooks';
 import TopHeader from '../components/TopHeader';
 import SideMenu from '../components/SideMenu';
@@ -41,6 +44,26 @@ const ASSETS = {
   arrowUp: require('../../assets/arrow_up.png'),
   moreIcon: require('../../assets/more_vert.png'),
 };
+
+// Report Reasons (matching backend enum)
+const REPORT_REASONS = {
+  ABUSIVE_LANGUAGE: 'Abusive Language',
+  HARASSMENT: 'Harassment or Bullying',
+  SPAM: 'Spam or Scam',
+  INAPPROPRIATE_CONTENT: 'Inappropriate Content',
+  HATE_SPEECH: 'Hate Speech or Discrimination',
+  OTHER: 'Other',
+};
+
+// Report options with icons
+const REPORT_OPTIONS = [
+  { key: REPORT_REASONS.ABUSIVE_LANGUAGE, label: REPORT_REASONS.ABUSIVE_LANGUAGE, icon: '⚠️' },
+  { key: REPORT_REASONS.HARASSMENT, label: REPORT_REASONS.HARASSMENT, icon: '👊' },
+  { key: REPORT_REASONS.SPAM, label: REPORT_REASONS.SPAM, icon: '📧' },
+  { key: REPORT_REASONS.INAPPROPRIATE_CONTENT, label: REPORT_REASONS.INAPPROPRIATE_CONTENT, icon: '🔞' },
+  { key: REPORT_REASONS.HATE_SPEECH, label: REPORT_REASONS.HATE_SPEECH, icon: '🚫' },
+  { key: REPORT_REASONS.OTHER, label: REPORT_REASONS.OTHER, icon: '📝' },
+];
 
 // Helper function to get full image URL
 const getFullImageUrl = (imagePath: string | null | undefined, size?: string): string | null => {
@@ -65,6 +88,8 @@ const PostCard = memo(({
   navigation,
   onEditPost,
   onDeletePost,
+  onReportPost,
+  onBlockUser,
   activeMenu,
   onToggleMenu,
   isShared,
@@ -79,6 +104,7 @@ const PostCard = memo(({
   replyText,
   showReplyInput,
   setReplyText,
+  isUserBlocked,
 }: {
   post: any, 
   onLike: any, 
@@ -90,6 +116,8 @@ const PostCard = memo(({
   navigation: any,
   onEditPost: any,
   onDeletePost: any,
+  onReportPost: any,
+  onBlockUser: any,
   activeMenu: any,
   onToggleMenu: any,
   isShared: any,
@@ -104,6 +132,7 @@ const PostCard = memo(({
   replyText: any,
   showReplyInput: any,
   setReplyText: any,
+  isUserBlocked: boolean,
 }) => {
   const postDate = post.created_at || post.createdAt;
   const imageUrl = post.image ? getFullImageUrl(post.image) : null;
@@ -113,6 +142,10 @@ const PostCard = memo(({
   const displayComments = showAllComments ? post.comments : post.comments?.slice(0, 2);
 
   const handlePostPress = () => {
+    // Close dropdown if open
+    if (isMenuVisible) {
+      onToggleMenu(post.id);
+    }
     navigation.navigate('PostDetail', { postId: post.id, groupId: post.groupId });
   };
 
@@ -126,42 +159,67 @@ const PostCard = memo(({
     onDeletePost(post.id);
   };
 
+  const handleReportPress = () => {
+    onToggleMenu(post.id);
+    onReportPost(post);
+  };
+
+  const handleBlockPress = () => {
+    onToggleMenu(post.id);
+    onBlockUser(post.user?.id, post.user?.displayname || post.user?.username);
+  };
+
+  const handleOutsidePress = () => {
+    if (isMenuVisible) {
+      onToggleMenu(post.id);
+    }
+  };
+
   return (
-    <View style={styles.postCard}>
-      <View style={styles.postHeader}>
-        <TouchableOpacity 
-          activeOpacity={0.9} 
-          onPress={() => navigation.navigate('User', { userId: post.user?.id })}
-          style={styles.postHeaderTouchable}
-        >
-          <View style={styles.profileCircleSmall}>
-            {userAvatar ? (
-              <Image 
-                source={{ uri: getFullImageUrl(userAvatar) || undefined }} 
-                style={{
-                  width: 50,
-                  height: 50,
-                  borderRadius: 25,
-                }} 
-              />
-            ) : (
-              <Text style={styles.profileInitial}>
-                {post.user?.displayname?.charAt(0) || post.user?.username?.charAt(0) || 'U'}
-              </Text>
-            )}
-          </View>
+    <TouchableWithoutFeedback onPress={handleOutsidePress}>
+      <View style={styles.postCard}>
+        <View style={styles.postHeader}>
+          <TouchableOpacity 
+            activeOpacity={0.9} 
+            onPress={() => {
+              if (isMenuVisible) {
+                onToggleMenu(post.id);
+              }
+              navigation.navigate('User', { userId: post.user?.id });
+            }}
+            style={styles.postHeaderTouchable}
+          >
+            <View style={styles.profileCircleSmall}>
+              {userAvatar ? (
+                <Image 
+                  source={{ uri: getFullImageUrl(userAvatar) || undefined }} 
+                  style={{
+                    width: 50,
+                    height: 50,
+                    borderRadius: 25,
+                  }} 
+                />
+              ) : (
+                <Text style={styles.profileInitial}>
+                  {post.user?.displayname?.charAt(0) || post.user?.username?.charAt(0) || 'U'}
+                </Text>
+              )}
+            </View>
   
-          <View style={styles.headerInfo}>
-            <Text style={styles.userName}>{post.user?.displayname || post.user?.username || 'User'}</Text>
-            <Text style={styles.location}>
-              {formatTimeAgo(postDate)} • {post.location || ''}
-            </Text>
-          </View>
-        </TouchableOpacity>
-        {isOwner && (
+            <View style={styles.headerInfo}>
+              <Text style={styles.userName}>{post.user?.displayname || post.user?.username || 'User'}</Text>
+              <Text style={styles.location}>
+                {formatTimeAgo(postDate)} • {post.location || ''}
+              </Text>
+            </View>
+          </TouchableOpacity>
+          
           <View style={styles.moreButtonWrapper}>
             <TouchableOpacity 
-              onPress={() => onToggleMenu(post.id)}
+              onPress={(e) => {
+                e.stopPropagation();
+                onToggleMenu(post.id);
+              }}
               style={styles.moreButton}
             >
               <Image source={ASSETS.moreIcon} style={styles.moreIcon} />
@@ -169,93 +227,129 @@ const PostCard = memo(({
 
             {isMenuVisible && (
               <View style={styles.dropdown}>
-                <TouchableOpacity 
-                  style={styles.dropdownItem} 
-                  onPress={handleEditPress}
-                >
-                  <Text style={styles.dropdownText}>Edit</Text>
-                </TouchableOpacity>
+                {isOwner ? (
+                  <>
+                    <TouchableOpacity 
+                      style={styles.dropdownItem} 
+                      onPress={handleEditPress}
+                    >
+                      <Text style={styles.dropdownText}>Edit</Text>
+                    </TouchableOpacity>
 
-                <View style={styles.dropdownDivider} />
+                    <View style={styles.dropdownDivider} />
 
-                <TouchableOpacity 
-                  style={styles.dropdownItem} 
-                  onPress={handleDeletePress}
-                >
-                  <Text style={styles.dropdownText}>Delete</Text>
-                </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={styles.dropdownItem} 
+                      onPress={handleDeletePress}
+                    >
+                      <Text style={styles.dropdownText}>Delete</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity 
+                      style={styles.dropdownItem} 
+                      onPress={handleReportPress}
+                    >
+                      <Text style={styles.dropdownText}>Report Post</Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.dropdownDivider} />
+
+                    <TouchableOpacity 
+                      style={styles.dropdownItem} 
+                      onPress={handleBlockPress}
+                    >
+                      <Text style={styles.dropdownText}>
+                        {isUserBlocked ? 'Unblock User' : 'Block User'}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             )}
           </View>
-        )}
-      </View>
-
-      {/* Show shared indicator if post is shared */}
-      {isShared && (
-        <View style={styles.sharedIndicator}>
-          <Text style={styles.sharedIndicatorText}>🔁 Shared Post</Text>
         </View>
-      )}
 
-      <TouchableOpacity onPress={handlePostPress}>
-        <Text style={styles.postCaption}>
-          {post.description}
-          {post.tags && <Text style={styles.hashtag}> {post.tags}</Text>}
-        </Text>
-
-        {imageUrl && (
-          <Image 
-            source={{ uri: imageUrl }} 
-            style={styles.mainPostImage}
-            resizeMode="cover"
-            progressiveRenderingEnabled={true}
-          />
+        {/* Show shared indicator if post is shared */}
+        {isShared && (
+          <View style={styles.sharedIndicator}>
+            <Text style={styles.sharedIndicatorText}>🔁 Shared Post</Text>
+          </View>
         )}
-      </TouchableOpacity>
 
-      <View style={styles.statsRow}>
-        <Text style={styles.statsText}>❤️ {post.likesCount || 0} {(post.likesCount === 1 ? 'Like' : 'Likes')}</Text>
-        <Text style={styles.statsText}>{post.comments?.length || 0} Comments</Text>
-      </View>
+        <TouchableOpacity 
+          onPress={handlePostPress}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.postCaption}>
+            {post.description}
+            {post.tags && <Text style={styles.hashtag}> {post.tags}</Text>}
+          </Text>
 
-      <View style={styles.actionButtons}>
-        <TouchableOpacity 
-          style={styles.actionBtn}
-          onPress={() => onLike(post.id)}
-        >
-          <Image 
-            source={ASSETS.greenHeart} 
-            resizeMode='contain' 
-            style={[styles.actionImage, post.postLiked && styles.actionImageActive]} 
-          />
-          <Text style={[styles.actionBtnText, post.postLiked && styles.actionBtnTextActive]}>
-            {post.postLiked ? 'Liked' : 'Like'}
-          </Text>
+          {imageUrl && (
+            <Image 
+              source={{ uri: imageUrl }} 
+              style={styles.mainPostImage}
+              resizeMode="cover"
+              progressiveRenderingEnabled={true}
+            />
+          )}
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.actionBtn}
-          onPress={() => onCommentPress(post)}
-        >
-          <Image source={ASSETS.greenComment} resizeMode='contain' style={styles.actionImage} />
-          <Text style={styles.actionBtnText}>Comment</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.actionBtn}
-          onPress={() => onSharePress(post)}
-        >
-          <Image 
-            source={ASSETS.greenShare} 
-            resizeMode='contain' 
-            style={[styles.actionImage, isShared && styles.actionImageActive]} 
-          />
-          <Text style={[styles.actionBtnText, isShared && styles.actionBtnTextActive]}>
-            {isShared ? 'Shared' : 'Share'}
-          </Text>
-        </TouchableOpacity>
+
+        <View style={styles.statsRow}>
+          <Text style={styles.statsText}>❤️ {post.likesCount || 0} {(post.likesCount === 1 ? 'Like' : 'Likes')}</Text>
+          <Text style={styles.statsText}>{post.comments?.length || 0} Comments</Text>
+        </View>
+
+        <View style={styles.actionButtons}>
+          <TouchableOpacity 
+            style={styles.actionBtn}
+            onPress={() => {
+              if (isMenuVisible) onToggleMenu(post.id);
+              onLike(post.id);
+            }}
+          >
+            <Image 
+              source={ASSETS.greenHeart} 
+              resizeMode='contain' 
+              style={[styles.actionImage, post.postLiked && styles.actionImageActive]} 
+            />
+            <Text style={[styles.actionBtnText, post.postLiked && styles.actionBtnTextActive]}>
+              {post.postLiked ? 'Liked' : 'Like'}
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionBtn}
+            onPress={() => {
+              if (isMenuVisible) onToggleMenu(post.id);
+              onCommentPress(post);
+            }}
+          >
+            <Image source={ASSETS.greenComment} resizeMode='contain' style={styles.actionImage} />
+            <Text style={styles.actionBtnText}>Comment</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionBtn}
+            onPress={() => {
+              if (isMenuVisible) onToggleMenu(post.id);
+              onSharePress(post);
+            }}
+          >
+            <Image 
+              source={ASSETS.greenShare} 
+              resizeMode='contain' 
+              style={[styles.actionImage, isShared && styles.actionImageActive]} 
+            />
+            <Text style={[styles.actionBtnText, isShared && styles.actionBtnTextActive]}>
+              {isShared ? 'Shared' : 'Share'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </TouchableWithoutFeedback>
   );
 });
 
@@ -274,6 +368,14 @@ const FeedScreen = () => {
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
   const [sharedPosts, setSharedPosts] = useState<Set<number>>(new Set());
   const [shareCounts, setShareCounts] = useState<{ [key: number]: number }>({});
+  const [reportedPosts, setReportedPosts] = useState<Set<number>>(new Set());
+  
+  // Report Modal states
+  const [isReportModalVisible, setIsReportModalVisible] = useState(false);
+  const [selectedPostForReport, setSelectedPostForReport] = useState<any>(null);
+  const [selectedReportReason, setSelectedReportReason] = useState<string | null>(null);
+  const [otherReportReason, setOtherReportReason] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -303,7 +405,32 @@ const FeedScreen = () => {
     unlikeReply,
   } = useComments();
 
+  // Use the Block hook
+  const { 
+    blockUser, 
+    unblockUser,
+    blockedUsers,
+    isLoading: isBlockLoading,
+  } = useBlock();
+
+  // Get blocked user IDs for quick lookup
+  const blockedUserIds = React.useMemo(() => {
+    return new Set(blockedUsers.map((block: any) => block.blockedId || block.blocked?.id));
+  }, [blockedUsers]);
+
+  // Check if a user is blocked
+  const isUserBlocked = useCallback((userId: number) => {
+    return blockedUserIds.has(userId);
+  }, [blockedUserIds]);
+
   const flatListRef = useRef<FlatList>(null);
+
+  // Close dropdown when scrolling
+  const handleScroll = () => {
+    if (activeMenu !== null) {
+      setActiveMenu(null);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -312,6 +439,10 @@ const FeedScreen = () => {
       } else {
         setIsInitialLoading(false);
       }
+      // Close dropdown when screen loses focus
+      return () => {
+        setActiveMenu(null);
+      };
     }, [posts.length])
   );
 
@@ -327,6 +458,13 @@ const FeedScreen = () => {
       }
       // Check share status for each post
       if (result && result.posts) {
+        // Load blocked users first
+        try {
+          await blockUser({ page: 1, limit: 100 });
+        } catch (error) {
+          console.error('Error loading blocked users:', error);
+        }
+        
         result.posts.forEach((post: any) => {
           checkShareStatus(post.id);
           fetchShareCount(post.id);
@@ -369,6 +507,7 @@ const FeedScreen = () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    setActiveMenu(null); // Close dropdown on refresh
     await loadInitialPosts();
     setRefreshing(false);
   };
@@ -384,6 +523,29 @@ const FeedScreen = () => {
       Alert.alert('Error', error.message || 'Failed to update like');
     }
   }, [toggleLike]);
+
+  // Report Post API call (updated to match your backend)
+  const reportPost = async (postId: number, reason: string, otherReason?: string) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/reports`,
+        {
+          postId,
+          reason,
+          otherReason: otherReason || undefined,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error reporting post:', error);
+      throw error;
+    }
+  };
 
   // Share Post API calls
   const sharePost = async (postId: number) => {
@@ -528,6 +690,130 @@ const FeedScreen = () => {
       );
     } else {
       await handleShare();
+    }
+  };
+
+  // Report Post Handler - Opens Custom Modal
+  const handleReportPost = (post: any) => {
+    // Check if already reported
+    if (reportedPosts.has(post.id)) {
+      Alert.alert('Already Reported', 'You have already reported this post.');
+      return;
+    }
+    
+    setSelectedPostForReport(post);
+    setSelectedReportReason(null);
+    setOtherReportReason('');
+    setIsReportModalVisible(true);
+  };
+
+  // Submit report from modal
+  const handleReportSubmit = async () => {
+    if (!selectedReportReason) {
+      Alert.alert('Error', 'Please select a reason');
+      return;
+    }
+
+    if (selectedReportReason === REPORT_REASONS.OTHER && !otherReportReason.trim()) {
+      Alert.alert('Error', 'Please provide a reason');
+      return;
+    }
+
+    if (!selectedPostForReport) return;
+
+    setIsSubmittingReport(true);
+    try {
+      await reportPost(
+        selectedPostForReport.id,
+        selectedReportReason,
+        selectedReportReason === REPORT_REASONS.OTHER ? otherReportReason.trim() : undefined
+      );
+      
+      // Mark post as reported
+      setReportedPosts(prev => new Set(prev).add(selectedPostForReport.id));
+      
+      // Close modal and show success
+      setIsReportModalVisible(false);
+      setSelectedPostForReport(null);
+      setSelectedReportReason(null);
+      setOtherReportReason('');
+      Alert.alert('Success', 'Post has been reported successfully');
+    } catch (error: any) {
+      // Check if error is due to duplicate report
+      if (error.response?.data?.message?.includes('already reported')) {
+        Alert.alert('Already Reported', 'You have already reported this post.');
+        setReportedPosts(prev => new Set(prev).add(selectedPostForReport.id));
+        setIsReportModalVisible(false);
+        setSelectedPostForReport(null);
+        setSelectedReportReason(null);
+        setOtherReportReason('');
+      } else {
+        Alert.alert('Error', error?.response?.data?.message || 'Failed to report post');
+      }
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  // Block User Handler - Using the useBlock hook
+  const handleBlockUser = (userId: number, userName?: string) => {
+    if (!userId) return;
+    
+    const displayName = userName || 'this user';
+    
+    // Check if user is already blocked
+    if (isUserBlocked(userId)) {
+      // Unblock user
+      Alert.alert(
+        'Unblock User',
+        `Are you sure you want to unblock ${displayName}? They will be able to interact with you again.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Unblock',
+            style: 'default',
+            onPress: async () => {
+              try {
+                await unblockUser(userId);
+                Alert.alert('Success', 'User has been unblocked successfully');
+                // Refresh feed to show unblocked user's posts
+                await loadInitialPosts();
+              } catch (error: any) {
+                Alert.alert('Error', error?.message || 'Failed to unblock user');
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      // Block user
+      Alert.alert(
+        'Block User',
+        `Are you sure you want to block ${displayName}? They will not be able to interact with you and you won't see their posts.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Block',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await blockUser(userId);
+                Alert.alert('Success', 'User has been blocked successfully');
+                // Refresh feed to remove blocked user's posts
+                await loadInitialPosts();
+              } catch (error: any) {
+                Alert.alert('Error', error?.message || 'Failed to block user');
+              }
+            },
+          },
+        ]
+      );
     }
   };
 
@@ -724,9 +1010,125 @@ const FeedScreen = () => {
     return `${diffDays}d`;
   }, []);
 
+  // Render Report Modal
+  const renderReportModal = () => {
+    return (
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isReportModalVisible}
+        onRequestClose={() => {
+          setIsReportModalVisible(false);
+          setSelectedPostForReport(null);
+          setSelectedReportReason(null);
+          setOtherReportReason('');
+        }}
+      >
+        <TouchableWithoutFeedback
+          onPress={() => {
+            setIsReportModalVisible(false);
+            setSelectedPostForReport(null);
+            setSelectedReportReason(null);
+            setOtherReportReason('');
+          }}
+        >
+          <View style={styles.reportModalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.reportModalContent}>
+                <View style={styles.reportModalHeader}>
+                  <Text style={styles.reportModalTitle}>Report Post</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setIsReportModalVisible(false);
+                      setSelectedPostForReport(null);
+                      setSelectedReportReason(null);
+                      setOtherReportReason('');
+                    }}
+                  >
+                    <Text style={styles.reportModalClose}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.reportModalSubtitle}>
+                  Please select a reason for reporting this post:
+                </Text>
+
+                <ScrollView 
+                  style={styles.reportOptionsList}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {REPORT_OPTIONS.map((option) => (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={[
+                        styles.reportOption,
+                        selectedReportReason === option.key && styles.reportOptionSelected,
+                      ]}
+                      onPress={() => setSelectedReportReason(option.key)}
+                    >
+                      <Text style={styles.reportOptionIcon}>{option.icon}</Text>
+                      <Text style={[
+                        styles.reportOptionText,
+                        selectedReportReason === option.key && styles.reportOptionTextSelected,
+                      ]}>
+                        {option.label}
+                      </Text>
+                      {selectedReportReason === option.key && (
+                        <Text style={styles.reportOptionCheck}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {selectedReportReason === REPORT_REASONS.OTHER && (
+                  <TextInput
+                    style={styles.reportOtherInput}
+                    placeholder="Please provide additional details..."
+                    placeholderTextColor="#999"
+                    value={otherReportReason}
+                    onChangeText={setOtherReportReason}
+                    multiline
+                    numberOfLines={3}
+                  />
+                )}
+
+                <View style={styles.reportModalButtons}>
+                  <TouchableOpacity
+                    style={[styles.reportModalButton, styles.reportModalCancelButton]}
+                    onPress={() => {
+                      setIsReportModalVisible(false);
+                      setSelectedPostForReport(null);
+                      setSelectedReportReason(null);
+                      setOtherReportReason('');
+                    }}
+                    disabled={isSubmittingReport}
+                  >
+                    <Text style={styles.reportModalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.reportModalButton, styles.reportModalSubmitButton]}
+                    onPress={handleReportSubmit}
+                    disabled={isSubmittingReport}
+                  >
+                    {isSubmittingReport ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Text style={styles.reportModalSubmitText}>Submit Report</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    );
+  };
+
   const renderPostItem = useCallback(({ item }: { item: Post }) => {
     const isShared = sharedPosts.has(item.id);
     const shareCount = shareCounts[item.id] || 0;
+    const isBlocked = item.user?.id ? isUserBlocked(item.user.id) : false;
     
     return (
       <PostCard
@@ -750,13 +1152,16 @@ const FeedScreen = () => {
         navigation={navigation}
         onEditPost={handleEditPost}
         onDeletePost={handleDeletePost}
+        onReportPost={handleReportPost}
+        onBlockUser={handleBlockUser}
         activeMenu={activeMenu}
         onToggleMenu={handleToggleMenu}
         isShared={isShared}
         shareCount={shareCount}
+        isUserBlocked={isBlocked}
       />
     );
-  }, [showAllComments, handleLike, handleCommentPress, toggleShowAllComments, formatTimeAgo, user, handleLikeComment, handleReplyPress, handleDeleteComment, handleAddReply, handleDeleteReply, handleLikeReply, replyText, showReplyInput, activeMenu, sharedPosts, shareCounts]);
+  }, [showAllComments, handleLike, handleCommentPress, toggleShowAllComments, formatTimeAgo, user, handleLikeComment, handleReplyPress, handleDeleteComment, handleAddReply, handleDeleteReply, handleLikeReply, replyText, showReplyInput, activeMenu, sharedPosts, shareCounts, isUserBlocked]);
 
   const renderFooter = () => {
     if (!isLoadingMore) return null;
@@ -850,11 +1255,16 @@ const FeedScreen = () => {
         maxToRenderPerBatch={5}
         windowSize={5}
         removeClippedSubviews={Platform.OS === 'android'}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       />
 
       <View style={styles.bottomNavContainer}>
         <BottomTabNav />
       </View>
+
+      {/* Report Modal */}
+      {renderReportModal()}
 
       {/* Comment Modal */}
       <Modal
@@ -865,6 +1275,7 @@ const FeedScreen = () => {
           setIsCommentModalVisible(false);
           setModalComments([]);
           setCommentText('');
+          setActiveMenu(null); // Close dropdown when modal closes
         }}
       >
         <KeyboardAvoidingView 
@@ -878,6 +1289,7 @@ const FeedScreen = () => {
                 setIsCommentModalVisible(false);
                 setModalComments([]);
                 setCommentText('');
+                setActiveMenu(null);
               }}>
                 <Text style={styles.modalClose}>✕</Text>
               </TouchableOpacity>
@@ -999,6 +1411,7 @@ const FeedScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  // ... (all existing styles remain the same)
   container: { flex: 1, backgroundColor: '#F5F5F5' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
   header: {
@@ -1049,7 +1462,7 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: '#0E713E',
     borderRadius: 10,
-    width: 130,
+    width: 150,
     zIndex: 9999,
     elevation: 9999,
     shadowColor: '#000',
@@ -1148,6 +1561,117 @@ const styles = StyleSheet.create({
   modalPostButtonText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
   noCommentsContainer: { alignItems: 'center', paddingVertical: 40 },
   noCommentsText: { color: '#666', fontSize: 14, textAlign: 'center' },
+
+  // Report Modal Styles
+  reportModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  reportModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '85%',
+  },
+  reportModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  reportModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  reportModalClose: {
+    fontSize: 24,
+    color: '#666',
+    padding: 4,
+  },
+  reportModalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+  },
+  reportOptionsList: {
+    maxHeight: 300,
+  },
+  reportOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    borderRadius: 8,
+  },
+  reportOptionSelected: {
+    backgroundColor: '#E8F5E9',
+  },
+  reportOptionIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  reportOptionText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#333',
+  },
+  reportOptionTextSelected: {
+    color: '#0E713E',
+    fontWeight: '600',
+  },
+  reportOptionCheck: {
+    color: '#0E713E',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  reportOtherInput: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+    fontSize: 14,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  reportModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 10,
+  },
+  reportModalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportModalCancelButton: {
+    backgroundColor: '#F5F5F5',
+  },
+  reportModalSubmitButton: {
+    backgroundColor: '#0E713E',
+  },
+  reportModalCancelText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  reportModalSubmitText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 
 export default FeedScreen;

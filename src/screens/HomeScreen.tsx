@@ -25,6 +25,7 @@ import Slider from '@react-native-community/slider';
 import { useDispatch, useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import { check, request, openSettings, PERMISSIONS, RESULTS } from 'react-native-permissions';
 
 import { getMyJournals, getSharedWithMeJournals } from './../features/huntingJournal/huntingJournalActions';
 import { sendFriendRequest } from './../features/friends/friendsActions';
@@ -487,10 +488,12 @@ const HomeScreen = () => {
             buttonNeutral: 'Ask Me Later',
             buttonNegative: 'Cancel',
             buttonPositive: 'OK',
-          }
+          },
         );
+
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-          startLocationTracking();
+          // 👇 DON'T call startLocationTracking()
+          await verifyLocationService();
         } else {
           setError('Location permission denied');
           setLoading(false);
@@ -502,7 +505,32 @@ const HomeScreen = () => {
         setLoading(false);
       }
     } else {
+      // iOS
       startLocationTracking();
+    }
+  };
+
+  const verifyLocationService = async () => {
+    if (Platform.OS !== 'android') {
+      startLocationTracking();
+      return;
+    }
+
+    try {
+      const LocationEnabler = require('react-native-android-location-enabler');
+
+      const result =
+        await LocationEnabler.promptForEnableLocationIfNeeded({
+          interval: 10000,
+          fastInterval: 5000,
+        });
+
+      console.log('Location Enabler:', result);
+
+      // GPS is ON
+      startLocationTracking();
+    } catch (error) {
+      console.log('User cancelled enabling GPS', error);
     }
   };
 
@@ -510,42 +538,55 @@ const HomeScreen = () => {
     Geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
+
         setCurrentLocation({ latitude, longitude });
         setLocationLoaded(true);
-        
+
         setInitialCamera({
           center: { latitude, longitude },
-          // pitch: 55,
-          // heading: 0,
-          // altitude: 1000,
-          zoom: 16.5
+          zoom: 16.5,
         });
+
         setLoading(false);
         setError(null);
       },
+
       (err) => {
         console.warn('High accuracy error, falling back...', err);
+
         Geolocation.getCurrentPosition(
           (pos) => {
             const { latitude, longitude } = pos.coords;
+
             setCurrentLocation({ latitude, longitude });
             setLocationLoaded(true);
+
             setInitialCamera({
               center: { latitude, longitude },
-              // pitch: 55, heading: 0, altitude: 1000, 
-              zoom: 16.5
+              zoom: 16.5,
             });
+
             setLoading(false);
           },
+
           (fallbackErr) => {
             setError(`Unable to get location: ${fallbackErr.message}`);
             setLoading(false);
             setDefaultLocation();
           },
-          { enableHighAccuracy: false, timeout: 15000 }
+
+          {
+            enableHighAccuracy: false,
+            timeout: 15000,
+          },
         );
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000,
+      },
     );
 
     watchIdRef.current = Geolocation.watchPosition(
@@ -553,13 +594,17 @@ const HomeScreen = () => {
         const { latitude, longitude } = position.coords;
         setCurrentLocation({ latitude, longitude });
       },
-      (err) => console.log('Background telemetry watch warning:', err),
+
+      (err) => {
+        console.log('Background telemetry watch warning:', err);
+      },
+
       {
         enableHighAccuracy: true,
         distanceFilter: 10,
         interval: 10000,
-        fastestInterval: 5000
-      }
+        fastestInterval: 5000,
+      },
     );
   };
 

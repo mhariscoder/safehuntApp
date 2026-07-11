@@ -73,6 +73,8 @@
 	<string>This app needs access to location to show hunting spots near you</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app needs access to location to show hunting spots near you</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>App needs your location to show nearby hunting spots and hunters</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs access to photo library to update profile pictures</string>
 	<key>RCTNewArchEnabled</key>

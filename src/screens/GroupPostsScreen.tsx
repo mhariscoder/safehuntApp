@@ -1,4 +1,4 @@
-// GroupPostsScreen.js - Updated with group share functionality
+// GroupPostsScreen.js - Complete Fix with Report and Block Functionality
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
@@ -17,10 +17,13 @@ import {
   FlatList,
   Dimensions,
   SafeAreaView,
+  TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { usePosts } from '../hooks/usePosts';
 import { useComments } from '../hooks/useComments';
+import { useBlock } from '../hooks/useBlock';
 import { useAppSelector, useAppDispatch } from '../app/store/hooks';
 import { API_BASE_URL } from '../constants/config';
 import {
@@ -47,6 +50,26 @@ const ASSETS = {
   groupAvatar: require('../../assets/group_avatar.png'),
   moreIcon: require('../../assets/more_vert.png'),
 };
+
+// Report Reasons (matching backend enum)
+const REPORT_REASONS = {
+  ABUSIVE_LANGUAGE: 'Abusive Language',
+  HARASSMENT: 'Harassment or Bullying',
+  SPAM: 'Spam or Scam',
+  INAPPROPRIATE_CONTENT: 'Inappropriate Content',
+  HATE_SPEECH: 'Hate Speech or Discrimination',
+  OTHER: 'Other',
+};
+
+// Report options with icons
+const REPORT_OPTIONS = [
+  { key: REPORT_REASONS.ABUSIVE_LANGUAGE, label: REPORT_REASONS.ABUSIVE_LANGUAGE, icon: '⚠️' },
+  { key: REPORT_REASONS.HARASSMENT, label: REPORT_REASONS.HARASSMENT, icon: '👊' },
+  { key: REPORT_REASONS.SPAM, label: REPORT_REASONS.SPAM, icon: '📧' },
+  { key: REPORT_REASONS.INAPPROPRIATE_CONTENT, label: REPORT_REASONS.INAPPROPRIATE_CONTENT, icon: '🔞' },
+  { key: REPORT_REASONS.HATE_SPEECH, label: REPORT_REASONS.HATE_SPEECH, icon: '🚫' },
+  { key: REPORT_REASONS.OTHER, label: REPORT_REASONS.OTHER, icon: '📝' },
+];
 
 const getFullImageUrl = (imagePath: string | null | undefined): string | null => {
   if (!imagePath) return null;
@@ -160,8 +183,8 @@ const GroupMembersModal = ({ visible, onClose, groupId, groupName, currentUserId
     );
   };
 
-  const members = groupMembers?.filter(m => m.status === 'approved') || [];
-  const pendingRequests = groupMembers?.filter(m => m.status === 'pending') || [];
+  const members = groupMembers?.filter((m: any) => m.status === 'approved') || [];
+  const pendingRequests = groupMembers?.filter((m: any) => m.status === 'pending') || [];
 
   const renderMemberItem = ({ item }: { item: any }) => {
     const member = item.member || item;
@@ -312,6 +335,8 @@ const PostCard = ({
   onCommentPress, 
   onEditPost, 
   onDeletePost, 
+  onReportPost,
+  onBlockUser,
   activeMenu, 
   onToggleMenu, 
   loadGroupPosts,
@@ -319,6 +344,7 @@ const PostCard = ({
   isShared,
   shareCount,
   isSharing,
+  isUserBlocked,
 }: any) => {
   const postDate = post.created_at || post.createdAt;
   const imageUrl = post.image ? getFullImageUrl(post.image) : null;
@@ -334,6 +360,16 @@ const PostCard = ({
   const handleDeletePress = () => {
     onToggleMenu(post.id);
     onDeletePost(post.id);
+  };
+
+  const handleReportPress = () => {
+    onToggleMenu(post.id);
+    onReportPost(post);
+  };
+
+  const handleBlockPress = () => {
+    onToggleMenu(post.id);
+    onBlockUser(post.user?.id, post.user?.displayname || post.user?.username);
   };
 
   return (
@@ -361,33 +397,55 @@ const PostCard = ({
             {formatTimeAgo(postDate)}
           </Text>
         </View>
-        {isOwner && (
-          <View style={{ position: 'relative' }}>
-            <TouchableOpacity onPress={() => onToggleMenu(post.id)}>
-              <Image source={ASSETS.moreIcon} style={styles.moreIcon} />
-            </TouchableOpacity>
+        <View style={{ position: 'relative' }}>
+          <TouchableOpacity onPress={() => onToggleMenu(post.id)}>
+            <Image source={ASSETS.moreIcon} style={styles.moreIcon} />
+          </TouchableOpacity>
 
-            {isMenuVisible && (
-              <View style={styles.dropdown}>
-                <TouchableOpacity 
-                  style={styles.dropdownItem} 
-                  onPress={handleEditPress}
-                >
-                  <Text style={styles.dropdownText}>Edit</Text>
-                </TouchableOpacity>
+          {isMenuVisible && (
+            <View style={styles.dropdown}>
+              {isOwner ? (
+                <>
+                  <TouchableOpacity 
+                    style={styles.dropdownItem} 
+                    onPress={handleEditPress}
+                  >
+                    <Text style={styles.dropdownText}>Edit</Text>
+                  </TouchableOpacity>
 
-                <View style={styles.dropdownDivider} />
+                  <View style={styles.dropdownDivider} />
 
-                <TouchableOpacity 
-                  style={styles.dropdownItem} 
-                  onPress={handleDeletePress}
-                >
-                  <Text style={styles.dropdownText}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
+                  <TouchableOpacity 
+                    style={styles.dropdownItem} 
+                    onPress={handleDeletePress}
+                  >
+                    <Text style={styles.dropdownText}>Delete</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity 
+                    style={styles.dropdownItem} 
+                    onPress={handleReportPress}
+                  >
+                    <Text style={styles.dropdownText}>Report Post</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.dropdownDivider} />
+
+                  <TouchableOpacity 
+                    style={styles.dropdownItem} 
+                    onPress={handleBlockPress}
+                  >
+                    <Text style={styles.dropdownText}>
+                      {isUserBlocked ? 'Unblock User' : 'Block User'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Show shared indicator if post is shared */}
@@ -488,6 +546,24 @@ const GroupPostsScreen = () => {
     unlikeReply,
   } = useComments();
 
+  // Use the Block hook
+  const { 
+    blockUser, 
+    unblockUser,
+    blockedUsers,
+    isLoading: isBlockLoading,
+  } = useBlock();
+
+  // Get blocked user IDs for quick lookup
+  const blockedUserIds = React.useMemo(() => {
+    return new Set(blockedUsers.map((block: any) => block.blockedId || block.blocked?.id));
+  }, [blockedUsers]);
+
+  // Check if a user is blocked
+  const isUserBlocked = useCallback((userId: number) => {
+    return blockedUserIds.has(userId);
+  }, [blockedUserIds]);
+
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [showAllComments, setShowAllComments] = useState<{ [key: number]: boolean }>({});
@@ -500,6 +576,14 @@ const GroupPostsScreen = () => {
   const [loadingComments, setLoadingComments] = useState(false);
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
   
+  // Report Modal states
+  const [isReportModalVisible, setIsReportModalVisible] = useState(false);
+  const [selectedPostForReport, setSelectedPostForReport] = useState<any>(null);
+  const [selectedReportReason, setSelectedReportReason] = useState<string | null>(null);
+  const [otherReportReason, setOtherReportReason] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reportedPosts, setReportedPosts] = useState<Set<number>>(new Set());
+  
   // Share related states
   const [sharedPosts, setSharedPosts] = useState<Set<number>>(new Set());
   const [shareCounts, setShareCounts] = useState<{ [key: number]: number }>({});
@@ -511,9 +595,35 @@ const GroupPostsScreen = () => {
   const [isMember, setIsMember] = useState(false);
   const [joinStatus, setJoinStatus] = useState<'none' | 'pending' | 'approved'>('none');
   const [groupMembersList, setGroupMembersList] = useState<any[]>([]);
+  const [isCheckingRole, setIsCheckingRole] = useState(true);
+
+  // Helper function to extract members from response
+  const extractMembersFromResponse = (response: any) => {
+    // Try different possible response structures
+    if (response?.members && Array.isArray(response.members)) {
+      return response.members;
+    }
+    if (response?.data?.members && Array.isArray(response.data.members)) {
+      return response.data.members;
+    }
+    if (response?.data && Array.isArray(response.data)) {
+      return response.data;
+    }
+    if (Array.isArray(response)) {
+      return response;
+    }
+    // If response is an object with numeric keys (array-like)
+    if (response && typeof response === 'object') {
+      const values = Object.values(response);
+      if (values.length > 0 && (values[0]?.memberId || values[0]?.member)) {
+        return values;
+      }
+    }
+    return [];
+  };
 
   const loadGroupPosts = async () => {
-    console.log('loadGroupPosts', groupId)
+    console.log('loadGroupPosts', groupId);
     try {
       if(groupId) {
         const result = await getAllPosts({ page: 1, limit: 20, groupId: groupId });
@@ -530,12 +640,35 @@ const GroupPostsScreen = () => {
     }
   };
 
+  // Report Post API call
+  const reportPost = async (postId: number, reason: string, otherReason?: string) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/reports`,
+        {
+          postId,
+          reason,
+          otherReason: otherReason || undefined,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error reporting post:', error);
+      throw error;
+    }
+  };
+
   // Share Post API calls with groupId
   const sharePost = async (postId: number) => {
     try {
       const response = await axios.post(
         `${API_BASE_URL}/shares/${postId}/${user?.id}`,
-        { groupId: groupId }, // Pass groupId in the request body
+        { groupId: groupId },
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -558,7 +691,7 @@ const GroupPostsScreen = () => {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-          data: { groupId: groupId }, // Pass groupId in the request body for DELETE
+          data: { groupId: groupId },
         }
       );
       return response.data;
@@ -576,7 +709,7 @@ const GroupPostsScreen = () => {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-          params: { groupId: groupId }, // Pass groupId as query param
+          params: { groupId: groupId },
         }
       );
       
@@ -593,7 +726,6 @@ const GroupPostsScreen = () => {
         return newSet;
       });
       
-      // Update share count
       setShareCounts(prev => ({
         ...prev,
         [postId]: shares.length || 0,
@@ -611,7 +743,7 @@ const GroupPostsScreen = () => {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-          params: { groupId: groupId }, // Pass groupId as query param
+          params: { groupId: groupId },
         }
       );
       const shares = response.data || [];
@@ -686,57 +818,85 @@ const GroupPostsScreen = () => {
   };
 
   const loadGroupMembers = async () => {
-    console.log('loadGroupMembers', groupId)
+    console.log('loadGroupMembers', groupId);
     try {
-      if(groupId) {
+      if (groupId) {
         const result = await dispatch(getGroupMembers(groupId)).unwrap();
         console.log('Raw group members result:', JSON.stringify(result));
         
-        let membersArray = result;
-        if (result && result.members) {
-          membersArray = result.members;
-        }
+        const membersArray = extractMembersFromResponse(result);
+        console.log('Extracted membersArray:', membersArray);
         
-        setGroupMembersList(membersArray || []);
+        setGroupMembersList(membersArray);
+        return membersArray;
       }
     } catch (error) {
       console.error('Error loading group members:', error);
+      setGroupMembersList([]);
     }
+    return [];
   };
 
   const handleToggleMenu = (postId: number) => {
     setActiveMenu(prev => (prev === postId ? null : postId));
   };
 
+  // Check user role - FIXED VERSION
   const checkUserRole = useCallback(() => {
-    console.log('Debug Info', `User ID: ${user?.id}`);
-    console.log('Group Members List:', JSON.stringify(groupMembersList));
+    console.log('=== CHECK USER ROLE ===');
+    console.log('User ID:', user?.id);
+    console.log('Group Members List Length:', groupMembersList?.length);
+    console.log('Group Members List:', JSON.stringify(groupMembersList, null, 2));
     
-    if (!user?.id || !groupMembersList.length) {
-      console.log('No user ID or no group members');
-      return;
-    }
-    
-    const currentMember = groupMembersList.find((m: any) => {
-      const memberId = m.memberId || m.member?.id;
-      console.log('Checking member:', memberId, 'against user:', user.id);
-      return memberId === user.id;
-    });
-    
-    console.log('Found currentMember:', currentMember);
-    
-    if (currentMember) {
-      setIsMember(true);
-      setJoinStatus(currentMember.status);
-      const isUserAdmin = currentMember.type === 'Admin';
-      setIsAdmin(isUserAdmin);
-      console.log('User is admin:', isUserAdmin);
-    } else {
+    if (!user?.id) {
+      console.log('No user ID - setting isMember to false');
       setIsMember(false);
       setJoinStatus('none');
       setIsAdmin(false);
-      console.log('User is not a member');
+      setIsCheckingRole(false);
+      return;
     }
+    
+    // If no members list or empty, don't change states yet
+    if (!groupMembersList || !Array.isArray(groupMembersList) || groupMembersList.length === 0) {
+      console.log('No group members list or empty - waiting for data');
+      setIsCheckingRole(false);
+      return;
+    }
+    
+    // Find the current user in the members list - TRY MULTIPLE FIELD NAMES
+    let currentMember = null;
+    
+    for (const m of groupMembersList) {
+      // Try different possible field names
+      const memberId = m.memberId || m.member?.id || m.id || m.user?.id || m.userId;
+      console.log(`Checking member: ID=${memberId}, Type=${m.type}, Status=${m.status}`);
+      
+      // Convert both to strings for comparison to handle type mismatches
+      if (memberId && String(memberId) === String(user.id)) {
+        currentMember = m;
+        console.log('✅ Found matching member:', currentMember);
+        break;
+      }
+    }
+    
+    console.log('Final currentMember:', currentMember);
+    
+    if (currentMember) {
+      // User is a member
+      setIsMember(true);
+      setJoinStatus(currentMember.status || 'approved');
+      const isUserAdmin = currentMember.type === 'Admin' || currentMember.role === 'Admin';
+      setIsAdmin(isUserAdmin);
+      console.log('User is admin:', isUserAdmin);
+    } else {
+      // User is not a member
+      console.log('❌ User is NOT a member - setting isMember to false');
+      setIsMember(false);
+      setJoinStatus('none');
+      setIsAdmin(false);
+    }
+    setIsCheckingRole(false);
   }, [user?.id, groupMembersList]);
 
   useFocusEffect(
@@ -746,6 +906,7 @@ const GroupPostsScreen = () => {
       const loadData = async () => {
         if (isMounted) {
           dispatch(clearPosts());
+          // Load group posts and members in parallel
           await Promise.all([loadGroupPosts(), loadGroupMembers()]);
         }
       };
@@ -758,14 +919,19 @@ const GroupPostsScreen = () => {
     }, [groupId])
   );
 
+  // Re-check user role whenever groupMembersList changes
   useEffect(() => {
-    checkUserRole();
+    if (groupMembersList && groupMembersList.length > 0) {
+      checkUserRole();
+    }
   }, [groupMembersList, checkUserRole]);
 
   const onRefresh = async () => {
     setRefreshing(true);
+    setIsCheckingRole(true);
     await Promise.all([loadGroupPosts(), loadGroupMembers()]);
     setRefreshing(false);
+    // checkUserRole will be called by the useEffect
   };
 
   const handleLike = async (postId: number) => {
@@ -811,6 +977,128 @@ const GroupPostsScreen = () => {
         }
       ]
     );
+  };
+
+  // Report Post Handler - Opens Custom Modal
+  const handleReportPost = (post: any) => {
+    // Check if already reported
+    if (reportedPosts.has(post.id)) {
+      Alert.alert('Already Reported', 'You have already reported this post.');
+      return;
+    }
+    
+    setSelectedPostForReport(post);
+    setSelectedReportReason(null);
+    setOtherReportReason('');
+    setIsReportModalVisible(true);
+  };
+
+  // Submit report from modal
+  const handleReportSubmit = async () => {
+    if (!selectedReportReason) {
+      Alert.alert('Error', 'Please select a reason');
+      return;
+    }
+
+    if (selectedReportReason === REPORT_REASONS.OTHER && !otherReportReason.trim()) {
+      Alert.alert('Error', 'Please provide a reason');
+      return;
+    }
+
+    if (!selectedPostForReport) return;
+
+    setIsSubmittingReport(true);
+    try {
+      await reportPost(
+        selectedPostForReport.id,
+        selectedReportReason,
+        selectedReportReason === REPORT_REASONS.OTHER ? otherReportReason.trim() : undefined
+      );
+      
+      // Mark post as reported
+      setReportedPosts(prev => new Set(prev).add(selectedPostForReport.id));
+      
+      // Close modal and show success
+      setIsReportModalVisible(false);
+      setSelectedPostForReport(null);
+      setSelectedReportReason(null);
+      setOtherReportReason('');
+      Alert.alert('Success', 'Post has been reported successfully');
+    } catch (error: any) {
+      // Check if error is due to duplicate report
+      if (error.response?.data?.message?.includes('already reported')) {
+        Alert.alert('Already Reported', 'You have already reported this post.');
+        setReportedPosts(prev => new Set(prev).add(selectedPostForReport.id));
+        setIsReportModalVisible(false);
+        setSelectedPostForReport(null);
+        setSelectedReportReason(null);
+        setOtherReportReason('');
+      } else {
+        Alert.alert('Error', error?.response?.data?.message || 'Failed to report post');
+      }
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  // Block User Handler
+  const handleBlockUser = (userId: number, userName?: string) => {
+    if (!userId) return;
+    
+    const displayName = userName || 'this user';
+    
+    // Check if user is already blocked
+    if (isUserBlocked(userId)) {
+      // Unblock user
+      Alert.alert(
+        'Unblock User',
+        `Are you sure you want to unblock ${displayName}? They will be able to interact with you again.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Unblock',
+            style: 'default',
+            onPress: async () => {
+              try {
+                await unblockUser(userId);
+                Alert.alert('Success', 'User has been unblocked successfully');
+                await loadGroupPosts();
+              } catch (error: any) {
+                Alert.alert('Error', error?.message || 'Failed to unblock user');
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      // Block user
+      Alert.alert(
+        'Block User',
+        `Are you sure you want to block ${displayName}? They will not be able to interact with you and you won't see their posts.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Block',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await blockUser(userId);
+                Alert.alert('Success', 'User has been blocked successfully');
+                await loadGroupPosts();
+              } catch (error: any) {
+                Alert.alert('Error', error?.message || 'Failed to block user');
+              }
+            },
+          },
+        ]
+      );
+    }
   };
 
   const handleCreatePost = () => {
@@ -996,12 +1284,128 @@ const GroupPostsScreen = () => {
     );
   };
 
+  // Render Report Modal
+  const renderReportModal = () => {
+    return (
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isReportModalVisible}
+        onRequestClose={() => {
+          setIsReportModalVisible(false);
+          setSelectedPostForReport(null);
+          setSelectedReportReason(null);
+          setOtherReportReason('');
+        }}
+      >
+        <TouchableWithoutFeedback
+          onPress={() => {
+            setIsReportModalVisible(false);
+            setSelectedPostForReport(null);
+            setSelectedReportReason(null);
+            setOtherReportReason('');
+          }}
+        >
+          <View style={styles.reportModalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.reportModalContent}>
+                <View style={styles.reportModalHeader}>
+                  <Text style={styles.reportModalTitle}>Report Post</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setIsReportModalVisible(false);
+                      setSelectedPostForReport(null);
+                      setSelectedReportReason(null);
+                      setOtherReportReason('');
+                    }}
+                  >
+                    <Text style={styles.reportModalClose}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.reportModalSubtitle}>
+                  Please select a reason for reporting this post:
+                </Text>
+
+                <ScrollView 
+                  style={styles.reportOptionsList}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {REPORT_OPTIONS.map((option) => (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={[
+                        styles.reportOption,
+                        selectedReportReason === option.key && styles.reportOptionSelected,
+                      ]}
+                      onPress={() => setSelectedReportReason(option.key)}
+                    >
+                      <Text style={styles.reportOptionIcon}>{option.icon}</Text>
+                      <Text style={[
+                        styles.reportOptionText,
+                        selectedReportReason === option.key && styles.reportOptionTextSelected,
+                      ]}>
+                        {option.label}
+                      </Text>
+                      {selectedReportReason === option.key && (
+                        <Text style={styles.reportOptionCheck}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {selectedReportReason === REPORT_REASONS.OTHER && (
+                  <TextInput
+                    style={styles.reportOtherInput}
+                    placeholder="Please provide additional details..."
+                    placeholderTextColor="#999"
+                    value={otherReportReason}
+                    onChangeText={setOtherReportReason}
+                    multiline
+                    numberOfLines={3}
+                  />
+                )}
+
+                <View style={styles.reportModalButtons}>
+                  <TouchableOpacity
+                    style={[styles.reportModalButton, styles.reportModalCancelButton]}
+                    onPress={() => {
+                      setIsReportModalVisible(false);
+                      setSelectedPostForReport(null);
+                      setSelectedReportReason(null);
+                      setOtherReportReason('');
+                    }}
+                    disabled={isSubmittingReport}
+                  >
+                    <Text style={styles.reportModalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.reportModalButton, styles.reportModalSubmitButton]}
+                    onPress={handleReportSubmit}
+                    disabled={isSubmittingReport}
+                  >
+                    {isSubmittingReport ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Text style={styles.reportModalSubmitText}>Submit Report</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    );
+  };
+
   const renderPost = ({ item: post }: { item: any }) => {
     if (!post) return null;
     
     const isShared = sharedPosts.has(post.id);
     const shareCount = shareCounts[post.id] || 0;
     const isSharingPost = isSharing[post.id] || false;
+    const isBlocked = post.user?.id ? isUserBlocked(post.user.id) : false;
     
     return (
       <PostCard
@@ -1013,6 +1417,8 @@ const GroupPostsScreen = () => {
         onCommentPress={handleCommentPress}
         onEditPost={handleEditPost}
         onDeletePost={handleDeletePost}
+        onReportPost={handleReportPost}
+        onBlockUser={handleBlockUser}
         activeMenu={activeMenu}
         onToggleMenu={handleToggleMenu}
         loadGroupPosts={loadGroupPosts}
@@ -1020,6 +1426,7 @@ const GroupPostsScreen = () => {
         isShared={isShared}
         shareCount={shareCount}
         isSharing={isSharingPost}
+        isUserBlocked={isBlocked}
       />
     );
   };
@@ -1074,8 +1481,8 @@ const GroupPostsScreen = () => {
         </View>
       </View>
 
-      {/* Join/Leave Group Buttons */}
-      {!isMember && joinStatus !== 'pending' && (
+      {/* Join/Leave Group Buttons - FIXED CONDITION */}
+      {!isCheckingRole && !isMember && joinStatus !== 'pending' && (
         <TouchableOpacity 
           style={styles.joinButton}
           onPress={handleJoinGroup}
@@ -1090,7 +1497,7 @@ const GroupPostsScreen = () => {
         </View>
       )}
 
-      {isMember && !isAdmin && (
+      {!isCheckingRole && isMember && !isAdmin && (
         <TouchableOpacity 
           style={styles.leaveButton}
           onPress={handleLeaveGroup}
@@ -1099,7 +1506,7 @@ const GroupPostsScreen = () => {
         </TouchableOpacity>
       )}
 
-      {isAdmin && (
+      {!isCheckingRole && isAdmin && (
         <View style={styles.adminBadge}>
           <Text style={styles.adminBadgeText}>👑 You are an admin</Text>
         </View>
@@ -1164,6 +1571,9 @@ const GroupPostsScreen = () => {
         }
         contentContainerStyle={styles.listContent}
       />
+
+      {/* Report Modal */}
+      {renderReportModal()}
 
       {/* Comment Modal */}
       <Modal
@@ -1394,7 +1804,7 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: '#0E713E',
     borderRadius: 10,
-    width: 130,
+    width: 150,
     zIndex: 999,
     elevation: 5,
     shadowColor: '#000',
@@ -1533,6 +1943,117 @@ const styles = StyleSheet.create({
   pendingText: { color: '#FF9800', fontSize: 14, fontWeight: '500' },
   adminBadge: { backgroundColor: '#E8F5E9', marginHorizontal: 20, marginVertical: 5, padding: 5, borderRadius: 20, alignItems: 'center' },
   adminBadgeText: { color: '#0E713E', fontSize: 12, fontWeight: '500' },
+
+  // Report Modal Styles
+  reportModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  reportModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '85%',
+  },
+  reportModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  reportModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  reportModalClose: {
+    fontSize: 24,
+    color: '#666',
+    padding: 4,
+  },
+  reportModalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+  },
+  reportOptionsList: {
+    maxHeight: 300,
+  },
+  reportOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    borderRadius: 8,
+  },
+  reportOptionSelected: {
+    backgroundColor: '#E8F5E9',
+  },
+  reportOptionIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  reportOptionText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#333',
+  },
+  reportOptionTextSelected: {
+    color: '#0E713E',
+    fontWeight: '600',
+  },
+  reportOptionCheck: {
+    color: '#0E713E',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  reportOtherInput: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+    fontSize: 14,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  reportModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 10,
+  },
+  reportModalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportModalCancelButton: {
+    backgroundColor: '#F5F5F5',
+  },
+  reportModalSubmitButton: {
+    backgroundColor: '#0E713E',
+  },
+  reportModalCancelText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  reportModalSubmitText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 
 export default GroupPostsScreen;

@@ -12,6 +12,7 @@ import { huntingJournalReducer } from '../../features/huntingJournal/huntingJour
 import { groupsReducer } from '../../features/groups/groupsSlice';
 import { chatReducer } from '../../features/chat/chatSlice';
 import { blockReducer } from '../../features/block/blockSlice';
+import { reportsReducer } from '../../features/reports/reportsSlice';
 
 const persistConfig = {
   key: 'root',
@@ -31,7 +32,8 @@ const rootReducer = combineReducers({
   huntingJournal: huntingJournalReducer,
   groups: groupsReducer,
   chat: chatReducer,
-  block: blockReducer
+  block: blockReducer,
+  reports: reportsReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
