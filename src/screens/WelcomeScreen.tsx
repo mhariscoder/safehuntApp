@@ -23,6 +23,8 @@ import { AppDispatch, RootState } from '../app/store';
 // Native SDK SSO integration modules
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { LoginManager, AccessToken, Profile } from 'react-native-fbsdk-next';
+import { appleAuth } from '@invertase/react-native-apple-authentication';
+
 import { getDeviceToken } from '../utils/pushToken';
 
 const { width } = Dimensions.get('window');
@@ -38,9 +40,7 @@ const WelcomeScreen = ({ navigation }: any) => {
   
   // Connect cleanly to your auth state loading wrapper from slice
   const { isLoading: reduxLoading } = useSelector((state: RootState) => state.auth);
-  const [loadingProvider, setLoadingProvider] = useState<
-    'google' | 'facebook' | null
-  >(null);
+  const [loadingProvider, setLoadingProvider] = useState<'google' | 'facebook' | 'apple' | null>(null);
 
   // Combine both loading sources to prevent button interactions while processing
   const isAuthenticating =
@@ -150,6 +150,62 @@ const WelcomeScreen = ({ navigation }: any) => {
     }
   };
 
+  // --- APPLE SIGN IN ---
+  const handleAppleSignIn = async () => {
+    try {
+      setLoadingProvider('apple');
+
+      // 1. Request credential authorization from Apple Native Client
+      const appleAuthRequestResponse = await appleAuth.performRequest({
+        requestedOperation: appleAuth.Operation.LOGIN,
+        requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
+      });
+
+      // 2. Extract identityToken used for secure back-end API verification
+      const { identityToken, email, fullName } = appleAuthRequestResponse;
+
+      if (!identityToken) {
+        throw new Error('Apple Sign-In failed to return an identity token.');
+      }
+
+      // Build fallback name if details are passed by Apple OS (Only happens on first authentication)
+      const computedName = fullName 
+        ? `${fullName.givenName ?? ''} ${fullName.familyName ?? ''}`.trim() 
+        : '';
+
+      const deviceToken = await getDeviceToken();
+
+      // 3. Dispatch payload directly into your Redux Action pipeline
+      const resultAction = await dispatch(
+        loginViaSocialToken({
+          socialType: 'apple',
+          socialToken: identityToken,
+          email: email ?? '',
+          name: computedName,
+          deviceToken: deviceToken,
+          deviceType: Platform.OS,
+        })
+      );
+
+      if (loginViaSocialToken.fulfilled.match(resultAction)) {
+        Alert.alert('Success', 'Logged in successfully with Apple!');
+      } else {
+        const errorMessage = resultAction.payload as string;
+        throw new Error(errorMessage || 'Server rejected Apple authorization token.');
+      }
+
+    } catch (error: any) {
+      if (error.code === appleAuth.Error.CANCELED) {
+        console.log('User canceled Apple Sign-In');
+      } else {
+        console.error('Apple Sign-In Error:', error);
+        Alert.alert('Apple Sign-In Error', error.message || 'An error occurred.');
+      }
+    } finally {
+      setLoadingProvider(null);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
@@ -224,6 +280,27 @@ const WelcomeScreen = ({ navigation }: any) => {
               </>
             )}
           </TouchableOpacity>
+
+          {Platform.OS === 'ios' && (
+            <TouchableOpacity 
+              style={styles.socialLink}
+              onPress={handleAppleSignIn}
+              disabled={isAuthenticating}
+            >
+              {loadingProvider === 'apple' ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.socialText}>Sign Up With </Text>
+                  <Image
+                    source={require('../../assets/apple-logo.png')}
+                    style={{ marginLeft: 5, width: 20, height: 20, tintColor: '#FFFFFF' }}
+                    resizeMode="contain"
+                  />
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>
