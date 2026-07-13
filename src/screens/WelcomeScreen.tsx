@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Linking,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import LogoComponent from '../components/LogoComponent';
@@ -41,13 +42,30 @@ const WelcomeScreen = ({ navigation }: any) => {
   // Connect cleanly to your auth state loading wrapper from slice
   const { isLoading: reduxLoading } = useSelector((state: RootState) => state.auth);
   const [loadingProvider, setLoadingProvider] = useState<'google' | 'facebook' | 'apple' | null>(null);
+  
+  // EULA Acceptance State
+  const [hasAcceptedEULA, setHasAcceptedEULA] = useState(false);
 
   // Combine both loading sources to prevent button interactions while processing
-  const isAuthenticating =
-  loadingProvider !== null || reduxLoading;
+  const isAuthenticating = loadingProvider !== null || reduxLoading;
+
+  // The final disabled status for all buttons: They cannot be pressed if currently authenticating,
+  // or if the mandatory EULA checkbox has not been accepted yet.
+  const isButtonDisabled = isAuthenticating || !hasAcceptedEULA;
+
+  // Helper to securely open terms & privacy links
+  const openURL = async (url: string) => {
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert('Error', `Cannot open webpage: ${url}`);
+    }
+  };
 
   // --- GOOGLE SIGN IN ---
   const handleGoogleSignIn = async () => {
+    if (isButtonDisabled) return;
     try {
       setLoadingProvider('google');
       await GoogleSignin.hasPlayServices();
@@ -96,6 +114,7 @@ const WelcomeScreen = ({ navigation }: any) => {
 
   // --- FACEBOOK SIGN IN ---
   const handleFacebookSignIn = async () => {
+    if (isButtonDisabled) return;
     try {
       setLoadingProvider('facebook');
 
@@ -152,6 +171,7 @@ const WelcomeScreen = ({ navigation }: any) => {
 
   // --- APPLE SIGN IN ---
   const handleAppleSignIn = async () => {
+    if (isButtonDisabled) return;
     try {
       setLoadingProvider('apple');
 
@@ -219,33 +239,59 @@ const WelcomeScreen = ({ navigation }: any) => {
         style={StyleSheet.absoluteFill}
       />
 
-      <View style={styles.content}>
+      <SafeAreaView style={styles.content}>
         
-        <LogoComponent style={{ marginTop: 60 }} />
+        <LogoComponent style={{ marginTop: 20 }} />
 
-        {/* Buttons Section */}
+        {/* Buttons and EULA Section */}
         <View style={styles.buttonContainer}>
+          
+          {/* --- MANDATORY EULA CHECKBOX --- */}
+          <View style={styles.checkboxContainer}>
+            <TouchableOpacity 
+              style={styles.checkbox} 
+              onPress={() => setHasAcceptedEULA(!hasAcceptedEULA)}
+              activeOpacity={0.8}
+            >
+              {hasAcceptedEULA && <View style={styles.checkboxInner} />}
+            </TouchableOpacity>
+            
+            <Text style={styles.checkboxText}>
+              I agree to the{' '}
+              <Text style={styles.link} onPress={() => openURL('https://safehunt.app/terms-and-conditions')}>
+                Terms of Use (EULA)
+              </Text>
+              {' '}and{' '}
+              <Text style={styles.link} onPress={() => openURL('https://safehunt.app/privacy')}>
+                Privacy Policy
+              </Text>
+              . I understand there is absolutely zero tolerance for objectionable content or abusive users.
+            </Text>
+          </View>
+
+          {/* Sign Up Button */}
           <TouchableOpacity 
-            style={styles.signUpButton}
+            style={[styles.signUpButton, isButtonDisabled && styles.disabledButtonOpacity]}
             onPress={() => navigation.navigate('SignUp')}
-            disabled={isAuthenticating}
+            disabled={isButtonDisabled}
           >
             <Text style={styles.signUpText}>Sign Up</Text>
           </TouchableOpacity>
 
+          {/* Log In Button */}
           <TouchableOpacity 
-            style={styles.logInButton}
+            style={[styles.logInButton, isButtonDisabled && styles.disabledButtonOpacity]}
             onPress={() => navigation.navigate('Login')}
-            disabled={isAuthenticating}
+            disabled={isButtonDisabled}
           >
             <Text style={styles.logInText}>Log In</Text>
           </TouchableOpacity>
 
           {/* Google Sign In */}
           <TouchableOpacity 
-            style={styles.socialLink}
+            style={[styles.socialLink, isButtonDisabled && styles.disabledSocialOpacity]}
             onPress={handleGoogleSignIn}
-            disabled={isAuthenticating}
+            disabled={isButtonDisabled}
           >
             {loadingProvider === 'google' ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
@@ -263,9 +309,9 @@ const WelcomeScreen = ({ navigation }: any) => {
 
           {/* Facebook Sign In */}
           <TouchableOpacity 
-            style={styles.socialLink}
+            style={[styles.socialLink, isButtonDisabled && styles.disabledSocialOpacity]}
             onPress={handleFacebookSignIn}
-            disabled={isAuthenticating}
+            disabled={isButtonDisabled}
           >
             {loadingProvider === 'facebook' ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
@@ -281,11 +327,12 @@ const WelcomeScreen = ({ navigation }: any) => {
             )}
           </TouchableOpacity>
 
+          {/* Apple Sign In */}
           {Platform.OS === 'ios' && (
             <TouchableOpacity 
-              style={styles.socialLink}
+              style={[styles.socialLink, isButtonDisabled && styles.disabledSocialOpacity]}
               onPress={handleAppleSignIn}
-              disabled={isAuthenticating}
+              disabled={isButtonDisabled}
             >
               {loadingProvider === 'apple' ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -302,7 +349,7 @@ const WelcomeScreen = ({ navigation }: any) => {
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </SafeAreaView>
     </View>
   );
 };
@@ -315,13 +362,50 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 50,
+    paddingVertical: 30,
   },
   buttonContainer: {
     width: '100%',
-    paddingHorizontal: 40,
+    paddingHorizontal: 30,
     alignItems: 'center',
   },
+  // --- Checkbox Styling ---
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    width: '100%',
+    marginBottom: 24,
+    paddingHorizontal: 10,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    borderRadius: 4,
+    marginRight: 12,
+    marginTop: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxInner: {
+    width: 10,
+    height: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 1,
+  },
+  checkboxText: {
+    flex: 1,
+    color: '#E5E5EA',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  link: {
+    color: '#34C759', // Green accent matching your brand
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
+  },
+  // --- Button & Opacity Styling ---
   signUpButton: {
     width: '100%',
     backgroundColor: '#FFFFFF',
@@ -343,7 +427,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
-    marginBottom: 40,
+    marginBottom: 30,
   },
   logInText: {
     color: '#FFFFFF',
@@ -355,11 +439,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: 30,
-    marginVertical: 10
+    marginVertical: 10,
   },
   socialText: {
     color: '#FFFFFF',
     fontSize: 14,
+  },
+  // Dims the registration buttons to 40% opacity when the EULA is not checked
+  disabledButtonOpacity: {
+    opacity: 0.4,
+  },
+  // Dims the social login buttons to 40% opacity when the EULA is not checked
+  disabledSocialOpacity: {
+    opacity: 0.4,
   },
 });
 

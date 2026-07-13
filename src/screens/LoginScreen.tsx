@@ -13,6 +13,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useAppDispatch, useAppSelector } from '../app/store/hooks';
@@ -23,6 +24,7 @@ const LoginScreen = ({ navigation }: any) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [acceptedEula, setAcceptedEula] = useState(false);
   
   const dispatch = useAppDispatch();
   const { isLoading, error } = useAppSelector((state) => state.auth);
@@ -36,6 +38,14 @@ const LoginScreen = ({ navigation }: any) => {
     
     if (!password.trim()) {
       Alert.alert('Validation Error', 'Password is required');
+      return;
+    }
+
+    if (!acceptedEula) {
+      Alert.alert(
+        'Agreement Required',
+        'Please accept the Terms of Service and Privacy Policy before logging in.'
+      );
       return;
     }
 
@@ -143,6 +153,39 @@ const LoginScreen = ({ navigation }: any) => {
               />
             </View>
 
+            {/* --- MANDATORY EULA CHECKBOX --- */}
+            <View style={styles.eulaContainer}>
+              <TouchableOpacity
+                style={styles.checkbox}
+                onPress={() => setAcceptedEula(!acceptedEula)}
+                activeOpacity={0.8}
+              >
+                {acceptedEula && <View style={styles.checkboxInner} />}
+              </TouchableOpacity>
+
+              <Text style={styles.eulaText}>
+                I agree to the{' '}
+                <Text
+                  style={styles.linkText}
+                  onPress={() =>
+                    Linking.openURL('https://safehunt.app/terms-and-conditions')
+                  }
+                >
+                  Terms of Use (EULA)
+                </Text>
+                {' '}and{' '}
+                <Text
+                  style={styles.linkText}
+                  onPress={() =>
+                    Linking.openURL('https://safehunt.app/privacy')
+                  }
+                >
+                  Privacy Policy
+                </Text>
+                . I understand there is absolutely zero tolerance for objectionable content or abusive users.
+              </Text>
+            </View>
+
             {/* Remember Me & Forgot Password Row */}
             <View style={styles.optionsRow}>
               <TouchableOpacity 
@@ -159,6 +202,8 @@ const LoginScreen = ({ navigation }: any) => {
               <TouchableOpacity onPress={handleForgotPassword} disabled={isLoading}>
                 <Text style={styles.boldText}>Forgot Password?</Text>
               </TouchableOpacity>
+
+              
             </View>
 
             {/* Log In Button */}
@@ -307,6 +352,32 @@ const styles = StyleSheet.create({
   boldText: { 
     color: '#FFF',
     fontWeight: '900' 
+  },
+  eulaContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+
+  eulaText: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 13,
+    lineHeight: 20,
+    marginLeft: 12,
+  },
+
+  linkText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+
+  checkboxInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FFFFFF',
   },
 });
 

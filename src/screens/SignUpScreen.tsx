@@ -11,6 +11,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useAppDispatch, useAppSelector } from '../app/store/hooks';
@@ -25,6 +26,7 @@ const SignUpScreen = ({ navigation }: any) => {
     password: '',
     confirmPassword: '',  // Added confirmPassword field
   });
+  const [hasAcceptedEULA, setHasAcceptedEULA] = useState(false);
 
   const dispatch = useAppDispatch();
   const { isLoading, error } = useAppSelector((state) => state.auth);
@@ -96,6 +98,14 @@ const SignUpScreen = ({ navigation }: any) => {
     // Check if passwords match
     if (formData.password !== formData.confirmPassword) {
       Alert.alert('Validation Error', 'Passwords do not match');
+      return false;
+    }
+
+    if (!hasAcceptedEULA) {
+      Alert.alert(
+        'Agreement Required',
+        'Please accept the Terms of Use (EULA) and Privacy Policy to continue.'
+      );
       return false;
     }
 
@@ -275,11 +285,56 @@ const SignUpScreen = ({ navigation }: any) => {
             />
           </View>
 
+          {/* --- MANDATORY EULA CHECKBOX --- */}
+          <View style={styles.checkboxContainer}>
+            <TouchableOpacity
+              style={styles.checkbox}
+              onPress={() => setHasAcceptedEULA(!hasAcceptedEULA)}
+              activeOpacity={0.8}
+            >
+              {hasAcceptedEULA && <View style={styles.checkboxInner} />}
+            </TouchableOpacity>
+
+            <Text style={styles.checkboxText}>
+              I agree to the{' '}
+              <Text
+                style={styles.link}
+                onPress={() =>
+                  Linking.openURL(
+                    'https://safehunt.app/terms-and-conditions'
+                  )
+                }
+              >
+                Terms of Use (EULA)
+              </Text>
+              {' '}and{' '}
+              <Text
+                style={styles.link}
+                onPress={() =>
+                  Linking.openURL(
+                    'https://safehunt.app/privacy'
+                  )
+                }
+              >
+                Privacy Policy
+              </Text>
+              . I understand there is absolutely zero tolerance for objectionable content or abusive users.
+            </Text>
+          </View>
+
           {/* Action Button */}
           <TouchableOpacity 
-            style={[styles.continueButton, (isLoading || !isPasswordValid) && styles.continueButtonDisabled]}
+            style={[
+              styles.continueButton,
+              (isLoading || !isPasswordValid || !hasAcceptedEULA) &&
+                styles.continueButtonDisabled,
+            ]}
+            disabled={
+              isLoading ||
+              !isPasswordValid ||
+              !hasAcceptedEULA
+            }
             onPress={handleSignUp}
-            disabled={isLoading || !isPasswordValid}
           >
             {isLoading ? (
               <ActivityIndicator color="#1D4D2F" size="small" />
@@ -287,12 +342,6 @@ const SignUpScreen = ({ navigation }: any) => {
               <Text style={styles.continueText}>Continue</Text>
             )}
           </TouchableOpacity>
-
-          {/* Footer Links */}
-          <Text style={styles.termsText}>
-            By clicking continue, you agree to our{'\n'}
-            <Text style={styles.boldText}>Terms of Service</Text> and <Text style={styles.boldText}>Privacy Policy</Text>.
-          </Text>
 
           <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={isLoading}>
             <Text style={styles.loginLink}>
@@ -452,6 +501,41 @@ const styles = StyleSheet.create({
   },
   loginLink: { color: '#FFF', textAlign: 'center', marginTop: 40, fontSize: 14 },
   boldText: { fontWeight: '900' },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 25,
+  },
+
+  checkboxText: {
+    flex: 1,
+    color: '#FFF',
+    fontSize: 13,
+    lineHeight: 20,
+    marginLeft: 12,
+  },
+
+  link: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: '#FFF',
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FFFFFF',
+  },
 });
 
 export default SignUpScreen;

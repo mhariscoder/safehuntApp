@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../app/store/hooks';
 import { useUserEquipment } from '../hooks/useUserEquipment';
+import { useBlock } from '../hooks/useBlock';
 import { usePosts } from '../hooks/usePosts';
 import { getUsersByIds } from '../features/auth/authActions';
 import { sendFriendRequest, acceptFriendRequest } from '../features/friends/friendsActions';
@@ -65,6 +66,8 @@ interface UserData {
   requestedBy: string | null;
 }
 
+
+
 const getFullImageUrl = (imagePath: string | null | undefined): string | null => {
   if (!imagePath) return null;
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
@@ -103,6 +106,24 @@ const UserScreen = () => {
   const [isSendingRequest, setIsSendingRequest] = useState(false);
   const [isAcceptingRequest, setIsAcceptingRequest] = useState(false);
   const [friendStatus, setFriendStatus] = useState<'none' | 'pending_sent' | 'pending_received' | 'friends'>('none');
+
+  const {
+    blockUser,
+    unblockUser,
+    blockedUsers,
+  } = useBlock();
+
+  const blockedUserIds = React.useMemo(() => {
+    return new Set(
+      blockedUsers.map(
+        (block: any) => block.blockedId || block.blocked?.id
+      )
+    );
+  }, [blockedUsers]);
+
+  const isBlocked = userData
+    ? blockedUserIds.has(Number(userData.id))
+    : false;
   
   const { getUserEquipments, userEquipments } = useUserEquipment();
   const {
@@ -111,6 +132,10 @@ const UserScreen = () => {
     isLoading: postsLoading,
     toggleLike,
   } = usePosts();
+
+  useEffect(() => {
+    blockUser({ page: 1, limit: 100 });
+  }, []);
 
   useEffect(() => {
     if (userId) {
@@ -220,6 +245,59 @@ const UserScreen = () => {
       await loadUserPosts();
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to update like');
+    }
+  };
+
+  const handleBlockToggle = () => {
+    if (!userData) return;
+
+    if (isBlocked) {
+      Alert.alert(
+        'Unblock User',
+        `Are you sure you want to unblock ${userData.displayname}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Unblock',
+            onPress: async () => {
+              try {
+                await unblockUser(Number(userData.id));
+                Alert.alert('Success', 'User unblocked successfully');
+                loadUserData();
+              } catch (e: any) {
+                Alert.alert(
+                  'Error',
+                  e.message || 'Failed to unblock user'
+                );
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Block User',
+        `Are you sure you want to block ${userData.displayname}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Block',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await blockUser(Number(userData.id));
+                Alert.alert('Success', 'User blocked successfully');
+                navigation.goBack();
+              } catch (e: any) {
+                Alert.alert(
+                  'Error',
+                  e.message || 'Failed to block user'
+                );
+              }
+            },
+          },
+        ]
+      );
     }
   };
 
@@ -404,6 +482,18 @@ const UserScreen = () => {
             {/* <TouchableOpacity style={styles.btnMore}>
               <Image source={ASSETS.moreIcon} style={styles.moreDots} />
             </TouchableOpacity> */}
+
+            <TouchableOpacity
+              style={[
+                  styles.btnBlock,
+                  isBlocked && styles.btnUnblock,
+              ]}
+              onPress={handleBlockToggle}
+          >
+              <Text style={styles.btnText}>
+                  {isBlocked ? 'Unblock User' : 'Block User'}
+              </Text>
+          </TouchableOpacity>
           </View>
         );
       
@@ -633,10 +723,14 @@ const styles = StyleSheet.create({
     borderColor: '#0E713E',
     borderRadius: 80,
     overflow: 'hidden',
-    backgroundColor: '#FFF'
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center', 
+    width: 130, 
+    height: 130
   },
   profilePic: { width: 130, height: 130, resizeMode: 'cover' },
-  profileText: { color: '#000', fontSize: 48, fontWeight: '800', width: 130, height: 130, textAlign: 'center', verticalAlign: 'middle' },
+  profileText: { color: '#000', fontSize: 48, fontWeight: '800', textAlign: 'center'},
   infoSection: { paddingHorizontal: 25, marginTop: 30 },
   userName: { fontSize: 20, fontWeight: '900', color: '#000' },
   mutualFriends: { color: '#666', fontSize: 12, marginVertical: 4 },
@@ -772,6 +866,18 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 16, color: '#666', marginBottom: 15 },
   goBackButton: { backgroundColor: '#0E713E', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 25 },
   goBackButtonText: { color: '#FFF', fontWeight: '600' },
+  btnBlock: {
+    flex: 1,
+    backgroundColor: '#C62828',
+    paddingVertical: 10,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  btnUnblock: {
+    backgroundColor: '#0E713E',
+  },
 });
 
 export default UserScreen;
