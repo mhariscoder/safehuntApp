@@ -34,6 +34,20 @@ export const getAllPosts = createAsyncThunk(
   }
 );
 
+// Get group posts
+export const getGroupPosts = createAsyncThunk(
+  'posts/getGroupPosts',
+  async (params: GetPostsParams = {}, { rejectWithValue }) => {
+    try {
+      const response = await postsService.getGroupPosts(params);
+      return response;
+    } catch (error: any) {
+      console.error('Get all posts action error:', error);
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch posts');
+    }
+  }
+);
+
 // Get my posts
 export const getMyPosts = createAsyncThunk(
   'posts/getMyPosts',

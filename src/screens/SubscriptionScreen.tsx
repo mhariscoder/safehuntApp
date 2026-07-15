@@ -14,9 +14,10 @@ import {
   Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { useIAP, ErrorCode, type Purchase } from 'react-native-iap';
+import { useIAP, ErrorCode, type Purchase, getReceiptIOS } from 'react-native-iap';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../constants/config';
+import { store } from '../app/store';
 
 const { width } = Dimensions.get('window');
 
@@ -28,6 +29,10 @@ const SUBSCRIPTION_IDS =
     : ['safe_hunt_subscription_pro'];
 
 const SubscriptionScreen = ({ navigation }: any) => {
+  const state = store.getState();
+  const token = state.auth.token;
+  const subscriptionStatus = state.auth.user?.subscriptionStatus;
+
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -36,9 +41,9 @@ const SubscriptionScreen = ({ navigation }: any) => {
   // Verify Google Play subscription (Android)
   const verifyGoogleSubscription = async (purchase: Purchase) => {
     try {
-      const token = purchase?.purchaseToken || purchase?.transactionReceipt;
-      const packageName = 'com.safehunt.app'; // Replace with your actual package name
-      const productId = purchase?.productId || purchase?.sku;
+      const token = purchase?.purchaseToken || purchase?.transactionId;
+      const packageName = 'com.safehunt.app';
+      const productId = purchase?.productId;
 
       const response = await fetch(
         `${API_BASE_URL}/in-app-purchase/verify-google-subscription`,
@@ -46,6 +51,7 @@ const SubscriptionScreen = ({ navigation }: any) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             token,
@@ -63,29 +69,28 @@ const SubscriptionScreen = ({ navigation }: any) => {
   };
 
   // Verify Apple App Store subscription (iOS)
-  const verifyAppleSubscription = async (purchase: Purchase) => {
-    try {
-      const transactionId = purchase?.transactionId || purchase?.transactionReceipt;
-      
-      const response = await fetch(
-        `${API_BASE_URL}/in-app-purchase/verify-apple-subscription`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            transactionId,
-            productId: purchase?.productId,
-          }),
-        },
-      );
+  const verifyAppleSubscription = async () => {
+    const receipt = await getReceiptIOS();
 
-      return await response.json();
-    } catch (error) {
-      console.log('Apple Verify API Error:', error);
-      throw error;
+    if (!receipt) {
+      throw new Error('Receipt not found');
     }
+
+    const response = await fetch(
+      `${API_BASE_URL}/in-app-purchase/verify-apple-subscription`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          token: receipt,
+        }),
+      },
+    );
+
+    return response.json();
   };
 
   const {
@@ -444,120 +449,149 @@ const SubscriptionScreen = ({ navigation }: any) => {
                 <FeatureRow text="Hunting Journal" />
               </View>
 
-              {/* Error Message */}
-              {errorMessage && (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
-                  <TouchableOpacity 
-                    style={styles.retryButton} 
-                    onPress={loadSubscriptions}
-                  >
-                    <Text style={styles.retryButtonText}>Retry</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+              {subscriptionStatus === 'SUBSCRIBED' ? (
+                <>
+                  {/* ================= SUBSCRIBED USER ================= */}
 
-              {/* Dynamic Subscriptions mapping */}
-              {subscriptions.length === 0 && !errorMessage ? (
-                <View style={styles.loadingPlansCard}>
-                  <ActivityIndicator size="small" color="#0E713E" />
-                  <Text style={styles.loadingPlansText}>Loading subscription options...</Text>
-                </View>
-              ) : subscriptions.length === 0 && errorMessage ? (
-                <View style={styles.noPlansCard}>
-                  <Text style={styles.noPlansEmoji}>📦</Text>
-                  <Text style={styles.noPlansTitle}>No Subscription Plans Available</Text>
-                  <Text style={styles.noPlansText}>
-                    Please check your product configuration in App Store Connect or Google Play Console.
-                  </Text>
-                </View>
-              ) : (
-                subscriptions.map((item) => {
-                  const currentId = item.productId || item.id;
-                  const isSelected = selectedPlanId === currentId;
+                  <View style={styles.subscribedContainer}>
+                    <Text style={styles.subscribedIcon}>🎉</Text>
 
-                  return (
+                    <Text style={styles.subscribedTitle}>
+                      You're Already a Safe Hunt Pro Member
+                    </Text>
+
+                    <Text style={styles.subscribedDescription}>
+                      Your subscription is currently active. Enjoy unlimited access to all
+                      premium Safe Hunt features.
+                    </Text>
+
+                    <View style={styles.activeBadge}>
+                      <Text style={styles.activeBadgeText}>
+                        ✓ ACTIVE SUBSCRIPTION
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              ) : (<>
+              
+                {/* Error Message */}
+                {errorMessage && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
                     <TouchableOpacity 
-                      key={currentId}
-                      activeOpacity={0.9}
-                      style={[styles.planBox, isSelected && styles.selectedPlanBorder]} 
-                      onPress={() => setSelectedPlanId(currentId)}
-                      disabled={isPurchasing}
+                      style={styles.retryButton} 
+                      onPress={loadSubscriptions}
                     >
-                      <View style={styles.radioCircle}>
-                        {isSelected && (
-                          <Text style={styles.checkIconText}>✓</Text>
-                        )}
-                      </View>
-                      <View style={styles.planInfo}>
-                        <Text style={styles.priceText}>
-                          {item.displayPrice || item.localizedPrice || item.price || 'Price Unavailable'}
-                        </Text>
-                        <Text style={styles.subText}>
-                          {item.title || item.description || 'Premium Access'}
-                        </Text>
-                        <Text style={styles.platformTag}>
-                          {Platform.OS === 'ios' ? '🍎 Apple App Store' : '🤖 Google Play Store'}
-                        </Text>
-                      </View>
+                      <Text style={styles.retryButtonText}>Retry</Text>
                     </TouchableOpacity>
-                  );
-                })
-              )}
-
-              {/* Proceed Button */}
-              <TouchableOpacity 
-                style={[
-                  styles.proceedButton,
-                  (!selectedPlanId || subscriptions.length === 0 || isPurchasing) && styles.buttonDisabled
-                ]}
-                onPress={handlePurchase}
-                disabled={!selectedPlanId || subscriptions.length === 0 || isPurchasing}
-              >
-                {isPurchasing ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.proceedText}>Subscribe Now</Text>
+                  </View>
                 )}
-              </TouchableOpacity>
 
-              {/* Continue to Trial Link */}
-              <TouchableOpacity
-                style={styles.trialLinkContainer}
-                onPress={handleContinueTrial}
-                disabled={isPurchasing}
-              >
-                <Text style={styles.trialLinkText}>
-                  Continue with Free Trial
-                </Text>
-              </TouchableOpacity>
+                {/* Dynamic Subscriptions mapping */}
+                {subscriptions.length === 0 && !errorMessage ? (
+                  <View style={styles.loadingPlansCard}>
+                    <ActivityIndicator size="small" color="#0E713E" />
+                    <Text style={styles.loadingPlansText}>Loading subscription options...</Text>
+                  </View>
+                ) : subscriptions.length === 0 && errorMessage ? (
+                  <View style={styles.noPlansCard}>
+                    <Text style={styles.noPlansEmoji}>📦</Text>
+                    <Text style={styles.noPlansTitle}>No Subscription Plans Available</Text>
+                    <Text style={styles.noPlansText}>
+                      Please check your product configuration in App Store Connect or Google Play Console.
+                    </Text>
+                  </View>
+                ) : (
+                  subscriptions.map((item) => {
+                    const currentId = item.productId || item.id;
+                    const isSelected = selectedPlanId === currentId;
 
-              {/* Restore Purchases (iOS specific) */}
-              {Platform.OS === 'ios' && (
+                    return (
+                      <TouchableOpacity 
+                        key={currentId}
+                        activeOpacity={0.9}
+                        style={[styles.planBox, isSelected && styles.selectedPlanBorder]} 
+                        onPress={() => setSelectedPlanId(currentId)}
+                        disabled={isPurchasing}
+                      >
+                        <View style={styles.radioCircle}>
+                          {isSelected && (
+                            <Text style={styles.checkIconText}>✓</Text>
+                          )}
+                        </View>
+                        <View style={styles.planInfo}>
+                          <Text style={styles.priceText}>
+                            {item.displayPrice || item.localizedPrice || item.price || 'Price Unavailable'}
+                          </Text>
+                          <Text style={styles.subText}>
+                            {item.title || item.description || 'Premium Access'}
+                          </Text>
+                          <Text style={styles.platformTag}>
+                            {Platform.OS === 'ios' ? '🍎 Apple App Store' : '🤖 Google Play Store'}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+
+                {/* Proceed Button */}
+                <TouchableOpacity 
+                  style={[
+                    styles.proceedButton,
+                    (!selectedPlanId || subscriptions.length === 0 || isPurchasing) && styles.buttonDisabled
+                  ]}
+                  onPress={handlePurchase}
+                  disabled={!selectedPlanId || subscriptions.length === 0 || isPurchasing}
+                >
+                  {isPurchasing ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.proceedText}>Subscribe Now</Text>
+                  )}
+                </TouchableOpacity>
+
+                {/* Continue to Trial Link */}
                 <TouchableOpacity
-                  style={styles.restoreButton}
-                  onPress={handleRestorePurchases}
+                  style={styles.trialLinkContainer}
+                  onPress={handleContinueTrial}
                   disabled={isPurchasing}
                 >
-                  <Text style={styles.restoreText}>Restore Purchases</Text>
+                  <Text style={styles.trialLinkText}>
+                    Continue with Free Trial
+                  </Text>
                 </TouchableOpacity>
-              )}
 
-              {/* Debug Info */}
-              <View style={styles.debugContainer}>
-                <Text style={styles.debugText}>
-                  Platform: {Platform.OS}
-                </Text>
-                <Text style={styles.debugText}>
-                  Product IDs: {SUBSCRIPTION_IDS.join(', ')}
-                </Text>
-                <Text style={styles.debugText}>
-                  Subscriptions found: {subscriptions.length}
-                </Text>
-                <Text style={styles.debugText}>
-                  Connected: {connected ? 'Yes' : 'No'}
-                </Text>
-              </View>
+                {/* Restore Purchases (iOS specific) */}
+                {Platform.OS === 'ios' && (
+                  <TouchableOpacity
+                    style={styles.restoreButton}
+                    onPress={handleRestorePurchases}
+                    disabled={isPurchasing}
+                  >
+                    <Text style={styles.restoreText}>Restore Purchases</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Debug Info */}
+                <View style={styles.debugContainer}>
+                  <Text style={styles.debugText}>
+                    Platform: {Platform.OS}
+                  </Text>
+                  <Text style={styles.debugText}>
+                    Product IDs: {SUBSCRIPTION_IDS.join(', ')}
+                  </Text>
+                  <Text style={styles.debugText}>
+                    Subscriptions found: {subscriptions.length}
+                  </Text>
+                  <Text style={styles.debugText}>
+                    Connected: {connected ? 'Yes' : 'No'}
+                  </Text>
+                </View>
+              
+              </>)}
+
+              
             </View>
           </ScrollView>
         </View>
@@ -800,6 +834,45 @@ const styles = StyleSheet.create({
     color: '#666',
     fontFamily: 'monospace',
     marginBottom: 2,
+  },
+  subscribedContainer: {
+    alignItems: 'center',
+    paddingVertical: 30,
+  },
+
+  subscribedIcon: {
+    fontSize: 60,
+    marginBottom: 15,
+  },
+
+  subscribedTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#0E713E',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+
+  subscribedDescription: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+
+  activeBadge: {
+    backgroundColor: '#0E713E',
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 25,
+  },
+
+  activeBadgeText: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 12,
   },
 });
 

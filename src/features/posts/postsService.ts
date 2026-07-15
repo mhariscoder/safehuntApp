@@ -119,6 +119,49 @@ class PostsService {
     }
   }
 
+  async getGroupPosts(params: GetPostsParams = {}) {
+    try {
+      const { page = 1, limit = 10, groupId } = params;
+      const response = await api.get('/post', {
+        params: { page, limit, groupId }
+      });
+      
+      let postsArray = [];
+      let currentPage = page;
+      let totalPages = 1;
+      let totalPosts = 0;
+      
+      if (response.data && Array.isArray(response.data.posts)) {
+        postsArray = response.data.posts;
+        currentPage = response.data.currentPage || page;
+        totalPages = response.data.totalPages || 1;
+        totalPosts = response.data.totalPosts || 0;
+      } else if (response.data && Array.isArray(response.data)) {
+        postsArray = response.data;
+      } else if (response.data && response.data.data && Array.isArray(response.data.data.posts)) {
+        postsArray = response.data.data.posts;
+        currentPage = response.data.data.currentPage || page;
+        totalPages = response.data.data.totalPages || 1;
+        totalPosts = response.data.data.totalPosts || 0;
+      } else {
+        postsArray = [];
+      }
+      
+      const processedPosts = postsArray.map((post: any) => this.processPost(post));
+      
+      return {
+        posts: processedPosts,
+        currentPage,
+        totalPages,
+        totalPosts,
+        hasMore: currentPage < totalPages
+      };
+    } catch (error) {
+      console.error('Get all posts error:', error);
+      throw error;
+    }
+  }
+
   async getMyPosts(params: GetPostsParams = {}) {
     try {
       const { page = 1, limit = 10, groupId } = params;
@@ -293,16 +336,20 @@ class PostsService {
       const response = await api.get(`/post/pending/${groupId}`, {
         params: { page, limit }
       });
+
+      console.log('response', response)
       
       let postsArray = [];
       
-      if (response.data && Array.isArray(response.data.posts)) {
-        postsArray = response.data.posts;
-      } else if (response.data && Array.isArray(response.data)) {
-        postsArray = response.data;
+      if (response.data && response.data.data && Array.isArray(response.data.data.posts)) {
+        postsArray = response.data.data.posts;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        postsArray = response.data.data;
       } else {
         postsArray = [];
       }
+
+      console.log('postsArray', postsArray)
       
       return postsArray.map((post: any) => this.processPost(post));
     } catch (error) {

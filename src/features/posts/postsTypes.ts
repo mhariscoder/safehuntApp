@@ -54,10 +54,17 @@ export interface Reply {
 export interface PostsState {
   posts: Post[];
   myPosts: Post[];
+  groupPosts: Post[];
   selectedPost: Post | null;
   isLoading: boolean;
   error: string | null;
   pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    hasMore: boolean;
+  };
+  groupPagination: {
     page: number;
     limit: number;
     total: number;

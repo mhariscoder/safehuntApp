@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 5,
+    // paddingHorizontal: 5,
     marginBottom: 40,
   },
   rememberMeContainer: {

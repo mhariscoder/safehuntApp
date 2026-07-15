@@ -1,5 +1,5 @@
-// GroupPostsScreen.js - Complete Fix with Report and Block Functionality
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+// GroupPostsScreen.js - Complete Fixed Version with Redux pendingPosts
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -16,7 +16,6 @@ import {
   Platform,
   FlatList,
   Dimensions,
-  SafeAreaView,
   TouchableWithoutFeedback,
   ScrollView,
 } from 'react-native';
@@ -51,7 +50,6 @@ const ASSETS = {
   moreIcon: require('../../assets/more_vert.png'),
 };
 
-// Report Reasons (matching backend enum)
 const REPORT_REASONS = {
   ABUSIVE_LANGUAGE: 'Abusive Language',
   HARASSMENT: 'Harassment or Bullying',
@@ -61,7 +59,6 @@ const REPORT_REASONS = {
   OTHER: 'Other',
 };
 
-// Report options with icons
 const REPORT_OPTIONS = [
   { key: REPORT_REASONS.ABUSIVE_LANGUAGE, label: REPORT_REASONS.ABUSIVE_LANGUAGE, icon: '⚠️' },
   { key: REPORT_REASONS.HARASSMENT, label: REPORT_REASONS.HARASSMENT, icon: '👊' },
@@ -325,7 +322,7 @@ const GroupMembersModal = ({ visible, onClose, groupId, groupName, currentUserId
   );
 };
 
-// Post Card Component with Group Share Functionality
+// Post Card Component with Pending Status
 const PostCard = ({ 
   post, 
   user, 
@@ -345,6 +342,10 @@ const PostCard = ({
   shareCount,
   isSharing,
   isUserBlocked,
+  isAdmin,
+  onApprovePost,
+  onRejectPost,
+  isPending,
 }: any) => {
   const postDate = post.created_at || post.createdAt;
   const imageUrl = post.image ? getFullImageUrl(post.image) : null;
@@ -373,7 +374,13 @@ const PostCard = ({
   };
 
   return (
-    <View style={styles.postCard}>
+    <View style={[styles.postCard, isPending && styles.pendingPostCard]}>
+      {isPending && (
+        <View style={styles.pendingBadgeContainer}>
+          <Text style={styles.pendingBadgeText}>⏳ Pending Approval</Text>
+        </View>
+      )}
+      
       <View style={styles.postHeader}>
         <View style={styles.profileCircleSmall}>
           {userAvatar ? (
@@ -448,7 +455,6 @@ const PostCard = ({
         </View>
       </View>
 
-      {/* Show shared indicator if post is shared */}
       {isShared && (
         <View style={styles.sharedIndicator}>
           <Text style={styles.sharedIndicatorText}>🔁 You shared this post</Text>
@@ -469,6 +475,23 @@ const PostCard = ({
         <Text style={styles.statsText}>🔁 {shareCount || 0} {shareCount === 1 ? 'Share' : 'Shares'}</Text>
         <Text style={styles.statsText}>{post.comments?.length || 0} Comments</Text>
       </View>
+
+      {isAdmin && isPending && (
+        <View style={styles.adminActionContainer}>
+          <TouchableOpacity 
+            style={[styles.adminActionButton, styles.approveButton]}
+            onPress={() => onApprovePost(post.id)}
+          >
+            <Text style={styles.adminActionButtonText}>✅ Approve</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.adminActionButton, styles.rejectButton]}
+            onPress={() => onRejectPost(post.id)}
+          >
+            <Text style={styles.adminActionButtonText}>❌ Reject</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.actionButtons}>
         <TouchableOpacity 
@@ -526,12 +549,14 @@ const GroupPostsScreen = () => {
   const dispatch = useAppDispatch();
   
   const {
-    posts,
+    groupPosts,
+    pendingPosts,
     isLoading,
-    getAllPosts,
+    getAllGroupPost,
     toggleLike,
     deletePost,
-    updatePost,
+    getPendingPosts,
+    updateGroupPostStatus,
   } = usePosts();
 
   const {
@@ -546,27 +571,22 @@ const GroupPostsScreen = () => {
     unlikeReply,
   } = useComments();
 
-  // Use the Block hook
   const { 
     blockUser, 
     unblockUser,
     blockedUsers,
-    isLoading: isBlockLoading,
   } = useBlock();
 
-  // Get blocked user IDs for quick lookup
   const blockedUserIds = React.useMemo(() => {
     return new Set(blockedUsers.map((block: any) => block.blockedId || block.blocked?.id));
   }, [blockedUsers]);
 
-  // Check if a user is blocked
   const isUserBlocked = useCallback((userId: number) => {
     return blockedUserIds.has(userId);
   }, [blockedUserIds]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any>(null);
-  const [showAllComments, setShowAllComments] = useState<{ [key: number]: boolean }>({});
   const [commentText, setCommentText] = useState('');
   const [replyText, setReplyText] = useState('');
   const [selectedCommentId, setSelectedCommentId] = useState<number | null>(null);
@@ -575,8 +595,8 @@ const GroupPostsScreen = () => {
   const [modalComments, setModalComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
+  const [showPendingPosts, setShowPendingPosts] = useState(false);
   
-  // Report Modal states
   const [isReportModalVisible, setIsReportModalVisible] = useState(false);
   const [selectedPostForReport, setSelectedPostForReport] = useState<any>(null);
   const [selectedReportReason, setSelectedReportReason] = useState<string | null>(null);
@@ -584,50 +604,23 @@ const GroupPostsScreen = () => {
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [reportedPosts, setReportedPosts] = useState<Set<number>>(new Set());
   
-  // Share related states
   const [sharedPosts, setSharedPosts] = useState<Set<number>>(new Set());
   const [shareCounts, setShareCounts] = useState<{ [key: number]: number }>({});
   const [isSharing, setIsSharing] = useState<{ [key: number]: boolean }>({});
   
-  // Member management states
   const [isMembersModalVisible, setIsMembersModalVisible] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMember, setIsMember] = useState(false);
   const [joinStatus, setJoinStatus] = useState<'none' | 'pending' | 'approved'>('none');
   const [groupMembersList, setGroupMembersList] = useState<any[]>([]);
   const [isCheckingRole, setIsCheckingRole] = useState(true);
-
-  // Helper function to extract members from response
-  const extractMembersFromResponse = (response: any) => {
-    // Try different possible response structures
-    if (response?.members && Array.isArray(response.members)) {
-      return response.members;
-    }
-    if (response?.data?.members && Array.isArray(response.data.members)) {
-      return response.data.members;
-    }
-    if (response?.data && Array.isArray(response.data)) {
-      return response.data;
-    }
-    if (Array.isArray(response)) {
-      return response;
-    }
-    // If response is an object with numeric keys (array-like)
-    if (response && typeof response === 'object') {
-      const values = Object.values(response);
-      if (values.length > 0 && (values[0]?.memberId || values[0]?.member)) {
-        return values;
-      }
-    }
-    return [];
-  };
+  const [hasLoadedMembers, setHasLoadedMembers] = useState(false);
 
   const loadGroupPosts = async () => {
     console.log('loadGroupPosts', groupId);
     try {
       if(groupId) {
-        const result = await getAllPosts({ page: 1, limit: 20, groupId: groupId });
-        // Check share status for each post
+        const result = await getAllGroupPost({ page: 1, limit: 20, groupId: groupId });
         if (result && result.posts) {
           for (const post of result.posts) {
             await checkShareStatus(post.id);
@@ -640,7 +633,24 @@ const GroupPostsScreen = () => {
     }
   };
 
-  // Report Post API call
+  // Load pending posts using Redux
+  const loadPendingPosts = async () => {
+    if (!isAdmin || !groupId) {
+      console.log('Not admin or no groupId, skipping pending posts load');
+      return;
+    }
+    
+    try {
+      console.log('🔄 Loading pending posts for group:', groupId);
+      const result = await getPendingPosts(groupId, 1, 50);
+      console.log('📦 Pending posts loaded from Redux:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Error loading pending posts:', error);
+      return null;
+    }
+  };
+
   const reportPost = async (postId: number, reason: string, otherReason?: string) => {
     try {
       const response = await axios.post(
@@ -663,7 +673,6 @@ const GroupPostsScreen = () => {
     }
   };
 
-  // Share Post API calls with groupId
   const sharePost = async (postId: number) => {
     try {
       const response = await axios.post(
@@ -818,35 +827,57 @@ const GroupPostsScreen = () => {
   };
 
   const loadGroupMembers = async () => {
-    console.log('loadGroupMembers', groupId);
+    console.log('loadGroupMembers called for groupId:', groupId);
     try {
-      if (groupId) {
+      if (groupId && user?.id) {
         const result = await dispatch(getGroupMembers(groupId)).unwrap();
-        console.log('Raw group members result:', JSON.stringify(result));
+        console.log('Raw group members result:', JSON.stringify(result, null, 2));
         
-        const membersArray = extractMembersFromResponse(result);
-        console.log('Extracted membersArray:', membersArray);
+        let membersArray = [];
+        
+        if (result?.members && Array.isArray(result.members)) {
+          membersArray = result.members;
+        } else if (result?.data?.members && Array.isArray(result.data.members)) {
+          membersArray = result.data.members;
+        } else if (result?.data && Array.isArray(result.data)) {
+          membersArray = result.data;
+        } else if (Array.isArray(result)) {
+          membersArray = result;
+        } else if (result && typeof result === 'object') {
+          const values = Object.values(result);
+          if (values.length > 0 && (values[0]?.memberId || values[0]?.member || values[0]?.id)) {
+            membersArray = values;
+          }
+        }
+        
+        console.log('Extracted membersArray length:', membersArray.length);
         
         setGroupMembersList(membersArray);
+        setHasLoadedMembers(true);
         return membersArray;
+      } else {
+        console.log('Missing groupId or userId for loading members');
+        setGroupMembersList([]);
+        setHasLoadedMembers(true);
+        return [];
       }
     } catch (error) {
       console.error('Error loading group members:', error);
       setGroupMembersList([]);
+      setHasLoadedMembers(true);
+      return [];
     }
-    return [];
   };
 
   const handleToggleMenu = (postId: number) => {
     setActiveMenu(prev => (prev === postId ? null : postId));
   };
 
-  // Check user role - FIXED VERSION
   const checkUserRole = useCallback(() => {
     console.log('=== CHECK USER ROLE ===');
     console.log('User ID:', user?.id);
-    console.log('Group Members List Length:', groupMembersList?.length);
-    console.log('Group Members List:', JSON.stringify(groupMembersList, null, 2));
+    console.log('Group Members List length:', groupMembersList?.length);
+    console.log('Has loaded members:', hasLoadedMembers);
     
     if (!user?.id) {
       console.log('No user ID - setting isMember to false');
@@ -857,25 +888,37 @@ const GroupPostsScreen = () => {
       return;
     }
     
-    // If no members list or empty, don't change states yet
+    if (!hasLoadedMembers) {
+      console.log('Members not loaded yet, waiting...');
+      return;
+    }
+    
     if (!groupMembersList || !Array.isArray(groupMembersList) || groupMembersList.length === 0) {
-      console.log('No group members list or empty - waiting for data');
+      console.log('No group members found - user is not a member');
+      setIsMember(false);
+      setJoinStatus('none');
+      setIsAdmin(false);
       setIsCheckingRole(false);
       return;
     }
     
-    // Find the current user in the members list - TRY MULTIPLE FIELD NAMES
     let currentMember = null;
     
     for (const m of groupMembersList) {
-      // Try different possible field names
-      const memberId = m.memberId || m.member?.id || m.id || m.user?.id || m.userId;
-      console.log(`Checking member: ID=${memberId}, Type=${m.type}, Status=${m.status}`);
+      let memberId = null;
       
-      // Convert both to strings for comparison to handle type mismatches
+      if (m.memberId) memberId = m.memberId;
+      else if (m.member?.id) memberId = m.member.id;
+      else if (m.id) memberId = m.id;
+      else if (m.user?.id) memberId = m.user.id;
+      else if (m.userId) memberId = m.userId;
+      else if (m.member?.userId) memberId = m.member.userId;
+      
+      console.log(`Checking member: ID=${memberId}, Type=${m.type || m.role}, Status=${m.status}`);
+      
       if (memberId && String(memberId) === String(user.id)) {
         currentMember = m;
-        console.log('✅ Found matching member:', currentMember);
+        console.log('✅ Found matching member:', JSON.stringify(currentMember));
         break;
       }
     }
@@ -883,55 +926,100 @@ const GroupPostsScreen = () => {
     console.log('Final currentMember:', currentMember);
     
     if (currentMember) {
-      // User is a member
-      setIsMember(true);
-      setJoinStatus(currentMember.status || 'approved');
+      const memberStatus = currentMember.status || 'approved';
       const isUserAdmin = currentMember.type === 'Admin' || currentMember.role === 'Admin';
+      
+      console.log('Setting isMember to true, status:', memberStatus, 'isAdmin:', isUserAdmin);
+      
+      setIsMember(true);
+      setJoinStatus(memberStatus);
       setIsAdmin(isUserAdmin);
-      console.log('User is admin:', isUserAdmin);
+      
+      if (isUserAdmin) {
+        console.log('🔑 User is admin, loading pending posts...');
+        setTimeout(() => {
+          loadPendingPosts();
+        }, 500);
+      }
     } else {
-      // User is not a member
       console.log('❌ User is NOT a member - setting isMember to false');
       setIsMember(false);
       setJoinStatus('none');
       setIsAdmin(false);
     }
     setIsCheckingRole(false);
-  }, [user?.id, groupMembersList]);
+  }, [user?.id, groupMembersList, hasLoadedMembers]);
+
+  const loadData = useCallback(async () => {
+    console.log('Loading data for groupId:', groupId);
+    try {
+      setIsCheckingRole(true);
+      dispatch(clearPosts());
+      
+      await Promise.all([
+        loadGroupPosts(),
+        loadGroupMembers()
+      ]);
+      
+      console.log('Posts and members loaded successfully');
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+  }, [groupId, dispatch]);
 
   useFocusEffect(
     useCallback(() => {
       let isMounted = true;
       
-      const loadData = async () => {
+      const loadDataWithMounted = async () => {
         if (isMounted) {
-          dispatch(clearPosts());
-          // Load group posts and members in parallel
-          await Promise.all([loadGroupPosts(), loadGroupMembers()]);
+          await loadData();
         }
       };
       
-      loadData();
+      loadDataWithMounted();
       
       return () => {
         isMounted = false;
       };
-    }, [groupId])
+    }, [loadData])
   );
 
-  // Re-check user role whenever groupMembersList changes
   useEffect(() => {
-    if (groupMembersList && groupMembersList.length > 0) {
+    console.log('groupMembersList or hasLoadedMembers changed');
+    if (hasLoadedMembers) {
       checkUserRole();
     }
-  }, [groupMembersList, checkUserRole]);
+  }, [groupMembersList, hasLoadedMembers, checkUserRole]);
+
+  useEffect(() => {
+    console.log('🔄 Admin status or groupId changed:', { isAdmin, groupId });
+    if (isAdmin && groupId) {
+      console.log('🔑 Admin detected, loading pending posts...');
+      loadPendingPosts();
+    }
+  }, [isAdmin, groupId]);
+
+  useEffect(() => {
+    console.log('📊 Current state:', { 
+      isMember, 
+      isAdmin, 
+      joinStatus, 
+      isCheckingRole,
+      hasLoadedMembers,
+      membersCount: groupMembersList.length,
+      pendingPostsCount: pendingPosts?.length || 0
+    });
+  }, [isMember, isAdmin, joinStatus, isCheckingRole, hasLoadedMembers, groupMembersList, pendingPosts]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    setIsCheckingRole(true);
-    await Promise.all([loadGroupPosts(), loadGroupMembers()]);
+    setHasLoadedMembers(false);
+    await loadData();
+    if (isAdmin) {
+      await loadPendingPosts();
+    }
     setRefreshing(false);
-    // checkUserRole will be called by the useEffect
   };
 
   const handleLike = async (postId: number) => {
@@ -979,9 +1067,54 @@ const GroupPostsScreen = () => {
     );
   };
 
-  // Report Post Handler - Opens Custom Modal
+  const handleApprovePost = async (postId: number) => {
+    Alert.alert(
+      'Approve Post',
+      'Are you sure you want to approve this post?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve',
+          onPress: async () => {
+            try {
+              await updateGroupPostStatus(groupId, postId, 'approved');
+              Alert.alert('Success', 'Post approved successfully');
+              await loadPendingPosts();
+              await loadGroupPosts();
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to approve post');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleRejectPost = async (postId: number) => {
+    Alert.alert(
+      'Reject Post',
+      'Are you sure you want to reject this post?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await updateGroupPostStatus(groupId, postId, 'rejected');
+              Alert.alert('Success', 'Post rejected successfully');
+              await loadPendingPosts();
+              await loadGroupPosts();
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to reject post');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleReportPost = (post: any) => {
-    // Check if already reported
     if (reportedPosts.has(post.id)) {
       Alert.alert('Already Reported', 'You have already reported this post.');
       return;
@@ -993,7 +1126,6 @@ const GroupPostsScreen = () => {
     setIsReportModalVisible(true);
   };
 
-  // Submit report from modal
   const handleReportSubmit = async () => {
     if (!selectedReportReason) {
       Alert.alert('Error', 'Please select a reason');
@@ -1015,17 +1147,14 @@ const GroupPostsScreen = () => {
         selectedReportReason === REPORT_REASONS.OTHER ? otherReportReason.trim() : undefined
       );
       
-      // Mark post as reported
       setReportedPosts(prev => new Set(prev).add(selectedPostForReport.id));
       
-      // Close modal and show success
       setIsReportModalVisible(false);
       setSelectedPostForReport(null);
       setSelectedReportReason(null);
       setOtherReportReason('');
       Alert.alert('Success', 'Post has been reported successfully');
     } catch (error: any) {
-      // Check if error is due to duplicate report
       if (error.response?.data?.message?.includes('already reported')) {
         Alert.alert('Already Reported', 'You have already reported this post.');
         setReportedPosts(prev => new Set(prev).add(selectedPostForReport.id));
@@ -1041,23 +1170,17 @@ const GroupPostsScreen = () => {
     }
   };
 
-  // Block User Handler
   const handleBlockUser = (userId: number, userName?: string) => {
     if (!userId) return;
     
     const displayName = userName || 'this user';
     
-    // Check if user is already blocked
     if (isUserBlocked(userId)) {
-      // Unblock user
       Alert.alert(
         'Unblock User',
-        `Are you sure you want to unblock ${displayName}? They will be able to interact with you again.`,
+        `Are you sure you want to unblock ${displayName}?`,
         [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
+          { text: 'Cancel', style: 'cancel' },
           {
             text: 'Unblock',
             style: 'default',
@@ -1074,15 +1197,11 @@ const GroupPostsScreen = () => {
         ]
       );
     } else {
-      // Block user
       Alert.alert(
         'Block User',
-        `Are you sure you want to block ${displayName}? They will not be able to interact with you and you won't see their posts.`,
+        `Are you sure you want to block ${displayName}?`,
         [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
+          { text: 'Cancel', style: 'cancel' },
           {
             text: 'Block',
             style: 'destructive',
@@ -1284,7 +1403,6 @@ const GroupPostsScreen = () => {
     );
   };
 
-  // Render Report Modal
   const renderReportModal = () => {
     return (
       <Modal
@@ -1399,6 +1517,23 @@ const GroupPostsScreen = () => {
     );
   };
 
+  // Get posts to display - using Redux pendingPosts
+  const getPostsToDisplay = () => {
+    let allPosts = [...groupPosts];
+    
+    // If admin and showPendingPosts is true, add pending posts from Redux
+    if (isAdmin && showPendingPosts && pendingPosts && pendingPosts.length > 0) {
+      console.log('📊 Adding pending posts to display from Redux:', pendingPosts.length);
+      const approvedPostIds = new Set(groupPosts.map(p => p.id));
+      const pendingToAdd = pendingPosts.filter(p => !approvedPostIds.has(p.id));
+      allPosts = [...pendingToAdd, ...allPosts];
+    }
+    
+    return allPosts;
+  };
+
+  const postsToDisplay = getPostsToDisplay();
+
   const renderPost = ({ item: post }: { item: any }) => {
     if (!post) return null;
     
@@ -1406,6 +1541,7 @@ const GroupPostsScreen = () => {
     const shareCount = shareCounts[post.id] || 0;
     const isSharingPost = isSharing[post.id] || false;
     const isBlocked = post.user?.id ? isUserBlocked(post.user.id) : false;
+    const isPending = post.status === 'pending';
     
     return (
       <PostCard
@@ -1427,18 +1563,22 @@ const GroupPostsScreen = () => {
         shareCount={shareCount}
         isSharing={isSharingPost}
         isUserBlocked={isBlocked}
+        isAdmin={isAdmin}
+        onApprovePost={handleApprovePost}
+        onRejectPost={handleRejectPost}
+        isPending={isPending}
       />
     );
   };
 
   const getKeyExtractor = (item: any, index: number) => {
     if (item && item.id) {
-      return item.id.toString();
+      return `post-${item.id}`;
     }
-    return index.toString();
+    return `post-${index}`;
   };
 
-  if (isLoading && posts.length === 0) {
+  if (isLoading && groupPosts.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#0E713E" />
@@ -1450,7 +1590,6 @@ const GroupPostsScreen = () => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0E713E" />
       
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Image source={ASSETS.backIcon} style={styles.backIcon} />
@@ -1464,7 +1603,6 @@ const GroupPostsScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Group Info Banner */}
       {groupCover && (
         <Image source={{ uri: getFullImageUrl(groupCover) }} style={styles.coverImage} />
       )}
@@ -1481,38 +1619,74 @@ const GroupPostsScreen = () => {
         </View>
       </View>
 
-      {/* Join/Leave Group Buttons - FIXED CONDITION */}
-      {!isCheckingRole && !isMember && joinStatus !== 'pending' && (
-        <TouchableOpacity 
-          style={styles.joinButton}
-          onPress={handleJoinGroup}
-        >
-          <Text style={styles.joinButtonText}>Join Group</Text>
-        </TouchableOpacity>
+      {!isCheckingRole && (
+        <>
+          {!isMember && joinStatus !== 'pending' && (
+            <TouchableOpacity 
+              style={styles.joinButton}
+              onPress={handleJoinGroup}
+            >
+              <Text style={styles.joinButtonText}>Join Group</Text>
+            </TouchableOpacity>
+          )}
+
+          {joinStatus === 'pending' && (
+            <View style={styles.pendingContainer}>
+              <Text style={styles.pendingText}>⏳ Join request pending admin approval</Text>
+            </View>
+          )}
+
+          {isMember && !isAdmin && (
+            <TouchableOpacity 
+              style={styles.leaveButton}
+              onPress={handleLeaveGroup}
+            >
+              <Text style={styles.leaveButtonText}>Leave Group</Text>
+            </TouchableOpacity>
+          )}
+
+          {isAdmin && (
+            <View style={styles.adminBadge}>
+              <Text style={styles.adminBadgeText}>👑 You are an admin</Text>
+            </View>
+          )}
+        </>
       )}
 
-      {joinStatus === 'pending' && (
-        <View style={styles.pendingContainer}>
-          <Text style={styles.pendingText}>⏳ Join request pending admin approval</Text>
+      {isCheckingRole && (
+        <View style={styles.checkingRoleContainer}>
+          <ActivityIndicator size="small" color="#0E713E" />
+          <Text style={styles.checkingRoleText}>Checking membership...</Text>
         </View>
       )}
 
-      {!isCheckingRole && isMember && !isAdmin && (
-        <TouchableOpacity 
-          style={styles.leaveButton}
-          onPress={handleLeaveGroup}
-        >
-          <Text style={styles.leaveButtonText}>Leave Group</Text>
-        </TouchableOpacity>
-      )}
-
-      {!isCheckingRole && isAdmin && (
-        <View style={styles.adminBadge}>
-          <Text style={styles.adminBadgeText}>👑 You are an admin</Text>
+      {/* Admin Toggle for Pending Posts - Using Redux pendingPosts */}
+      {isAdmin && (
+        <View style={styles.adminToggleContainer}>
+          <TouchableOpacity
+            style={[styles.adminToggleButton, !showPendingPosts && styles.adminToggleActive]}
+            onPress={() => setShowPendingPosts(false)}
+          >
+            <Text style={[styles.adminToggleText, !showPendingPosts && styles.adminToggleTextActive]}>
+              Published
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.adminToggleButton, showPendingPosts && styles.adminToggleActive]}
+            onPress={() => {
+              setShowPendingPosts(true);
+              if (isAdmin) {
+                loadPendingPosts();
+              }
+            }}
+          >
+            <Text style={[styles.adminToggleText, showPendingPosts && styles.adminToggleTextActive]}>
+              Pending ({pendingPosts?.length || 0})
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
 
-      {/* Create Post Input - Only for members */}
       {(isMember || isAdmin) && (
         <View style={styles.createPostSection}>
           <TouchableOpacity 
@@ -1550,9 +1724,8 @@ const GroupPostsScreen = () => {
         </View>
       )}
 
-      {/* Posts List */}
       <FlatList
-        data={posts}
+        data={postsToDisplay}
         renderItem={renderPost}
         keyExtractor={getKeyExtractor}
         showsVerticalScrollIndicator={false}
@@ -1561,7 +1734,11 @@ const GroupPostsScreen = () => {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No posts yet</Text>
+            <Text style={styles.emptyText}>
+              {showPendingPosts && isAdmin 
+                ? 'No pending posts' 
+                : 'No posts yet'}
+            </Text>
             <Text style={styles.emptySubtext}>
               {(isMember || isAdmin) 
                 ? 'Be the first to post in this group!' 
@@ -1572,10 +1749,8 @@ const GroupPostsScreen = () => {
         contentContainerStyle={styles.listContent}
       />
 
-      {/* Report Modal */}
       {renderReportModal()}
 
-      {/* Comment Modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -1718,7 +1893,6 @@ const GroupPostsScreen = () => {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Members Modal */}
       <GroupMembersModal
         visible={isMembersModalVisible}
         onClose={() => setIsMembersModalVisible(false)}
@@ -1792,8 +1966,27 @@ const styles = StyleSheet.create({
   textInput: { flex: 1, marginHorizontal: 10, fontSize: 12, color: '#000' },
   imagePickerIcon: { width: 24, height: 24 },
   postCard: { backgroundColor: '#FFF', paddingVertical: 15, marginBottom: 10 },
+  pendingPostCard: { 
+    backgroundColor: '#FFF8E1', 
+    borderWidth: 1, 
+    borderColor: '#FFB300',
+    borderRadius: 8,
+  },
+  pendingBadgeContainer: {
+    backgroundColor: '#FFB300',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+    marginLeft: 25,
+    marginBottom: 8,
+    borderRadius: 12,
+  },
+  pendingBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   postHeader: { flexDirection: 'row', paddingHorizontal: 25, alignItems: 'center', marginBottom: 10 },
-  avatar: { width: 45, height: 45, borderRadius: 22.5 },
   headerInfo: { flex: 1, marginLeft: 10 },
   userName: { fontWeight: '900', fontSize: 16, color: '#000' },
   location: { color: '#666', fontSize: 10, marginTop: 2 },
@@ -1838,6 +2031,31 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   statsText: { color: '#666', fontSize: 12 },
+  adminActionContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 25,
+    paddingVertical: 10,
+    gap: 10,
+    borderTopWidth: 0.5,
+    borderTopColor: '#EEE',
+  },
+  adminActionButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  approveButton: {
+    backgroundColor: '#4CAF50',
+  },
+  rejectButton: {
+    backgroundColor: '#F44336',
+  },
+  adminActionButtonText: {
+    color: '#202020',
+    fontWeight: '600',
+    fontSize: 14,
+  },
   actionButtons: { backgroundColor: '#0E713E', flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 25, gap: 10 },
   actionBtn: { backgroundColor: '#FFFFFF', flex: 1, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', borderRadius: 20, justifyContent: 'center', minHeight: 36 },
   actionBtnText: { color: '#0E713E', fontWeight: 'bold', fontSize: 10 },
@@ -1873,8 +2091,6 @@ const styles = StyleSheet.create({
   loaderContainer: { padding: 40, alignItems: 'center' },
   noCommentsContainer: { alignItems: 'center', paddingVertical: 40 },
   noCommentsText: { color: '#666', fontSize: 14, textAlign: 'center' },
-  
-  // Comment Styles
   commentAvatar: { width: 35, height: 35, borderRadius: 17.5, marginRight: 10 },
   commentContent: { flex: 1 },
   commentBubble: { backgroundColor: '#AACEBC', padding: 10, borderRadius: 14 },
@@ -1895,8 +2111,6 @@ const styles = StyleSheet.create({
   replyUser: { fontWeight: 'bold', fontSize: 11, marginBottom: 2 },
   replyText: { fontSize: 10, color: '#444', lineHeight: 14 },
   replyFooter: { flexDirection: 'row', gap: 12, marginTop: 4, paddingLeft: 5 },
-  
-  // Member Modal Styles
   modalContainerFull: { flex: 1, backgroundColor: '#FFF' },
   modalHeaderFull: {
     flexDirection: 'row',
@@ -1943,8 +2157,43 @@ const styles = StyleSheet.create({
   pendingText: { color: '#FF9800', fontSize: 14, fontWeight: '500' },
   adminBadge: { backgroundColor: '#E8F5E9', marginHorizontal: 20, marginVertical: 5, padding: 5, borderRadius: 20, alignItems: 'center' },
   adminBadgeText: { color: '#0E713E', fontSize: 12, fontWeight: '500' },
-
-  // Report Modal Styles
+  checkingRoleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: '#F5F5F5',
+  },
+  checkingRoleText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: '#666',
+  },
+  adminToggleContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 25,
+    paddingVertical: 10,
+    backgroundColor: '#F5F5F5',
+    gap: 10,
+  },
+  adminToggleButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignItems: 'center',
+    backgroundColor: '#E0E0E0',
+  },
+  adminToggleActive: {
+    backgroundColor: '#0E713E',
+  },
+  adminToggleText: {
+    color: '#666',
+    fontWeight: '500',
+    fontSize: 12,
+  },
+  adminToggleTextActive: {
+    color: '#FFF',
+  },
   reportModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

@@ -12,12 +12,14 @@ import {
   deletePost,
   getPendingPosts,
   updateGroupPostStatus,
-  toggleLike, // ✅ Import toggleLike instead of likePost/unlikePost
+  toggleLike,
+  getGroupPosts, // ✅ Import toggleLike instead of likePost/unlikePost
 } from './postsActions';
 
 const initialState: PostsState = {
   posts: [],
   myPosts: [],
+  groupPosts: [],
   selectedPost: null,
   isLoading: false,
   error: null,
@@ -27,6 +29,13 @@ const initialState: PostsState = {
     total: 0,
     hasMore: true,
   },
+  groupPagination: {
+    page: 1,
+    limit: 10,
+    total: 0,
+    hasMore: true,
+  },
+
   pendingPosts: [],
 };
 
@@ -40,9 +49,23 @@ const postsSlice = createSlice({
     clearPosts: (state) => {
       state.posts = [];
       state.myPosts = [];
+      state.groupPosts = [];
+
       state.selectedPost = null;
-      state.pagination.page = 1;
-      state.pagination.hasMore = true;
+
+      state.pagination = {
+        page: 1,
+        limit: 10,
+        total: 0,
+        hasMore: true,
+      };
+
+      state.groupPagination = {
+        page: 1,
+        limit: 10,
+        total: 0,
+        hasMore: true,
+      };
     },
     clearPendingPosts: (state) => {
       state.pendingPosts = [];
@@ -252,6 +275,46 @@ const postsSlice = createSlice({
     builder.addCase(toggleLike.rejected, (state, action) => {
       // If API fails, we need to revert the optimistic update
       // The error will be shown to the user, and the local action should have already been reverted
+      state.error = action.payload as string;
+    });
+
+    // Get Group Posts
+    builder.addCase(getGroupPosts.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    });
+
+    builder.addCase(getGroupPosts.fulfilled, (state, action) => {
+      state.isLoading = false;
+
+      const {
+        posts,
+        currentPage,
+        totalPages,
+        totalPosts,
+      } = action.payload;
+
+      if (currentPage === 1) {
+        state.groupPosts = posts;
+      } else {
+        state.groupPosts = [
+          ...state.groupPosts,
+          ...posts,
+        ];
+      }
+
+      state.groupPagination = {
+        page: currentPage,
+        limit: 10,
+        total: totalPosts,
+        hasMore: currentPage < totalPages,
+      };
+
+      state.error = null;
+    });
+
+    builder.addCase(getGroupPosts.rejected, (state, action) => {
+      state.isLoading = false;
       state.error = action.payload as string;
     });
   },

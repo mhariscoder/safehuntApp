@@ -12,6 +12,7 @@ import {
   getPendingPosts,
   updateGroupPostStatus,
   toggleLike, // ✅ Import toggleLike
+  getGroupPosts
 } from '../features/posts/postsActions';
 import {
   clearError,
@@ -23,7 +24,7 @@ import { CreatePostData, UpdatePostData, GetPostsParams } from '../features/post
 
 export const usePosts = () => {
   const dispatch = useAppDispatch();
-  const { posts, myPosts, selectedPost, isLoading, error, pagination, pendingPosts } = useAppSelector(
+  const { posts, myPosts, selectedPost, isLoading, error, pagination, pendingPosts, groupPosts, groupPagination } = useAppSelector(
     (state) => state.posts
   );
 
@@ -33,6 +34,10 @@ export const usePosts = () => {
 
   const handleGetAllPosts = async (params?: GetPostsParams) => {
     return dispatch(getAllPosts(params || {})).unwrap();
+  };
+
+  const handleGetAllGroupPosts = async (params?: GetPostsParams) => {
+    return dispatch(getGroupPosts(params || {})).unwrap();
   };
 
   const handleGetMyPosts = async (params?: GetPostsParams) => {
@@ -99,10 +104,13 @@ export const usePosts = () => {
     error,
     pagination,
     pendingPosts,
+    groupPosts, 
+    groupPagination,
     
     // Actions
     createPost: handleCreatePost,
     getAllPosts: handleGetAllPosts,
+    getAllGroupPost: handleGetAllGroupPosts,
     getMyPosts: handleGetMyPosts,
     getPostsByUserId: handleGetPostsByUserId,
     getPostById: handleGetPostById,
