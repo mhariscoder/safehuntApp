@@ -332,6 +332,26 @@ const HomeScreen = () => {
     }
   }, [currentLocation, currentUserId, socketConnected, debouncedLocationUpdate]);
 
+  // Add this useEffect after your state declarations
+  useEffect(() => {
+    if (currentLocation && selectedNearbyUser) {
+      const distance = calculateDistance(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        selectedNearbyUser.currentLatitude,
+        selectedNearbyUser.currentLongitude
+      );
+      const miles = distance * 0.621371;
+      const duration = Math.ceil(distance / 50 * 60);
+      
+      setRouteDistance(`${miles.toFixed(1)} mi`);
+      setRouteDuration(`${duration} mins`);
+    } else if (!selectedNearbyUser) {
+      setRouteDistance(null);
+      setRouteDuration(null);
+    }
+  }, [currentLocation, selectedNearbyUser]);
+
   
   const saveJournalMarkersToCache = async (markers: LocationMarker[]) => {
     try {
@@ -1154,7 +1174,7 @@ const HomeScreen = () => {
               </Marker>
             ))}
 
-            {currentLocation && selectedLocation && (
+            {currentLocation && selectedLocation && selectedLocation.isJournal && (
               <MapViewDirections
                 origin={routeOrigin}
                 destination={selectedLocation.coordinate}
@@ -1181,24 +1201,11 @@ const HomeScreen = () => {
                   const midLat = (currentLocation.latitude + selectedLocation.coordinate.latitude) / 2;
                   const midLng = (currentLocation.longitude + selectedLocation.coordinate.longitude) / 2;
 
-                  const latDelta = Math.abs(currentLocation.latitude - selectedLocation.coordinate.latitude);
-                  const lngDelta = Math.abs(currentLocation.longitude - selectedLocation.coordinate.longitude);
-                  const maxDelta = Math.max(latDelta, lngDelta);
-                  
-                  const targetAltitude = Math.max(1100, maxDelta * 135000);
-
                   setTimeout(() => {
                     mapRef.current?.animateCamera({
                       center: { latitude: midLat, longitude: midLng },
-                      // pitch: 50,
-                      // altitude: targetAltitude,
-                      // heading: 0,
                     }, { duration: 600 });
                   }, 60);
-
-                  console.log('distance', result.distance);
-                  console.log('duration', result.duration);
-                  console.log(result.coordinates);
                 }}
                 onError={(errorMessage) => {
                   console.error('Google Directions API Error: ', errorMessage);

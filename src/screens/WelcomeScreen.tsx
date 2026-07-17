@@ -12,6 +12,8 @@ import {
   Alert,
   Platform,
   Linking,
+  Modal,
+  TextInput,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import LogoComponent from '../components/LogoComponent';
@@ -45,6 +47,14 @@ const WelcomeScreen = ({ navigation }: any) => {
   
   // EULA Acceptance State
   const [hasAcceptedEULA, setHasAcceptedEULA] = useState(false);
+
+  const [showAppleNameModal, setShowAppleNameModal] = useState(false);
+  const [appleName, setAppleName] = useState('');
+
+  const [appleData, setAppleData] = useState({
+    identityToken: '',
+    email: '',
+  });
 
   // Combine both loading sources to prevent button interactions while processing
   const isAuthenticating = loadingProvider !== null || reduxLoading;
@@ -195,6 +205,17 @@ const WelcomeScreen = ({ navigation }: any) => {
 
       const deviceToken = await getDeviceToken();
 
+
+      if (!computedName) {
+        setAppleData({
+          identityToken: identityToken!,
+          email: email ?? '',
+        });
+
+        setShowAppleNameModal(true);
+        return;
+      }
+
       // 3. Dispatch payload directly into your Redux Action pipeline
       const resultAction = await dispatch(
         loginViaSocialToken({
@@ -226,7 +247,57 @@ const WelcomeScreen = ({ navigation }: any) => {
     }
   };
 
+  const submitAppleName = async () => {
+    setLoadingProvider('apple');
+
+    try {
+      const trimmedName = appleName.trim();
+
+      if (!trimmedName) {
+        Alert.alert('Validation', 'Please enter your full name.');
+        return;
+      }
+
+      const deviceToken = await getDeviceToken();
+
+      setShowAppleNameModal(false);
+
+      const resultAction = await dispatch(
+        loginViaSocialToken({
+          socialType: 'apple',
+          socialToken: appleData.identityToken,
+          email: appleData.email,
+          name: trimmedName,
+          deviceToken,
+          deviceType: Platform.OS,
+        }),
+      );
+
+      if (loginViaSocialToken.fulfilled.match(resultAction)) {
+        setAppleName('');
+        setAppleData({
+          identityToken: '',
+          email: '',
+        });
+
+        Alert.alert('Success', 'Logged in successfully with Apple!');
+      } else {
+        Alert.alert(
+          'Apple Sign-In Error',
+          (resultAction.payload as string) || 'Login failed.',
+        );
+      }
+    } catch (error) {
+      console.error('Apple name submit error:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setLoadingProvider(null);
+    }
+  };
+
   return (
+
+    <>
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
@@ -351,6 +422,38 @@ const WelcomeScreen = ({ navigation }: any) => {
         </View>
       </SafeAreaView>
     </View>
+      <Modal
+        visible={showAppleNameModal}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalCard}>
+
+            <Text style={styles.title}>
+              Complete Your Profile
+            </Text>
+
+            <TextInput
+              placeholder="Full Name"
+              value={appleName}
+              onChangeText={setAppleName}
+              style={styles.input}
+            />
+
+            <TouchableOpacity
+              onPress={submitAppleName}
+              style={styles.button}
+            >
+              <Text style={styles.buttonText}>
+                Continue
+              </Text>
+            </TouchableOpacity>
+
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
