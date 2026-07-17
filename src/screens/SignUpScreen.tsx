@@ -345,7 +345,7 @@ const SignUpScreen = ({ navigation }: any) => {
 
           <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={isLoading}>
             <Text style={styles.loginLink}>
-              Already have an account? <Text style={styles.boldText}>{`Log in >`}</Text>
+              Already have an account? <Text style={styles.boldText}>{`Log in`}</Text>
             </Text>
           </TouchableOpacity>
 

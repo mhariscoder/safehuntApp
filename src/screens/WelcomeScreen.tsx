@@ -86,7 +86,7 @@ const WelcomeScreen = ({ navigation }: any) => {
 
       // Defensively target data across newer/older Google SDK return structures
       const data = signInResponse.data || signInResponse;
-      const { idToken, user } = data;
+      const { idToken, user } = data as any;
 
       if (!idToken) {
         throw new Error('Failed to retrieve ID token from Google initialization.');
@@ -318,7 +318,7 @@ const WelcomeScreen = ({ navigation }: any) => {
         <View style={styles.buttonContainer}>
           
           {/* --- MANDATORY EULA CHECKBOX --- */}
-          <View style={styles.checkboxContainer}>
+          {/* <View style={styles.checkboxContainer}>
             <TouchableOpacity 
               style={styles.checkbox} 
               onPress={() => setHasAcceptedEULA(!hasAcceptedEULA)}
@@ -338,13 +338,13 @@ const WelcomeScreen = ({ navigation }: any) => {
               </Text>
               . I understand there is absolutely zero tolerance for objectionable content or abusive users.
             </Text>
-          </View>
+          </View> */}
 
           {/* Sign Up Button */}
           <TouchableOpacity 
             style={[styles.signUpButton, isButtonDisabled && styles.disabledButtonOpacity]}
             onPress={() => navigation.navigate('SignUp')}
-            disabled={isButtonDisabled}
+            // disabled={isButtonDisabled}
           >
             <Text style={styles.signUpText}>Sign Up</Text>
           </TouchableOpacity>
@@ -353,7 +353,7 @@ const WelcomeScreen = ({ navigation }: any) => {
           <TouchableOpacity 
             style={[styles.logInButton, isButtonDisabled && styles.disabledButtonOpacity]}
             onPress={() => navigation.navigate('Login')}
-            disabled={isButtonDisabled}
+            // disabled={isButtonDisabled}
           >
             <Text style={styles.logInText}>Log In</Text>
           </TouchableOpacity>
@@ -362,7 +362,7 @@ const WelcomeScreen = ({ navigation }: any) => {
           <TouchableOpacity 
             style={[styles.socialLink, isButtonDisabled && styles.disabledSocialOpacity]}
             onPress={handleGoogleSignIn}
-            disabled={isButtonDisabled}
+            // disabled={isButtonDisabled}
           >
             {loadingProvider === 'google' ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
@@ -382,7 +382,7 @@ const WelcomeScreen = ({ navigation }: any) => {
           <TouchableOpacity 
             style={[styles.socialLink, isButtonDisabled && styles.disabledSocialOpacity]}
             onPress={handleFacebookSignIn}
-            disabled={isButtonDisabled}
+            // disabled={isButtonDisabled}
           >
             {loadingProvider === 'facebook' ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
@@ -403,7 +403,7 @@ const WelcomeScreen = ({ navigation }: any) => {
             <TouchableOpacity 
               style={[styles.socialLink, isButtonDisabled && styles.disabledSocialOpacity]}
               onPress={handleAppleSignIn}
-              disabled={isButtonDisabled}
+              // disabled={isButtonDisabled}
             >
               {loadingProvider === 'apple' ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -426,28 +426,35 @@ const WelcomeScreen = ({ navigation }: any) => {
         visible={showAppleNameModal}
         transparent
         animationType="fade"
+        onRequestClose={() => {}}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalCard}>
 
-            <Text style={styles.title}>
-              Complete Your Profile
-            </Text>
+            <Text style={styles.title}>Complete Your Profile</Text>
 
             <TextInput
               placeholder="Full Name"
+              placeholderTextColor="#888"
               value={appleName}
               onChangeText={setAppleName}
               style={styles.input}
+              autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={submitAppleName}
             />
 
             <TouchableOpacity
               onPress={submitAppleName}
               style={styles.button}
+              disabled={loadingProvider === 'apple'}
             >
-              <Text style={styles.buttonText}>
-                Continue
-              </Text>
+              {loadingProvider === 'apple' ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.buttonText}>Continue</Text>
+              )}
             </TouchableOpacity>
 
           </View>
@@ -550,11 +557,61 @@ const styles = StyleSheet.create({
   },
   // Dims the registration buttons to 40% opacity when the EULA is not checked
   disabledButtonOpacity: {
-    opacity: 0.4,
+    // opacity: 0.4,
   },
   // Dims the social login buttons to 40% opacity when the EULA is not checked
   disabledSocialOpacity: {
-    opacity: 0.4,
+    // opacity: 0.4,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+
+  modalCard: {
+    width: '100%',
+    backgroundColor: '#1B1B1B',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#0E713E',
+  },
+
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+
+  input: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    color: '#FFFFFF',
+    backgroundColor: '#2A2A2A',
+    fontSize: 16,
+    marginBottom: 20,
+  },
+
+  button: {
+    height: 50,
+    borderRadius: 10,
+    backgroundColor: '#0E713E',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
 

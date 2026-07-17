@@ -408,17 +408,18 @@ const SubscriptionScreen = ({ navigation }: any) => {
             <View style={{ width: 40 }} /> 
           </View>
 
-          <View style={styles.heroWrapper}>
-            <Image
-              source={require('../../assets/hunter_hero.png')} 
-              style={styles.heroImage}
-            />
-          </View>
-
           <ScrollView 
             showsVerticalScrollIndicator={false} 
             contentContainerStyle={styles.scrollContent}
           >
+            <View style={styles.heroWrapper}>
+              <Image
+                source={require('../../assets/hunter_hero.png')} 
+                style={styles.heroImage}
+              />
+            </View>
+
+          
             {/* Hero Image */}
             
 
@@ -654,7 +655,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 25,
     paddingBottom: 30,
     paddingTop: 30,
-    width: '100%'
+    width: '100%',
+    top: -40
   },
   title: {
     fontFamily: 'Montserrat-Regular',

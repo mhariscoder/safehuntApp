@@ -41,13 +41,13 @@ const LoginScreen = ({ navigation }: any) => {
       return;
     }
 
-    if (!acceptedEula) {
-      Alert.alert(
-        'Agreement Required',
-        'Please accept the Terms of Service and Privacy Policy before logging in.'
-      );
-      return;
-    }
+    // if (!acceptedEula) {
+    //   Alert.alert(
+    //     'Agreement Required',
+    //     'Please accept the Terms of Service and Privacy Policy before logging in.'
+    //   );
+    //   return;
+    // }
 
     try {
       await dispatch(login({ username, password, rememberMe })).unwrap();
@@ -154,7 +154,7 @@ const LoginScreen = ({ navigation }: any) => {
             </View>
 
             {/* --- MANDATORY EULA CHECKBOX --- */}
-            <View style={styles.eulaContainer}>
+            {/* <View style={styles.eulaContainer}>
               <TouchableOpacity
                 style={styles.checkbox}
                 onPress={() => setAcceptedEula(!acceptedEula)}
@@ -184,7 +184,7 @@ const LoginScreen = ({ navigation }: any) => {
                 </Text>
                 . I understand there is absolutely zero tolerance for objectionable content or abusive users.
               </Text>
-            </View>
+            </View> */}
 
             {/* Remember Me & Forgot Password Row */}
             <View style={styles.optionsRow}>
@@ -223,7 +223,7 @@ const LoginScreen = ({ navigation }: any) => {
           {/* Footer Link */}
           <TouchableOpacity onPress={handleSignUp} disabled={isLoading}>
             <Text style={styles.signupLink}>
-              New to Safe Hunt? <Text style={styles.boldText}>Sign Up {'>'}</Text>
+              New to Safe Hunt? <Text style={styles.boldText}>Sign Up</Text>
             </Text>
           </TouchableOpacity>
 
