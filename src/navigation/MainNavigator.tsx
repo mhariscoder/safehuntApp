@@ -49,7 +49,7 @@ export const MainNavigator = () => {
 
       if (user?.subscriptionStatus === 'SUBSCRIBED') {
         setShowSubscription(false);
-      } else if (user?.subscriptionStatus === 'CANCEL') {
+      } else if (user?.subscriptionStatus === 'CANCELLED') {
         setShowSubscription(true);
       } else if (hasStartedTrial === 'true') {
         setShowSubscription(false);

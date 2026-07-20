@@ -18,6 +18,9 @@ import { useIAP, ErrorCode, type Purchase, getReceiptIOS } from 'react-native-ia
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../constants/config';
 import { store } from '../app/store';
+import { useAppDispatch } from '../app/store/hooks';
+import { logout } from '../features/auth/authActions';
+import { resetAndNavigate } from '../navigation/navigationRef';
 
 const { width } = Dimensions.get('window');
 
@@ -30,8 +33,9 @@ const SUBSCRIPTION_IDS =
 
 const SubscriptionScreen = ({ navigation }: any) => {
   const state = store.getState();
-  const token = state.auth.token;
+  const user = state.auth.user;
   const subscriptionStatus = state.auth.user?.subscriptionStatus;
+  const dispatch = useAppDispatch();
 
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [isPurchasing, setIsPurchasing] = useState(false);
@@ -369,6 +373,44 @@ const SubscriptionScreen = ({ navigation }: any) => {
     }
   };
 
+  const handleLogout = async () => {
+      // Show confirmation dialog
+      Alert.alert(
+        'Logout',
+        'Are you sure you want to logout?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Logout',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                // Call logout API through Redux action
+                await dispatch(logout()).unwrap();
+                
+                // Navigate to login screen after successful logout
+                // Using reset to clear navigation stack
+                resetAndNavigate('Auth', { screen: 'Login' });
+                
+                // Show success message (optional)
+                Alert.alert('Success', 'Logged out successfully');
+              } catch (error: any) {
+                console.error('Logout error:', error);
+                Alert.alert(
+                  'Error',
+                  error.message || 'Failed to logout. Please try again.'
+                );
+              }
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    };
+
   // Loading Screen
   if (!connected || loadingProducts) {
     return (
@@ -397,15 +439,31 @@ const SubscriptionScreen = ({ navigation }: any) => {
         <View style={styles.content}>
           {/* Header Section */}
           <View style={styles.header}>
-            <TouchableOpacity 
-              onPress={handleContinueTrial} 
-              style={styles.backButton}
-              disabled={isPurchasing}
-            >
-              <Image source={require('../../assets/back_arrow.png')} style={styles.backArrow} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Safe Hunt Subscription</Text>
-            <View style={{ width: 40 }} /> 
+            {
+              user?.subscriptionStatus !== 'CANCELLED' &&
+                <TouchableOpacity 
+                  onPress={handleContinueTrial} 
+                  style={styles.backButton}
+                  disabled={isPurchasing}
+                >
+                  <Image source={require('../../assets/back_arrow.png')} style={styles.backArrow} />
+                </TouchableOpacity>
+                
+            }
+            <Text style={[styles.headerTitle, {flex:1,textAlign: 'center'}]}>Safe Hunt Subscription</Text>
+            {/* <View style={{ width: 40 }} />  */}
+
+            {
+              user?.subscriptionStatus === 'CANCELLED' &&
+                <TouchableOpacity 
+                  onPress={handleLogout} 
+                  style={styles.backButton}
+                  disabled={isPurchasing}
+                >
+                  <Text style={{color: '#fff', fontStyle: 'italic'}}>Logout</Text>
+                </TouchableOpacity>
+                
+            }
           </View>
 
           <ScrollView 
@@ -430,11 +488,11 @@ const SubscriptionScreen = ({ navigation }: any) => {
               </Text>
 
               <Text style={styles.mainTitle}>
-                Stay Connected without linits! Start your FREE 7 day trail today.
+                Stay Connected without limits! Start your FREE 7 day trail today.
               </Text>
 
               <Text style={styles.mainDesc}>
-                SafeHuntPro not only eases your mind in the outdoors but also when trying to choose the right features for you . We hve simplified our options to an all inclusive subscription package that allows each user to get the full Safe Hunt Pro experience.
+                Safe Hunt Pro not only eases your mind in the outdoors but also when trying to choose the right features for you . We have simplified our options to an all inclusive subscription package that allows each user to get the full Safe Hunt Pro experience.
               </Text>
 
               {/* Feature List */}
@@ -553,15 +611,26 @@ const SubscriptionScreen = ({ navigation }: any) => {
                 </TouchableOpacity>
 
                 {/* Continue to Trial Link */}
-                <TouchableOpacity
-                  style={styles.trialLinkContainer}
-                  onPress={handleContinueTrial}
-                  disabled={isPurchasing}
-                >
-                  <Text style={styles.trialLinkText}>
-                    Continue with Free Trial
-                  </Text>
-                </TouchableOpacity>
+
+                {
+                  user?.subscriptionStatus === 'CANCELLED' ?
+                  <>
+                    <Text style={[styles.trialLinkText, {marginTop: 15}]}>
+                      You Must Require To Subscribe Now
+                    </Text>
+                  </>
+                  :
+                  <TouchableOpacity
+                    style={[styles.trialLinkContainer]}
+                    onPress={handleContinueTrial}
+                    disabled={isPurchasing}
+                  >
+                    <Text style={styles.trialLinkText}>
+                      Continue with Free Trial
+                    </Text>
+                  </TouchableOpacity>
+                }
+                
 
                 {/* Restore Purchases (iOS specific) */}
                 {Platform.OS === 'ios' && (
@@ -575,7 +644,7 @@ const SubscriptionScreen = ({ navigation }: any) => {
                 )}
 
                 {/* Debug Info */}
-                <View style={styles.debugContainer}>
+                {/* <View style={styles.debugContainer}>
                   <Text style={styles.debugText}>
                     Platform: {Platform.OS}
                   </Text>
@@ -588,7 +657,7 @@ const SubscriptionScreen = ({ navigation }: any) => {
                   <Text style={styles.debugText}>
                     Connected: {connected ? 'Yes' : 'No'}
                   </Text>
-                </View>
+                </View> */}
               
               </>)}
 

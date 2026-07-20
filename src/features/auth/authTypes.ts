@@ -10,7 +10,7 @@ export interface User {
   profilecomplete?: boolean;
   status?: 'OTP_VERIFIED' | 'PENDING_VERIFICATION';
   subscriptionTier?: 'free' | 'premium';
-  subscriptionStatus?: "SUBSCRIBED" | "TRIAL" | "CANCEL";
+  subscriptionStatus?: "SUBSCRIBED" | "TRIAL" | "CANCELLED";
   createdAt?: string;
   coverPhoto?: string;
   equipmentImages?: string[];
