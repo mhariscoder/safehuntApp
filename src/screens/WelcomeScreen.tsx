@@ -75,7 +75,7 @@ const WelcomeScreen = ({ navigation }: any) => {
 
   // --- GOOGLE SIGN IN ---
   const handleGoogleSignIn = async () => {
-    if (isButtonDisabled) return;
+    // if (isButtonDisabled) return;
     try {
       setLoadingProvider('google');
       await GoogleSignin.hasPlayServices();
@@ -124,7 +124,7 @@ const WelcomeScreen = ({ navigation }: any) => {
 
   // --- FACEBOOK SIGN IN ---
   const handleFacebookSignIn = async () => {
-    if (isButtonDisabled) return;
+    // if (isButtonDisabled) return;
     try {
       setLoadingProvider('facebook');
 
@@ -181,7 +181,7 @@ const WelcomeScreen = ({ navigation }: any) => {
 
   // --- APPLE SIGN IN ---
   const handleAppleSignIn = async () => {
-    if (isButtonDisabled) return;
+    // if (isButtonDisabled) return;
     try {
       setLoadingProvider('apple');
 
