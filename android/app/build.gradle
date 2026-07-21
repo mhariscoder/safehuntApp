@@ -83,8 +83,8 @@ android {
         applicationId "com.safehunt.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "2.0"
+        versionCode 11
+        versionName "1.0.0"
     }
     signingConfigs {
         debug {
