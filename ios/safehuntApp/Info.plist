@@ -37,12 +37,12 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.1025243047759-v9ajc10u5jutq1ut2da1f2mjhis97pq6</string>
+				<string>com.googleusercontent.apps.10welcom5243047759-v9ajc10u5jutq1ut2da1f2mjhis97pq6</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>1</string>
 	<key>FacebookAdvertiserIDCollectionEnabled</key>
 	<true/>
 	<key>FacebookAppID</key>
