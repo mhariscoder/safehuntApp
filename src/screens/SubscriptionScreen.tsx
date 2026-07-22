@@ -34,6 +34,7 @@ const SUBSCRIPTION_IDS =
 const SubscriptionScreen = ({ navigation }: any) => {
   const state = store.getState();
   const user = state.auth.user;
+  const accesstoken = state.auth.token;
   const subscriptionStatus = state.auth.user?.subscriptionStatus;
   const dispatch = useAppDispatch();
 
@@ -55,7 +56,7 @@ const SubscriptionScreen = ({ navigation }: any) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${accesstoken}`,
           },
           body: JSON.stringify({
             token,
@@ -86,7 +87,7 @@ const SubscriptionScreen = ({ navigation }: any) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${accesstoken}`,
         },
         body: JSON.stringify({
           token: receipt,

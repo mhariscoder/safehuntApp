@@ -7,74 +7,6 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1025243047759:android:d4082637c6451e311bc73a",
-        "android_client_info": {
-          "package_name": "com.safe.hunt"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "1025243047759-1nbs0goffer32olsjs1p0i5a9mlceoq0.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.safe.hunt",
-            "certificate_hash": "88864d20b74081ebe7a788fec57e3a582ac1a1e6"
-          }
-        },
-        {
-          "client_id": "1025243047759-4ec2dg0nfcqajirvf6q3g8pburvc9jh2.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.safe.hunt",
-            "certificate_hash": "117bc32860d738515635ca682867191555be5c6d"
-          }
-        },
-        {
-          "client_id": "1025243047759-b7s85h9kboovkj96ednehjb5ergnihon.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.safe.hunt",
-            "certificate_hash": "4d6c0090188fbb9d79349d796580fcd850164aea"
-          }
-        },
-        {
-          "client_id": "1025243047759-tfe74vomqlhn6s7unltfkbnih00gsp7b.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.safe.hunt",
-            "certificate_hash": "7898f15b137512628de78b602c27ff4bbfab6677"
-          }
-        },
-        {
-          "client_id": "1025243047759-dborv8d3da2nrilgj0fd5rq7ib6div55.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBIiKZErTuP2wbgiWDlGGJOop525sIIjLY"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "1025243047759-dborv8d3da2nrilgj0fd5rq7ib6div55.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "1025243047759-1rlkphusmram7i2hlahkfuah73oc51vg.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.safe.hunt"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
         "mobilesdk_app_id": "1:1025243047759:android:816fee29aa3a459d1bc73a",
         "android_client_info": {
           "package_name": "com.safehunt.app"
@@ -114,6 +46,14 @@
           }
         },
         {
+          "client_id": "1025243047759-k7kpvhdpf0k7e6l4lr2akdktaubdqkag.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.safehunt.app",
+            "certificate_hash": "fcb98283c7c698f18cf73489e760d2dd5fc8a986"
+          }
+        },
+        {
           "client_id": "1025243047759-kcf5g498dprsucfgvbvf04oq0kakhbm6.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -122,79 +62,19 @@
           }
         },
         {
+          "client_id": "1025243047759-nqvhtfdv7c94clbbsja6dju6tmccs48f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.safehunt.app",
+            "certificate_hash": "999d480db5f415420a9de39a163bfad39b643388"
+          }
+        },
+        {
           "client_id": "1025243047759-qhfjl82mmd2uh1jntp1dglph8q30irdl.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.safehunt.app",
             "certificate_hash": "4d6c0090188fbb9d79349d796580fcd850164aea"
-          }
-        },
-        {
-          "client_id": "1025243047759-dborv8d3da2nrilgj0fd5rq7ib6div55.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBIiKZErTuP2wbgiWDlGGJOop525sIIjLY"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "1025243047759-dborv8d3da2nrilgj0fd5rq7ib6div55.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "1025243047759-1rlkphusmram7i2hlahkfuah73oc51vg.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.safe.hunt"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:1025243047759:android:e949aeecb1ba67ac1bc73a",
-        "android_client_info": {
-          "package_name": "com.safehunt.pro"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "1025243047759-5inj8bpv55cpamchabvjvjh1rs78q1hh.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.safehunt.pro",
-            "certificate_hash": "7898f15b137512628de78b602c27ff4bbfab6677"
-          }
-        },
-        {
-          "client_id": "1025243047759-gk8avvvjh1rfje7f4qtu9i2fnsoth7mm.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.safehunt.pro",
-            "certificate_hash": "4d6c0090188fbb9d79349d796580fcd850164aea"
-          }
-        },
-        {
-          "client_id": "1025243047759-ng67f50tnts18g6oai9qnabu886r17hm.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.safehunt.pro",
-            "certificate_hash": "117bc32860d738515635ca682867191555be5c6d"
-          }
-        },
-        {
-          "client_id": "1025243047759-of0hscv27ofpdt2ho44ob6t2nngbm1ip.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.safehunt.pro",
-            "certificate_hash": "88864d20b74081ebe7a788fec57e3a582ac1a1e6"
           }
         },
         {
