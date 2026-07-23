@@ -21,6 +21,7 @@ import { store } from '../app/store';
 import { useAppDispatch } from '../app/store/hooks';
 import { logout } from '../features/auth/authActions';
 import { resetAndNavigate } from '../navigation/navigationRef';
+import { updateUserLocal } from '../features/auth/authSlice';
 
 const { width } = Dimensions.get('window');
 
@@ -125,6 +126,10 @@ const SubscriptionScreen = ({ navigation }: any) => {
           const result = await verifyAppleSubscription(purchase);
           console.log('Apple verify result:', result);
         }
+
+        dispatch(updateUserLocal({
+          subscriptionStatus: 'SUBSCRIBED'
+        }));
 
         // Refresh active subscriptions
         await getActiveSubscriptions(SUBSCRIPTION_IDS);
@@ -355,6 +360,11 @@ const SubscriptionScreen = ({ navigation }: any) => {
       const active = await getActiveSubscriptions(SUBSCRIPTION_IDS);
       
       if (active && active.length > 0) {
+        // 🚀 UPDATE REDUX STATE ON RESTORE
+        dispatch(updateUserLocal({
+          subscriptionStatus: 'SUBSCRIBED'
+        }));
+
         Alert.alert(
           'Success', 
           'Your subscriptions have been restored!',

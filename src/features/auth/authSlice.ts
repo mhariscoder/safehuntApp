@@ -12,6 +12,8 @@ import {
   deleteMyAccount
 } from './authActions';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const initialState: AuthState = {
   user: null,
   token: null,
@@ -32,9 +34,16 @@ const authSlice = createSlice({
         state.user.subscriptionTier = action.payload as 'free' | 'premium';
       }
     },
-    updateUserLocal: (state, action: PayloadAction<Partial<User>>) => {
+    updateUserLocal: (state, action) => {
       if (state.user) {
-        state.user = { ...state.user, ...action.payload };
+        state.user = {
+          ...state.user,
+          ...action.payload,
+        };
+        // Persist updated user state locally
+        AsyncStorage.setItem('user', JSON.stringify(state.user)).catch(err =>
+          console.error('Error saving user to AsyncStorage:', err)
+        );
       }
     },
     logoutLocal: (state) => {

@@ -36,39 +36,34 @@ export const MainNavigator = () => {
   const { user } = useAppSelector(state => state.auth);
 
   const [loading, setLoading] = useState(true);
-  const [showSubscription, setShowSubscription] = useState(true);
+  const [needsSubscription, setNeedsSubscription] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    determineAccess();
-  }, [user]);
 
   const determineAccess = useCallback(async () => {
     try {
       const hasStartedTrial = await AsyncStorage.getItem('HAS_STARTED_TRIAL');
 
       if (user?.subscriptionStatus === 'SUBSCRIBED') {
-        setShowSubscription(false);
+        setNeedsSubscription(false);
       } else if (user?.subscriptionStatus === 'CANCELLED') {
-        setShowSubscription(true);
+        setNeedsSubscription(true);
       } else if (hasStartedTrial === 'true') {
-        setShowSubscription(false);
+        setNeedsSubscription(false);
       } else {
-        setShowSubscription(true);
+        setNeedsSubscription(true);
       }
     } catch (error) {
-      console.log(error);
-      setShowSubscription(true);
+      console.log('Error checking subscription access:', error);
+      setNeedsSubscription(true);
     } finally {
       setLoading(false);
     }
   }, [user]);
 
+  // Single effect to handle initial access check & user state updates
   useEffect(() => {
-    if (user) {
-      determineAccess();
-    }
-  }, [user, determineAccess]);
+    determineAccess();
+  }, [determineAccess]);
 
   useEffect(() => {
     // @ts-ignore
@@ -77,7 +72,7 @@ export const MainNavigator = () => {
       setRefreshKey(prev => prev + 1);
       determineAccess();
     };
-    
+
     return () => {
       // @ts-ignore
       delete global.refreshNavigation;
@@ -86,14 +81,8 @@ export const MainNavigator = () => {
 
   if (loading) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <ActivityIndicator />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" />
       </View>
     );
   }
@@ -101,36 +90,30 @@ export const MainNavigator = () => {
   return (
     <Stack.Navigator
       key={refreshKey}
+      // Set initialRouteName dynamically based on subscription state
+      initialRouteName={needsSubscription ? 'Subscription' : 'Home'}
       screenOptions={{
         headerShown: false,
         animation: 'fade',
       }}
     >
-      {showSubscription ? (
-        <Stack.Screen
-          name="Subscription"
-          component={SubscriptionScreen}
-        />
-      ) : (
-        <Stack.Screen
-          name="Home"
-          component={HomeScreen}
-        />
-      )}
+      {/* ALWAYS include both screens in the stack so navigation doesn't break */}
+      <Stack.Screen name="Subscription" component={SubscriptionScreen} />
+      <Stack.Screen name="Home" component={HomeScreen} />
 
       <Stack.Screen name="Feed" component={FeedScreen} />
       <Stack.Screen name="Notification" component={NotificationScreen} />
       <Stack.Screen name="Message" component={MessageScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="Windy" component={WindyScreen} />
-      
+
       {/* Other Screens */}
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
       <Stack.Screen name="Settings" component={SettingScreen} />
       <Stack.Screen name="MessageDetail" component={MessageDetailScreen} />
       <Stack.Screen name="HuntingJournal" component={HuntingJournalScreen} />
       <Stack.Screen name="NewNote" component={NewNoteScreen} />
-      
+
       <Stack.Screen name="CardDetail" component={CardDetailScreen} />
       <Stack.Screen name="Friends" component={FriendsScreen} />
       <Stack.Screen name="GroupPosts" component={GroupPostsScreen} />
