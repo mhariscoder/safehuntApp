@@ -27,6 +27,7 @@ import { AppDispatch, RootState } from '../app/store';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { LoginManager, AccessToken, Profile } from 'react-native-fbsdk-next';
 import { appleAuth } from '@invertase/react-native-apple-authentication';
+import auth from '@react-native-firebase/auth';
 
 import { getDeviceToken } from '../utils/pushToken';
 
@@ -91,6 +92,9 @@ const WelcomeScreen = ({ navigation }: any) => {
       if (!idToken) {
         throw new Error('Failed to retrieve ID token from Google initialization.');
       }
+
+      const googleCredentials = auth.GoogleAuthProvider.credential(idToken);
+      auth().signInWithCredential(googleCredentials);
 
       const deviceToken = await getDeviceToken();
 

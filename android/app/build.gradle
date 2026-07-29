@@ -83,7 +83,7 @@ android {
         applicationId "com.safehunt.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 20
+        versionCode 26
         versionName "1.0.0"
     }
     signingConfigs {
@@ -100,6 +100,7 @@ android {
                 storePassword MYAPP_UPLOAD_STORE_PASSWORD
                 keyAlias MYAPP_UPLOAD_KEY_ALIAS
                 keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+                storeType "PKCS12"
             }
         }
     }
