@@ -38,6 +38,14 @@
           }
         },
         {
+          "client_id": "1025243047759-rmp3sskhkdverj4lh6ohj72hesg54kk6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.safehunt.app",
+            "certificate_hash": "f7610362ff846a3ac8a09163f3a81c5cf22d768f"
+          }
+        },
+        {
           "client_id": "1025243047759-dborv8d3da2nrilgj0fd5rq7ib6div55.apps.googleusercontent.com",
           "client_type": 3
         }
