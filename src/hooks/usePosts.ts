@@ -24,7 +24,7 @@ import { CreatePostData, UpdatePostData, GetPostsParams } from '../features/post
 
 export const usePosts = () => {
   const dispatch = useAppDispatch();
-  const { posts, myPosts, selectedPost, isLoading, error, pagination, pendingPosts, groupPosts, groupPagination } = useAppSelector(
+  const { posts, myPosts, selectedPost, isLoading, error, pagination, pendingPosts, groupPosts, groupPagination, userPosts, userPostPagination } = useAppSelector(
     (state) => state.posts
   );
 
@@ -106,6 +106,8 @@ export const usePosts = () => {
     pendingPosts,
     groupPosts, 
     groupPagination,
+    userPosts, 
+    userPostPagination,
     
     // Actions
     createPost: handleCreatePost,

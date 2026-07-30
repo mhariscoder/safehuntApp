@@ -20,6 +20,7 @@ const initialState: PostsState = {
   posts: [],
   myPosts: [],
   groupPosts: [],
+  userPosts: [],
   selectedPost: null,
   isLoading: false,
   error: null,
@@ -35,7 +36,12 @@ const initialState: PostsState = {
     total: 0,
     hasMore: true,
   },
-
+  userPostPagination: {
+    page: 1,
+    limit: 10,
+    total: 0,
+    hasMore: true,
+  },
   pendingPosts: [],
 };
 
@@ -178,7 +184,7 @@ const postsSlice = createSlice({
     });
     builder.addCase(getPostsByUserId.fulfilled, (state, action) => {
       state.isLoading = false;
-      state.posts = action.payload;
+      state.userPosts = action.payload;
       state.error = null;
     });
     builder.addCase(getPostsByUserId.rejected, (state, action) => {

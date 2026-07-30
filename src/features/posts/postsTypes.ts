@@ -55,6 +55,7 @@ export interface PostsState {
   posts: Post[];
   myPosts: Post[];
   groupPosts: Post[];
+  userPosts: Post[];
   selectedPost: Post | null;
   isLoading: boolean;
   error: string | null;
@@ -65,6 +66,12 @@ export interface PostsState {
     hasMore: boolean;
   };
   groupPagination: {
+    page: number;
+    limit: number;
+    total: number;
+    hasMore: boolean;
+  };
+  userPostPagination: {
     page: number;
     limit: number;
     total: number;
