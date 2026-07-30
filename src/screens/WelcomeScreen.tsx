@@ -94,7 +94,7 @@ const WelcomeScreen = ({ navigation }: any) => {
       }
 
       const googleCredentials = auth.GoogleAuthProvider.credential(idToken);
-      auth().signInWithCredential(googleCredentials);
+      await auth().signInWithCredential(googleCredentials);
 
       const deviceToken = await getDeviceToken();
 
