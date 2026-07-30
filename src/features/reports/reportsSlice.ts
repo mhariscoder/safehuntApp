@@ -8,14 +8,14 @@ interface ReportState {
   reports: any[];
   isLoading: boolean;
   error: string | null;
-  reportedPosts: Set<number>; // Track which posts the user has reported
+  reportedPosts: number[]; // Use array instead of Set for serializability
 }
 
 const initialState: ReportState = {
   reports: [],
   isLoading: false,
   error: null,
-  reportedPosts: new Set<number>(),
+  reportedPosts: [], // Initialize as empty array
 };
 
 const reportsSlice = createSlice({
@@ -27,11 +27,24 @@ const reportsSlice = createSlice({
     },
     clearReports: (state) => {
       state.reports = [];
-      state.reportedPosts = new Set<number>();
+      state.reportedPosts = [];
     },
     // Track reported posts locally
     markPostAsReported: (state, action: PayloadAction<number>) => {
-      state.reportedPosts.add(action.payload);
+      // Check if post ID already exists before adding
+      if (!state.reportedPosts.includes(action.payload)) {
+        state.reportedPosts.push(action.payload);
+      }
+    },
+    // Remove a post from reported list (optional)
+    unmarkPostAsReported: (state, action: PayloadAction<number>) => {
+      state.reportedPosts = state.reportedPosts.filter(
+        (postId) => postId !== action.payload
+      );
+    },
+    // Reset reported posts (optional)
+    resetReportedPosts: (state) => {
+      state.reportedPosts = [];
     },
   },
   extraReducers: (builder) => {
@@ -42,7 +55,11 @@ const reportsSlice = createSlice({
     });
     builder.addCase(reportPost.fulfilled, (state, action) => {
       state.isLoading = false;
-      state.reportedPosts.add(action.payload.postId);
+      // Add post ID to reported posts if it doesn't exist
+      const postId = action.payload.postId;
+      if (!state.reportedPosts.includes(postId)) {
+        state.reportedPosts.push(postId);
+      }
       state.error = null;
     });
     builder.addCase(reportPost.rejected, (state, action) => {
@@ -67,5 +84,12 @@ const reportsSlice = createSlice({
   },
 });
 
-export const { clearError, clearReports, markPostAsReported } = reportsSlice.actions;
+export const { 
+  clearError, 
+  clearReports, 
+  markPostAsReported,
+  unmarkPostAsReported,
+  resetReportedPosts 
+} = reportsSlice.actions;
+
 export const reportsReducer = reportsSlice.reducer;

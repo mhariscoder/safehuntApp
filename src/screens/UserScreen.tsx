@@ -134,6 +134,10 @@ const UserScreen = () => {
   } = usePosts();
 
   useEffect(() => {
+    console.log('userPosts', userPosts)
+  }, [userPosts])
+
+  useEffect(() => {
     blockUser({ page: 1, limit: 100 });
   }, []);
 

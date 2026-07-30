@@ -220,23 +220,56 @@ class PostsService {
   }
 
   // Get posts by user ID
-  async getPostsByUserId(userId: number, params: GetPostsParams = {}) {
+  // async getPostsByUserId(userId: number, params: GetPostsParams = {}) {
+  //   try {
+  //     const { page = 1, limit = 10, groupId } = params;
+  //     const response = await api.get(`/post/user/${userId}`, {
+  //       params: { page, limit, groupId }
+  //     });
+      
+  //     let postsArray = [];
+
+  //     console.log('response.data', response.data)
+      
+  //     if (response.data && Array.isArray(response.data.posts)) {
+  //       postsArray = response.data.posts;
+  //     } else if (response.data && Array.isArray(response.data)) {
+  //       postsArray = response.data;
+  //     } else {
+  //       postsArray = [];
+  //     }
+      
+  //     return postsArray.map((post: any) => this.processPost(post));
+  //   } catch (error) {
+  //     console.error('Get posts by user error:', error);
+  //     throw error;
+  //   }
+  // }
+
+   async getPostsByUserId(userId: number, params: GetPostsParams = {}) {
     try {
       const { page = 1, limit = 10, groupId } = params;
+
       const response = await api.get(`/post/user/${userId}`, {
-        params: { page, limit, groupId }
+        params: {
+          page,
+          limit,
+          groupId,
+        },
       });
-      
-      let postsArray = [];
-      
-      if (response.data && Array.isArray(response.data.posts)) {
-        postsArray = response.data.posts;
-      } else if (response.data && Array.isArray(response.data)) {
-        postsArray = response.data;
-      } else {
-        postsArray = [];
+
+      console.log('Response:', JSON.stringify(response.data, null, 2));
+
+      const postsArray =
+        response?.data?.data?.posts ??
+        response?.data?.posts ??
+        response?.data ??
+        [];
+
+      if (!Array.isArray(postsArray)) {
+        return [];
       }
-      
+
       return postsArray.map((post: any) => this.processPost(post));
     } catch (error) {
       console.error('Get posts by user error:', error);
