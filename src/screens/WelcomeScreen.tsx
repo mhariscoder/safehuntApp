@@ -27,7 +27,7 @@ import { AppDispatch, RootState } from '../app/store';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { LoginManager, AccessToken, Profile } from 'react-native-fbsdk-next';
 import { appleAuth } from '@invertase/react-native-apple-authentication';
-import auth from '@react-native-firebase/auth';
+// import auth from '@react-native-firebase/auth';
 
 import { getDeviceToken } from '../utils/pushToken';
 
@@ -76,7 +76,6 @@ const WelcomeScreen = ({ navigation }: any) => {
 
   // --- GOOGLE SIGN IN ---
   const handleGoogleSignIn = async () => {
-    // if (isButtonDisabled) return;
     try {
       setLoadingProvider('google');
       await GoogleSignin.hasPlayServices();
@@ -93,12 +92,9 @@ const WelcomeScreen = ({ navigation }: any) => {
         throw new Error('Failed to retrieve ID token from Google initialization.');
       }
 
-      const googleCredentials = auth.GoogleAuthProvider.credential(idToken);
-      auth().signInWithCredential(googleCredentials);
-
       const deviceToken = await getDeviceToken();
 
-      // 2. Dispatch the SocialLoginData payload directly into your updated Redux flow
+      // 2. Dispatch the SocialLoginData payload directly to your backend API
       const resultAction = await dispatch(
         loginViaSocialToken({
           socialType: 'google',
@@ -110,7 +106,7 @@ const WelcomeScreen = ({ navigation }: any) => {
         })
       );
 
-      // 3. Evaluate store response result status matching criteria rules
+      // 3. Evaluate store response result status
       if (loginViaSocialToken.fulfilled.match(resultAction)) {
         Alert.alert('Success', 'Logged in successfully with Google!');
       } else {
@@ -372,7 +368,7 @@ const WelcomeScreen = ({ navigation }: any) => {
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <>
-                <Text style={styles.socialText}>Sign Up With </Text>
+                <Text style={styles.socialText}>Sign up with </Text>
                 <Image
                   source={require('../../assets/logos_google-icon.png')}
                   style={{ marginLeft: 5, width: 20, height: 20 }}
@@ -392,7 +388,7 @@ const WelcomeScreen = ({ navigation }: any) => {
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <>
-                <Text style={styles.socialText}>Sign Up With </Text>
+                <Text style={styles.socialText}>Sign up with </Text>
                 <Image
                   source={require('../../assets/fb-logo.png')}
                   style={{ marginLeft: 5, width: 20, height: 20 }}
@@ -476,7 +472,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 30,
+    paddingVertical: 60,
   },
   buttonContainer: {
     width: '100%',
