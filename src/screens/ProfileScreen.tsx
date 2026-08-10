@@ -904,10 +904,14 @@ const styles = StyleSheet.create({
     borderColor: '#0E713E',
     borderRadius: 80,
     overflow: 'hidden',
-    backgroundColor: '#FFF'
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center', 
+    width: 130, 
+    height: 130
   },
-  profilePic: { width: 130, height: 130, resizeMode: 'cover',  },
-  profileText: { color: '#000', fontSize: 48, fontWeight: '800', width: 130, height: 130, textAlign: 'center', verticalAlign: 'middle' },
+  profilePic: { width: 130, height: 130, resizeMode: 'cover' },
+  profileText: { color: '#000', fontSize: 48, fontWeight: '800', textAlign: 'center'},
   infoSection: { paddingHorizontal: 25, marginTop: 30 },
   userName: { fontSize: 20, fontWeight: '900', color: '#000' },
   mutualFriends: { color: '#666', fontSize: 12, marginVertical: 4 },

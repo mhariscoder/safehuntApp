@@ -501,6 +501,7 @@ const UserScreen = () => {
   
   const { userId } = route.params || {};
   const { user: currentUser } = useAppSelector((state) => state.auth);
+  const isOwnProfile = String(currentUser?.id) === String(userId);
   
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -1492,6 +1493,10 @@ const UserScreen = () => {
   };
 
   const renderActionButton = () => {
+    if (isOwnProfile) {
+      return null;
+    }
+    
     switch (friendStatus) {
       case 'friends':
         return (
