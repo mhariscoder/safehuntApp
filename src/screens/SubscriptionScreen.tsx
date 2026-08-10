@@ -17,11 +17,12 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useIAP, ErrorCode, type Purchase, getReceiptIOS, validateReceiptIos } from 'react-native-iap';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../constants/config';
-import { store } from '../app/store';
+import { RootState } from '../app/store';
 import { useAppDispatch } from '../app/store/hooks';
 import { logout } from '../features/auth/authActions';
 import { resetAndNavigate } from '../navigation/navigationRef';
 import { updateUserLocal } from '../features/auth/authSlice';
+import { useSelector } from 'react-redux';
 
 const { width } = Dimensions.get('window');
 
@@ -33,11 +34,17 @@ const SUBSCRIPTION_IDS =
     : ['safe_hunt_subscription_pro'];
 
 const SubscriptionScreen = ({ navigation }: any) => {
-  const state = store.getState();
-  const user = state.auth.user;
-  const accesstoken = state.auth.token;
-  const subscriptionStatus = state.auth.user?.subscriptionStatus;
   const dispatch = useAppDispatch();
+
+  // const state = store.getState();
+  // const user = state.auth.user;
+  // const accesstoken = state.auth.token;
+  // const subscriptionStatus = state.auth.user?.subscriptionStatus;
+
+  const user = useSelector((state: RootState) => state.auth.user);
+  const accesstoken = useSelector((state: RootState) => state.auth.token);
+  const subscriptionStatus = user?.subscriptionStatus;
+
 
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [isPurchasing, setIsPurchasing] = useState(false);

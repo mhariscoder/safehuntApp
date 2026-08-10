@@ -41,36 +41,84 @@ export const MainNavigator = () => {
 
   const determineAccess = useCallback(async () => {
     try {
-      const hasStartedTrial = await AsyncStorage.getItem('HAS_STARTED_TRIAL');
+      setLoading(true);
 
+      const hasStartedTrial = await AsyncStorage.getItem(
+        'HAS_STARTED_TRIAL',
+      );
+
+      console.log('========== ACCESS CHECK ==========');
+      console.log('User:', user);
+      console.log('Subscription Status:', user?.subscriptionStatus);
+      console.log('HAS_STARTED_TRIAL:', hasStartedTrial);
+      console.log('==================================');
+
+      /**
+       * 1. Active subscription
+       * Always allow access.
+       */
       if (user?.subscriptionStatus === 'SUBSCRIBED') {
         setNeedsSubscription(false);
-      } else if (user?.subscriptionStatus === 'CANCELLED') {
-        setNeedsSubscription(true);
-      } else if (hasStartedTrial === 'true') {
-        setNeedsSubscription(false);
-      } else {
-        setNeedsSubscription(true);
+        return;
       }
+
+      /**
+       * 2. User cancelled/expired subscription
+       * Force subscription screen.
+       */
+      if (user?.subscriptionStatus === 'CANCELLED') {
+        setNeedsSubscription(true);
+        return;
+      }
+
+      /**
+       * 3. Trial already started
+       *
+       * This is shared across all login providers:
+       * Apple / Google / Facebook / Custom Login.
+       */
+      if (hasStartedTrial === 'true') {
+        setNeedsSubscription(false);
+        return;
+      }
+
+      /**
+       * 4. Completely new user
+       *
+       * No subscription and no trial.
+       */
+      setNeedsSubscription(true);
     } catch (error) {
-      console.log('Error checking subscription access:', error);
+      console.error(
+        'Error checking subscription access:',
+        error,
+      );
+
+      /**
+       * Fail safe:
+       * If we cannot determine the user's access,
+       * show the subscription screen.
+       */
       setNeedsSubscription(true);
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-  // Single effect to handle initial access check & user state updates
   useEffect(() => {
     determineAccess();
   }, [determineAccess]);
 
+  /**
+   * Keep global refreshNavigation for compatibility
+   * with SubscriptionScreen.
+   */
   useEffect(() => {
     // @ts-ignore
-    global.refreshNavigation = () => {
-      console.log('🔄 Refreshing navigation...');
-      setRefreshKey(prev => prev + 1);
-      determineAccess();
+    global.refreshNavigation = async () => {
+      console.log('🔄 Refreshing navigation access...');
+
+      await determineAccess();
     };
 
     return () => {

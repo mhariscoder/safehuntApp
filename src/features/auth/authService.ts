@@ -348,6 +348,46 @@ class AuthService {
     }
   }
 
+  /**
+   * NEW: Verify social login WITHOUT persisting credentials to Keychain/AsyncStorage.
+   * This allows WelcomeScreen to check if a user has a real name before committing login.
+   */
+  async verifySocialUser(payload: SocialLoginData) {
+    try {
+      console.log(`Verifying social login via provider: ${payload.socialType}`);
+      
+      const response = await api.post('/social-auth/login', payload);
+      const { data } = response.data;
+
+      const token = data.token;
+      const user = {
+        id: data.id,
+        role: data.role,
+        email: data.email,
+        username: data.username,
+        displayname: data.displayname,
+        profilePhoto: data.profilePhoto,
+        coverPhoto: data.coverPhoto,
+        profilePicture: data.profilePicture,
+        profilecomplete: data.profilecomplete,
+        status: data.status,
+        phonenumber: data.phonenumber,
+        bio: data.bio,
+        huntingExperience: data.huntingExperience,
+        skills: data.skills,
+        currentLatitude: data.currentLatitude,
+        currentLongitude: data.currentLongitude,
+        subscriptionStatus: data.subscriptionStatus,
+      };
+
+      // Returns raw user and token WITHOUT saving to storage yet!
+      return { user, token };
+    } catch (error) {
+      console.error('Verify social user service error:', error);
+      throw error;
+    }
+  }
+
   async loginViaSocialToken(payload: SocialLoginData) {
     try {
       console.log(`Attempting social login via provider: ${payload.socialType}`);

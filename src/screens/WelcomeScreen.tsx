@@ -30,6 +30,7 @@ import { appleAuth } from '@invertase/react-native-apple-authentication';
 // import auth from '@react-native-firebase/auth';
 
 import { getDeviceToken } from '../utils/pushToken';
+import authService from '../features/auth/authService';
 
 const { width } = Dimensions.get('window');
 
@@ -55,6 +56,7 @@ const WelcomeScreen = ({ navigation }: any) => {
   const [appleData, setAppleData] = useState({
     identityToken: '',
     email: '',
+    appleUserId: ''
   });
 
   // Combine both loading sources to prevent button interactions while processing
@@ -179,7 +181,7 @@ const WelcomeScreen = ({ navigation }: any) => {
     }
   };
 
-  // --- APPLE SIGN IN ---
+  // // --- APPLE SIGN IN ---
   // const handleAppleSignIn = async () => {
   //   // if (isButtonDisabled) return;
   //   try {
@@ -297,188 +299,104 @@ const WelcomeScreen = ({ navigation }: any) => {
 
   const handleAppleSignIn = async () => {
     try {
-      console.log('🍎 Apple Sign-In Started');
       setLoadingProvider('apple');
 
-      // 1. Request credential authorization from Apple Native Client
-      console.log('📱 Requesting Apple credentials...');
       const appleAuthRequestResponse = await appleAuth.performRequest({
         requestedOperation: appleAuth.Operation.LOGIN,
         requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
       });
 
-      console.log('📱 Apple Auth Response:', JSON.stringify(appleAuthRequestResponse, null, 2));
-
-      // 2. Extract identityToken
-      const { identityToken, email, fullName, user } = appleAuthRequestResponse;
-
-      console.log('🔑 Apple Identity Token:', identityToken ? 'Present' : 'Missing');
-      console.log('📧 Apple Email:', email);
-      console.log('👤 Apple FullName:', fullName);
-      console.log('🆔 Apple User ID:', user);
+      const { identityToken, email, fullName, user: appleUserId } = appleAuthRequestResponse;
 
       if (!identityToken) {
-        console.error('❌ No identity token received from Apple');
         throw new Error('Apple Sign-In failed to return an identity token.');
       }
 
-      // Build name from Apple response (if available)
-      const appleProvidedFirstName = fullName?.givenName || '';
-      const appleProvidedLastName = fullName?.familyName || '';
-      const appleProvidedFullName = `${appleProvidedFirstName} ${appleProvidedLastName}`.trim();
-      
-      console.log('👤 Apple Provided First Name:', appleProvidedFirstName);
-      console.log('👤 Apple Provided Last Name:', appleProvidedLastName);
-      console.log('👤 Apple Provided Full Name:', appleProvidedFullName || '(Empty)');
+      const computedName = fullName 
+        ? `${fullName.givenName ?? ''} ${fullName.familyName ?? ''}`.trim() 
+        : '';
 
       const deviceToken = await getDeviceToken();
-      console.log('📱 Device Token:', deviceToken ? 'Present' : 'Missing');
 
-      // 3. Dispatch login with whatever name Apple provided
-      console.log('🔄 Dispatching loginViaSocialToken with Apple data...');
-      const resultAction = await dispatch(
+      // 1. Check user state directly without dispatching Redux login
+      const { user: existingUser } = await authService.verifySocialUser({
+        socialType: 'apple',
+        socialToken: identityToken,
+        appleUserId: appleUserId,
+        email: email ?? '',
+        name: computedName,
+        deviceToken: deviceToken,
+        deviceType: Platform.OS,
+      });
+
+      // 2. Extract DB name
+      const dbName = (
+        existingUser?.displayname?.trim() || 
+        existingUser?.username?.trim() || 
+        ''
+      );
+
+      const isPlaceholder = dbName.toLowerCase().startsWith('apple');
+      const hasRealName = dbName !== '' && !isPlaceholder;
+
+      // 3. CHECK IF PLACEHOLDER NAME IS FOUND
+      if (!hasRealName) {
+        console.log('--> DECISION: Placeholder name found! Showing Modal.');
+
+        setAppleData({
+          identityToken: identityToken,
+          appleUserId: appleUserId,
+          email: email ?? existingUser?.email ?? '',
+        });
+
+        setShowAppleNameModal(true); // <--- STAYS OPEN! Redux hasn't redirected yet!
+        return;
+      }
+
+      // 4. Real name exists -> Dispatch Redux action to save state and navigate to Home
+      await dispatch(
         loginViaSocialToken({
           socialType: 'apple',
           socialToken: identityToken,
-          email: email ?? '',
-          name: appleProvidedFullName, // Send whatever Apple provided (could be empty string)
+          appleUserId: appleUserId,
+          email: email ?? existingUser?.email ?? '',
+          name: dbName,
           deviceToken: deviceToken,
           deviceType: Platform.OS,
         })
       );
 
-      console.log('📦 Login Response:', JSON.stringify(resultAction, null, 2));
-
-      if (loginViaSocialToken.fulfilled.match(resultAction)) {
-        console.log('✅ Login successful');
-        
-        // 4. Check the response from backend
-        const responseData = resultAction.payload as any;
-        console.log('📦 Response Data:', JSON.stringify(responseData, null, 2));
-        
-        if (responseData && responseData.user) {
-          const userData = responseData.user;
-          console.log('👤 User Data from DB:', JSON.stringify(userData, null, 2));
-          
-          // CHECK ONLY DISPLAYNAME
-          const hasDisplayName = userData.displayname && userData.displayname.trim() !== '';
-          
-          console.log('📊 DisplayName Check in DB:');
-          console.log('  - DisplayName:', hasDisplayName ? `✅ Exists (${userData.displayname})` : '❌ Missing');
-          
-          if (hasDisplayName) {
-            // User already has a displayname in DB - proceed
-            console.log('✅ User already has displayname in database');
-            Alert.alert('Success', 'Logged in successfully with Apple!');
-            // navigation.navigate('Home');
-          } else {
-            // User doesn't have a displayname in DB
-            console.log('⚠️ User has no displayname in database');
-            
-            // Check if Apple provided a name
-            if (appleProvidedFullName && appleProvidedFullName.length > 0) {
-              console.log('✅ Apple provided a name, but backend didn\'t save it');
-              console.log('🔄 Trying to login again with the name...');
-              
-              // Try login again with the name - this will update the user
-              const retryResult = await dispatch(
-                loginViaSocialToken({
-                  socialType: 'apple',
-                  socialToken: identityToken,
-                  email: email ?? '',
-                  name: appleProvidedFullName,
-                  deviceToken: deviceToken,
-                  deviceType: Platform.OS,
-                })
-              );
-              
-              if (loginViaSocialToken.fulfilled.match(retryResult)) {
-                const retryData = retryResult.payload as any;
-                console.log('📦 Retry Response:', JSON.stringify(retryData, null, 2));
-                
-                if (retryData && retryData.user) {
-                  const updatedUser = retryData.user;
-                  const displayNameNowExists = updatedUser.displayname && updatedUser.displayname.trim() !== '';
-                  
-                  if (displayNameNowExists) {
-                    console.log('✅ DisplayName saved successfully on retry');
-                    Alert.alert('Success', 'Logged in successfully with Apple!');
-                    // navigation.navigate('Home');
-                  } else {
-                    console.log('⚠️ DisplayName still not saved, showing modal');
-                    setAppleData({
-                      identityToken: identityToken,
-                      email: email ?? '',
-                    });
-                    setShowAppleNameModal(true);
-                  }
-                }
-              } else {
-                console.log('⚠️ Retry failed, showing modal');
-                setAppleData({
-                  identityToken: identityToken,
-                  email: email ?? '',
-                });
-                setShowAppleNameModal(true);
-              }
-            } else {
-              // Apple didn't provide a name - show modal
-              console.log('⚠️ Apple did not provide a name, showing modal');
-              setAppleData({
-                identityToken: identityToken,
-                email: email ?? '',
-              });
-              setShowAppleNameModal(true);
-            }
-          }
-        } else {
-          console.log('⚠️ No user data in response');
-          Alert.alert('Success', 'Logged in successfully with Apple!');
-        }
-      } else {
-        console.error('❌ Login failed:', resultAction.payload);
-        const errorMessage = resultAction.payload as string;
-        throw new Error(errorMessage || 'Server rejected Apple authorization token.');
-      }
-
     } catch (error: any) {
-      console.error('❌ Apple Sign-In Error:', error);
       if (error.code === appleAuth.Error.CANCELED) {
         console.log('User canceled Apple Sign-In');
       } else {
+        console.error('Apple Sign-In Error:', error);
         Alert.alert('Apple Sign-In Error', error.message || 'An error occurred.');
       }
     } finally {
-      console.log('🏁 Apple Sign-In completed');
       setLoadingProvider(null);
     }
   };
 
   const submitAppleName = async () => {
-    console.log('📝 Submitting Apple name...');
     setLoadingProvider('apple');
 
     try {
       const trimmedName = appleName.trim();
-      console.log('📝 User entered name:', trimmedName);
 
       if (!trimmedName) {
-        console.warn('⚠️ Empty name submitted');
         Alert.alert('Validation', 'Please enter your full name.');
         return;
       }
 
       const deviceToken = await getDeviceToken();
-      console.log('📱 Device Token:', deviceToken ? 'Present' : 'Missing');
 
-      setShowAppleNameModal(false);
-      console.log('🔄 Dispatching login with user provided name...');
-
-      // Login with the name user provided - this will update the user
+      // Send the user's new real name to the backend
       const resultAction = await dispatch(
         loginViaSocialToken({
           socialType: 'apple',
           socialToken: appleData.identityToken,
+          appleUserId: appleData.appleUserId,
           email: appleData.email,
           name: trimmedName,
           deviceToken,
@@ -486,50 +404,24 @@ const WelcomeScreen = ({ navigation }: any) => {
         }),
       );
 
-      console.log('📦 Login Response:', JSON.stringify(resultAction, null, 2));
-
       if (loginViaSocialToken.fulfilled.match(resultAction)) {
-        console.log('✅ Login successful with user provided name');
-        const responseData = resultAction.payload as any;
-        
-        if (responseData && responseData.user) {
-          const userData = responseData.user;
-          console.log('👤 User Data after update:', JSON.stringify(userData, null, 2));
-          
-          // CHECK ONLY DISPLAYNAME
-          const hasDisplayNameNow = userData.displayname && userData.displayname.trim() !== '';
-          
-          console.log('📊 DisplayName exists now:', hasDisplayNameNow ? `✅ Yes (${userData.displayname})` : '❌ No');
-          
-          setAppleName('');
-          setAppleData({
-            identityToken: '',
-            email: '',
-          });
-          
-          if (hasDisplayNameNow) {
-            Alert.alert('Success', 'Logged in successfully with Apple!');
-            // navigation.navigate('Home');
-          } else {
-            Alert.alert('Warning', 'Login successful but displayname could not be saved. Please try again.');
-          }
-        } else {
-          setAppleName('');
-          setAppleData({
-            identityToken: '',
-            email: '',
-          });
-          Alert.alert('Success', 'Logged in successfully with Apple!');
-        }
+        setShowAppleNameModal(false);
+        setAppleName('');
+        setAppleData({
+          identityToken: '',
+          appleUserId: '',
+          email: '',
+        });
+
+        Alert.alert('Success', 'Profile updated & Logged in successfully!');
       } else {
-        console.error('❌ Login failed:', resultAction.payload);
         Alert.alert(
           'Apple Sign-In Error',
           (resultAction.payload as string) || 'Login failed.',
         );
       }
     } catch (error) {
-      console.error('❌ Apple name submit error:', error);
+      console.error('Apple name submit error:', error);
       Alert.alert('Error', 'Something went wrong. Please try again.');
     } finally {
       setLoadingProvider(null);

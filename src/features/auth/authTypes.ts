@@ -91,4 +91,5 @@ export interface SocialLoginData {
   name?: string;
   deviceToken?: string | any;
   deviceType?: string;
+  appleUserId?: string;
 }
