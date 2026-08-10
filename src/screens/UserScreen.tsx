@@ -1819,7 +1819,7 @@ const UserScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FCFAF0',
+    backgroundColor: '#FFF',
   },
   centerContainer: {
     flex: 1,
@@ -1946,7 +1946,7 @@ const styles = StyleSheet.create({
   detailValue: { fontSize: 12, color: '#666' },
   tabPlaceholder: { padding: 40, alignItems: 'center' },
   placeholderText: { color: '#999', fontStyle: 'italic' },
-  postsContainer: { paddingHorizontal: 25, paddingVertical: 15 },
+  postsContainer: {  },
   postsLoaderContainer: { padding: 40, alignItems: 'center' },
   noPostsContainer: { alignItems: 'center', paddingVertical: 40 },
   noPostsText: { color: '#999', fontSize: 14, marginBottom: 15 },
@@ -1959,7 +1959,7 @@ const styles = StyleSheet.create({
   postCard: { 
     backgroundColor: '#FFF', 
     marginBottom: 20, 
-    borderRadius: 12, 
+    // borderRadius: 12, 
     overflow: 'hidden', 
     shadowColor: '#000', 
     shadowOffset: { width: 0, height: 1 }, 

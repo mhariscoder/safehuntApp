@@ -194,7 +194,7 @@ const SignUpConfirmationScreen = ({ navigation, route }: any) => {
               style={[styles.input, isLoading && styles.inputDisabled]}
               placeholder="Confirmation Code"
               placeholderTextColor="#A4A4A4"
-              keyboardType="number-pad"
+              // keyboardType="number-pad"
               value={code}
               onChangeText={setCode}
               editable={!isLoading}

@@ -7,6 +7,8 @@ import {
   Image,
   ViewStyle,
   ActivityIndicator,
+  Linking,
+  Alert,
 } from 'react-native';
 
 import Geolocation from '@react-native-community/geolocation';
@@ -21,7 +23,7 @@ const ASSETS = {
 interface TopHeaderProps {
   onMenuPress: () => void;
   onSearchPress?: () => void;
-  onSOSPress?: () => void;
+  // onSOSPress?: () => void;
   containerStyle?: ViewStyle;
 }
 
@@ -38,7 +40,7 @@ type WeatherState = {
 const TopHeader: React.FC<TopHeaderProps> = ({
   onMenuPress,
   onSearchPress,
-  onSOSPress,
+  // onSOSPress,
   containerStyle,
 }) => {
   const navigation = useNavigation<any>();
@@ -176,6 +178,24 @@ const TopHeader: React.FC<TopHeaderProps> = ({
   useEffect(() => {
     getLocationAndFetchWeather();
   }, []);
+
+  const SOS_NUMBER = '911'; // Change this if you need a different SOS number
+
+  const onSOSPress = async () => {
+    const phoneUrl = `tel:${SOS_NUMBER}`;
+
+    try {
+      const supported = await Linking.canOpenURL(phoneUrl);
+
+      if (supported) {
+        await Linking.openURL(phoneUrl);
+      } else {
+        Alert.alert('Unable to make call', 'Your device cannot make phone calls.');
+      }
+    } catch (error) {
+      Alert.alert('Call failed', 'Unable to start the SOS call.');
+    }
+  };
 
   return (
     <View style={[styles.topControls, containerStyle]}>

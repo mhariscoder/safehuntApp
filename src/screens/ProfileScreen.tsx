@@ -275,7 +275,8 @@ const ProfileScreen = () => {
       // navigation.goBack(); // Remove this line if present
       
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update profile');
+      console.log('error', error)
+      Alert.alert('Error', error || error.message || 'Failed to update profile');
     } finally {
       setLoading(false);
     }
@@ -833,7 +834,7 @@ const ProfileScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FCFAF0',
+    backgroundColor: '#FFF',
   },
   centerContainer: {
     flex: 1,
@@ -1002,7 +1003,7 @@ const styles = StyleSheet.create({
   },
   seeAllText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
   // Posts styles
-  postsContainer: { paddingHorizontal: 25, paddingVertical: 15 },
+  postsContainer: {  },
   postsLoader: { marginVertical: 20 },
   postCard: { backgroundColor: '#FFF', marginBottom: 20, borderRadius: 12, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
   postHeader: {  color: '#FFF', flexDirection: 'row', alignItems: 'center', padding: 15 },
