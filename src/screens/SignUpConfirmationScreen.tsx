@@ -10,6 +10,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useAppDispatch, useAppSelector } from '../app/store/hooks';
@@ -194,12 +195,18 @@ const SignUpConfirmationScreen = ({ navigation, route }: any) => {
               style={[styles.input, isLoading && styles.inputDisabled]}
               placeholder="Confirmation Code"
               placeholderTextColor="#A4A4A4"
-              // keyboardType="number-pad"
+              keyboardType="number-pad"
+              returnKeyType="done"
               value={code}
               onChangeText={setCode}
               editable={!isLoading}
               maxLength={6}
+              onSubmitEditing={() => {
+                Keyboard.dismiss();
+                // handleConfirm();
+              }}
             />
+
             
             <TouchableOpacity 
               onPress={handleResendCode}
